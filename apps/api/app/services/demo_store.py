@@ -190,12 +190,14 @@ class DemoStore:
             ),
         ]
         self._activity_index = 1004
+        self._seeded_kpis = [kpi.model_copy(deep=True) for kpi in self.kpis]
         self._seeded_demo_posture = self.kpis[3].model_copy(deep=True)
         self._seeded_anomaly_context = {
             anomaly.id: {
                 "summary": anomaly.summary,
                 "recommended_action": anomaly.recommended_action,
                 "confidence": anomaly.confidence,
+                "detected_at": anomaly.detected_at,
             }
             for anomaly in self.anomalies
         }
@@ -439,9 +441,21 @@ class DemoStore:
                 f"{observation_fragment} Project: {project_id or 'not reported'}"
             ),
         )
+        self.kpis[0] = KpiCard(
+            label="Open anomalies",
+            value=str(len(self.anomalies)),
+            detail="Signal queue refreshed with live CH4 screening evidence from Earth Engine.",
+        )
+        self.kpis[1] = KpiCard(
+            label="Potential CO2e",
+            value=self._seeded_kpis[1].value,
+            detail="Queue remains demo-safe, but the lead signal now carries live CH4 screening proof.",
+        )
 
         strongest_anomaly = self._strongest_anomaly()
         seeded_context = self._seeded_anomaly_context[strongest_anomaly.id]
+        if latest_observation_at:
+            strongest_anomaly.detected_at = latest_observation_at
         strongest_anomaly.summary = (
             f"{seeded_context['summary']} "
             f"Latest Earth Engine sync validated the Kazakhstan CH4 screening path. "
@@ -474,13 +488,14 @@ class DemoStore:
         )
 
     def clear_live_evidence(self) -> None:
-        self.kpis[3] = self._seeded_demo_posture.model_copy(deep=True)
+        self.kpis = [kpi.model_copy(deep=True) for kpi in self._seeded_kpis]
 
         for anomaly in self.anomalies:
             seeded_context = self._seeded_anomaly_context.get(anomaly.id)
             if seeded_context is None:
                 continue
 
+            anomaly.detected_at = seeded_context["detected_at"]
             anomaly.summary = seeded_context["summary"]
             anomaly.recommended_action = seeded_context["recommended_action"]
             anomaly.confidence = seeded_context["confidence"]
