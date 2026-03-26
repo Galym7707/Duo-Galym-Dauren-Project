@@ -138,6 +138,39 @@ button {
   line-height: 1.4;
 }
 
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.status-pill {
+  border: 1px solid var(--line-strong);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-live {
+  color: var(--accent);
+}
+
+.status-fallback {
+  color: var(--sand);
+}
+
+.status-copy {
+  color: var(--muted);
+}
+
+.inline-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+}
+
 .hero-aside {
   border-left: 1px solid var(--line);
   padding-left: 22px;
@@ -474,6 +507,12 @@ button {
   background: transparent;
   color: var(--text);
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.ghost-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
 }
 
 .ghost-button:hover,

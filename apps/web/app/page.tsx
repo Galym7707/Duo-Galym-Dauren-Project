@@ -1,15 +1,20 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import {
-  anomalyFeed,
   demoScript,
-  kpis,
-  seededIncidents,
   type Anomaly,
   type Incident,
   type IncidentTask,
 } from "../lib/demo-data";
+import {
+  completeTask,
+  type DashboardHydrationState,
+  fallbackDashboardState,
+  generateReport as generateReportRequest,
+  loadDashboardState,
+  promoteAnomaly as promoteAnomalyRequest,
+} from "../lib/api";
 
 const severityTone: Record<Anomaly["severity"], string> = {
   high: "severity-high",
@@ -24,9 +29,45 @@ const severityLabel: Record<Anomaly["severity"], string> = {
 };
 
 export default function Page() {
-  const [anomalies, setAnomalies] = useState(anomalyFeed);
-  const [incidents, setIncidents] = useState(seededIncidents);
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState(anomalyFeed[0].id);
+  const fallback = fallbackDashboardState();
+  const [dashboardSource, setDashboardSource] =
+    useState<DashboardHydrationState["source"]>(fallback.source);
+  const [kpiCards, setKpiCards] = useState(fallback.kpis);
+  const [anomalies, setAnomalies] = useState(fallback.anomalies);
+  const [incidents, setIncidents] = useState(fallback.incidents);
+  const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0].id);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<null | string>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateDashboard() {
+      const state = await loadDashboardState();
+      if (cancelled) {
+        return;
+      }
+
+      startTransition(() => {
+        setDashboardSource(state.source);
+        setKpiCards(state.kpis);
+        setAnomalies(state.anomalies);
+        setIncidents(state.incidents);
+        setSelectedAnomalyId((current) => {
+          const exists = state.anomalies.some((item) => item.id === current);
+          return exists ? current : state.anomalies[0]?.id ?? current;
+        });
+        setLoadingDashboard(false);
+      });
+    }
+
+    void hydrateDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedAnomaly =
     anomalies.find((item) => item.id === selectedAnomalyId) ?? anomalies[0];
@@ -39,101 +80,141 @@ export default function Page() {
     ? activeIncident.tasks.filter((task) => task.status === "done").length
     : 0;
 
-  const reportSections = buildReportSections(selectedAnomaly, activeIncident);
+  const reportSections = activeIncident?.reportSections ?? buildReportSections(selectedAnomaly, activeIncident);
 
-  const promoteToIncident = () => {
+  const promoteToIncident = async () => {
     if (selectedAnomaly.linkedIncidentId) {
       return;
     }
 
-    const incidentId = `INC-${selectedAnomaly.id.slice(3)}`;
-    const newIncident: Incident = {
-      id: incidentId,
-      anomalyId: selectedAnomaly.id,
-      title: `New verification case for ${selectedAnomaly.assetName}`,
-      status: "triage",
-      owner: "MRV response lead",
-      priority: selectedAnomaly.severity === "high" ? "P1" : "P2",
-      verificationWindow: selectedAnomaly.severity === "high" ? "Next 12 hours" : "Next 24 hours",
-      narrative:
-        "This incident was promoted directly from the anomaly queue to prove the screening-to-action flow before we connect live operator systems.",
-      tasks: [
-        {
-          id: `${incidentId}-TASK-1`,
-          title: "Validate signal persistence against 12-week baseline",
-          owner: "Remote sensing analyst",
-          etaHours: 2,
-          status: "done",
-          notes: "Baseline and current window exported for review.",
-        },
-        {
-          id: `${incidentId}-TASK-2`,
-          title: "Assign field verification owner",
-          owner: "Area operations coordinator",
-          etaHours: 4,
-          status: "open",
-          notes: "Route can be merged with scheduled integrity patrol.",
-        },
-      ],
-    };
+    setBusyAction("promote");
+    setRequestError(null);
 
+    try {
+      if (dashboardSource === "api") {
+        const incident = await promoteAnomalyRequest(selectedAnomaly.id);
+        applyIncidentUpdate(incident, selectedAnomaly.id);
+      } else {
+        applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
+      }
+    } catch {
+      applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
+      setRequestError("Incident promotion failed. The fallback demo state is still available.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const markTaskDone = async (taskId: string) => {
+    if (!activeIncident) {
+      return;
+    }
+
+    const currentTask = activeIncident.tasks.find((task) => task.id === taskId);
+    if (!currentTask || currentTask.status === "done") {
+      return;
+    }
+
+    setBusyAction(taskId);
+    setRequestError(null);
+
+    try {
+      if (dashboardSource === "api") {
+        const incident = await completeTask(activeIncident.id, taskId);
+        applyIncidentUpdate(incident, incident.anomalyId);
+      } else {
+        applyTaskCompletionFallback(activeIncident, taskId);
+      }
+    } catch {
+      applyTaskCompletionFallback(activeIncident, taskId);
+      setRequestError("Task update failed. Keep the seeded state for the recording fallback.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const generateReport = async () => {
+    if (!activeIncident) {
+      return;
+    }
+
+    setBusyAction(`report-${activeIncident.id}`);
+    setRequestError(null);
+
+    try {
+      if (dashboardSource === "api") {
+        const incident = await generateReportRequest(activeIncident.id);
+        applyIncidentUpdate(incident, incident.anomalyId);
+      } else {
+        applyReportFallback(activeIncident, selectedAnomaly);
+      }
+    } catch {
+      applyReportFallback(activeIncident, selectedAnomaly);
+      setRequestError("MRV report generation failed. Keep the seeded preview for the demo.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  function applyIncidentUpdate(incident: Incident, anomalyId: string) {
     startTransition(() => {
       setIncidents((current) => ({
         ...current,
-        [incidentId]: newIncident,
+        [incident.id]: incident,
       }));
       setAnomalies((current) =>
         current.map((item) =>
-          item.id === selectedAnomaly.id
+          item.id === anomalyId
             ? {
                 ...item,
-                linkedIncidentId: incidentId,
+                linkedIncidentId: incident.id,
               }
             : item,
         ),
       );
     });
-  };
+  }
 
-  const toggleTask = (taskId: string) => {
-    if (!activeIncident) {
-      return;
-    }
-
+  function applyTaskCompletionFallback(incident: Incident, taskId: string) {
     startTransition(() => {
       setIncidents((current) => ({
         ...current,
-        [activeIncident.id]: {
-          ...activeIncident,
-          tasks: activeIncident.tasks.map((task) =>
+        [incident.id]: {
+          ...incident,
+          status: incident.tasks.every((task) => task.id === taskId || task.status === "done")
+            ? "mitigation"
+            : incident.status,
+          tasks: incident.tasks.map((task) =>
             task.id === taskId
               ? {
                   ...task,
-                  status: task.status === "done" ? "open" : "done",
+                  status: "done",
                 }
               : task,
           ),
         },
       }));
     });
-  };
+  }
 
-  const generateReport = () => {
-    if (!activeIncident) {
-      return;
-    }
-
+  function applyReportFallback(incident: Incident, anomaly: Anomaly) {
     startTransition(() => {
       setIncidents((current) => ({
         ...current,
-        [activeIncident.id]: {
-          ...activeIncident,
+        [incident.id]: {
+          ...incident,
           reportGeneratedAt: "2026-03-27 09:00",
-          status: completedTasks + 1 >= activeIncident.tasks.length ? "mitigation" : activeIncident.status,
+          status: incident.tasks.every((task) => task.status === "done")
+            ? "mitigation"
+            : incident.status,
+          reportSections: buildReportSections(anomaly, {
+            ...incident,
+            reportGeneratedAt: "2026-03-27 09:00",
+          }),
         },
       }));
     });
-  };
+  }
 
   return (
     <main className="shell">
@@ -160,6 +241,21 @@ export default function Page() {
               <strong>MRV bridge for ESG, compliance, and operations</strong>
             </div>
           </div>
+
+          <div className="status-row">
+            <span className={`status-pill ${dashboardSource === "api" ? "status-live" : "status-fallback"}`}>
+              {dashboardSource === "api" ? "Live API connected" : "Fallback demo state"}
+            </span>
+            <span className="status-copy">
+              {loadingDashboard
+                ? "Checking FastAPI backend..."
+                : dashboardSource === "api"
+                  ? "Frontend is reading and mutating the FastAPI contract."
+                  : "FastAPI is unavailable, so the UI stays demo-safe with seeded state."}
+            </span>
+          </div>
+
+          {requestError ? <p className="inline-error">{requestError}</p> : null}
         </div>
 
         <div className="hero-aside">
@@ -174,7 +270,7 @@ export default function Page() {
       </section>
 
       <section className="kpi-row">
-        {kpis.map((kpi) => (
+        {kpiCards.map((kpi) => (
           <article key={kpi.label} className="kpi-block">
             <span>{kpi.label}</span>
             <strong>{kpi.value}</strong>
@@ -344,13 +440,25 @@ export default function Page() {
               <section className="task-stack">
                 <div className="mini-head">
                   <h3>Verification tasks</h3>
-                  <button className="ghost-button" onClick={generateReport} type="button">
-                    Generate MRV report
+                  <button
+                    className="ghost-button"
+                    disabled={busyAction === `report-${activeIncident.id}`}
+                    onClick={() => {
+                      void generateReport();
+                    }}
+                    type="button"
+                  >
+                    {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate MRV report"}
                   </button>
                 </div>
 
                 {activeIncident.tasks.map((task) => (
-                  <TaskRow key={task.id} task={task} onToggle={() => toggleTask(task.id)} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    busy={busyAction === task.id}
+                    onComplete={() => markTaskDone(task.id)}
+                  />
                 ))}
               </section>
 
@@ -376,8 +484,15 @@ export default function Page() {
                 This signal is still in screening mode. Promote it only if it strengthens the
                 story from visibility to action.
               </p>
-              <button className="primary-button" onClick={promoteToIncident} type="button">
-                Promote to incident
+              <button
+                className="primary-button"
+                disabled={busyAction === "promote"}
+                onClick={() => {
+                  void promoteToIncident();
+                }}
+                type="button"
+              >
+                {busyAction === "promote" ? "Promoting..." : "Promote to incident"}
               </button>
             </section>
           )}
@@ -409,10 +524,12 @@ export default function Page() {
 
 function TaskRow({
   task,
-  onToggle,
+  busy,
+  onComplete,
 }: {
   task: IncidentTask;
-  onToggle: () => void;
+  busy: boolean;
+  onComplete: () => void;
 }) {
   return (
     <article className="task-row">
@@ -424,12 +541,51 @@ function TaskRow({
 
       <div className="task-actions">
         <span>{task.etaHours}h</span>
-        <button className="ghost-button" onClick={onToggle} type="button">
-          {task.status === "done" ? "Mark open" : "Mark done"}
+        <button
+          className="ghost-button"
+          disabled={task.status === "done" || busy}
+          onClick={onComplete}
+          type="button"
+        >
+          {task.status === "done" ? "Completed" : busy ? "Saving..." : "Mark done"}
         </button>
       </div>
     </article>
   );
+}
+
+function createFallbackIncident(anomaly: Anomaly): Incident {
+  const incidentId = `INC-${anomaly.id.slice(3)}`;
+
+  return {
+    id: incidentId,
+    anomalyId: anomaly.id,
+    title: `New verification case for ${anomaly.assetName}`,
+    status: "triage",
+    owner: "MRV response lead",
+    priority: anomaly.severity === "high" ? "P1" : "P2",
+    verificationWindow: anomaly.severity === "high" ? "Next 12 hours" : "Next 24 hours",
+    narrative:
+      "This incident was promoted directly from the anomaly queue to prove the screening-to-action flow before we connect live operator systems.",
+    tasks: [
+      {
+        id: `${incidentId}-TASK-1`,
+        title: "Validate signal persistence against 12-week baseline",
+        owner: "Remote sensing analyst",
+        etaHours: 2,
+        status: "done",
+        notes: "Baseline and current window exported for review.",
+      },
+      {
+        id: `${incidentId}-TASK-2`,
+        title: "Assign field verification owner",
+        owner: "Area operations coordinator",
+        etaHours: 4,
+        status: "open",
+        notes: "Route can be merged with scheduled integrity patrol.",
+      },
+    ],
+  };
 }
 
 function buildReportSections(anomaly: Anomaly, incident?: Incident) {

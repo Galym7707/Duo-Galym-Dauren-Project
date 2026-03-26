@@ -51,12 +51,24 @@ export type Incident = {
   reportGeneratedAt?: string;
   narrative: string;
   tasks: IncidentTask[];
+  reportSections?: ReportSection[];
 };
 
 export type Kpi = {
   label: string;
   value: string;
   detail: string;
+};
+
+export type ReportSection = {
+  title: string;
+  body: string;
+};
+
+export type DashboardState = {
+  kpis: Kpi[];
+  anomalies: Anomaly[];
+  incidents: Record<string, Incident>;
 };
 
 export const kpis: Kpi[] = [
@@ -208,3 +220,24 @@ export const demoScript = [
   "Show task ownership and verification steps to prove this is not a passive dashboard.",
   "Generate the MRV report preview to close the loop for ESG and compliance teams.",
 ];
+
+export function createDemoDashboardState(): DashboardState {
+  return {
+    kpis: kpis.map((kpi) => ({ ...kpi })),
+    anomalies: anomalyFeed.map((anomaly) => ({
+      ...anomaly,
+      sitePosition: { ...anomaly.sitePosition },
+      trend: anomaly.trend.map((point) => ({ ...point })),
+    })),
+    incidents: Object.fromEntries(
+      Object.entries(seededIncidents).map(([incidentId, incident]) => [
+        incidentId,
+        {
+          ...incident,
+          tasks: incident.tasks.map((task) => ({ ...task })),
+          reportSections: incident.reportSections?.map((section) => ({ ...section })),
+        },
+      ]),
+    ),
+  };
+}
