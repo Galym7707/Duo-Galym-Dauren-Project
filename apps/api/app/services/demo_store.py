@@ -114,6 +114,20 @@ class DemoStore:
                 verification_window="Next 12 hours",
                 report_generated_at="2026-03-26 12:10",
                 narrative="Current workflow assumes a screening layer: we are not claiming pinpoint source identification, only a clear operational priority for field verification.",
+                report_sections=[
+                    ReportSection(
+                        title="Measurement",
+                        body="Satellite screening flagged Tengiz satellite cluster in Atyrau Region with +34% methane uplift and 11 flare-observed hours.",
+                    ),
+                    ReportSection(
+                        title="Reporting",
+                        body="Current potential impact is estimated at 182 tCO2e. 1/3 verification tasks are complete.",
+                    ),
+                    ReportSection(
+                        title="Verification",
+                        body="Field integrity desk owns the case under P1 priority with a next 12 hours window.",
+                    ),
+                ],
                 tasks=[
                     IncidentTask(
                         id="TASK-1",
@@ -255,6 +269,7 @@ class DemoStore:
                 body=f"{incident.owner} owns the case under {incident.priority} priority with a {incident.verification_window.lower()} window.",
             ),
         ]
+        incident.report_sections = report
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
     def _find_anomaly(self, anomaly_id: str) -> Anomaly:

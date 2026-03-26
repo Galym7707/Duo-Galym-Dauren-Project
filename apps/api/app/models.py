@@ -65,6 +65,7 @@ class Incident(BaseModel):
     report_generated_at: str | None = None
     narrative: str
     tasks: list[IncidentTask]
+    report_sections: list["ReportSection"] | None = None
 
 
 class ReportSection(BaseModel):

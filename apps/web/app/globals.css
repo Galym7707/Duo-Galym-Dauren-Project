@@ -530,6 +530,17 @@ button {
   gap: 14px;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.queue-empty-state {
+  margin-bottom: 12px;
+}
+
 .report-sections article {
   padding-top: 14px;
   border-top: 1px solid var(--line);

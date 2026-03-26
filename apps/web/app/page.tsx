@@ -9,6 +9,7 @@ import {
 } from "../lib/demo-data";
 import {
   completeTask,
+  createTask,
   type DashboardHydrationState,
   fallbackDashboardState,
   generateReport as generateReportRequest,
@@ -70,9 +71,10 @@ export default function Page() {
   }, []);
 
   const selectedAnomaly =
-    anomalies.find((item) => item.id === selectedAnomalyId) ?? anomalies[0];
+    anomalies.find((item) => item.id === selectedAnomalyId) ?? anomalies[0] ?? null;
+  const hasAnomalies = Boolean(selectedAnomaly);
 
-  const activeIncident = selectedAnomaly.linkedIncidentId
+  const activeIncident = selectedAnomaly?.linkedIncidentId
     ? incidents[selectedAnomaly.linkedIncidentId]
     : undefined;
 
@@ -80,10 +82,12 @@ export default function Page() {
     ? activeIncident.tasks.filter((task) => task.status === "done").length
     : 0;
 
-  const reportSections = activeIncident?.reportSections ?? buildReportSections(selectedAnomaly, activeIncident);
+  const reportSections =
+    selectedAnomaly &&
+    (activeIncident?.reportSections ?? buildReportSections(selectedAnomaly, activeIncident));
 
   const promoteToIncident = async () => {
-    if (selectedAnomaly.linkedIncidentId) {
+    if (!selectedAnomaly || selectedAnomaly.linkedIncidentId) {
       return;
     }
 
@@ -98,6 +102,9 @@ export default function Page() {
         applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
       }
     } catch {
+      if (dashboardSource === "api") {
+        setDashboardSource("fallback");
+      }
       applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
       setRequestError("Incident promotion failed. The fallback demo state is still available.");
     } finally {
@@ -126,6 +133,9 @@ export default function Page() {
         applyTaskCompletionFallback(activeIncident, taskId);
       }
     } catch {
+      if (dashboardSource === "api") {
+        setDashboardSource("fallback");
+      }
       applyTaskCompletionFallback(activeIncident, taskId);
       setRequestError("Task update failed. Keep the seeded state for the recording fallback.");
     } finally {
@@ -149,8 +159,57 @@ export default function Page() {
         applyReportFallback(activeIncident, selectedAnomaly);
       }
     } catch {
+      if (dashboardSource === "api") {
+        setDashboardSource("fallback");
+      }
       applyReportFallback(activeIncident, selectedAnomaly);
       setRequestError("MRV report generation failed. Keep the seeded preview for the demo.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const createVerificationTask = async () => {
+    if (!activeIncident) {
+      return;
+    }
+
+    const actionId = `create-task-${activeIncident.id}`;
+    setBusyAction(actionId);
+    setRequestError(null);
+
+    try {
+      const payload = buildVerificationTaskPayload(selectedAnomaly, activeIncident.tasks.length + 1);
+
+      if (dashboardSource === "api") {
+        const incident = await createTask(activeIncident.id, payload);
+        applyIncidentUpdate(incident, incident.anomalyId);
+      } else {
+        startTransition(() => {
+          setIncidents((current) => ({
+            ...current,
+            [activeIncident.id]: {
+              ...activeIncident,
+              tasks: [
+                ...activeIncident.tasks,
+                {
+                  id: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
+                  title: payload.title,
+                  owner: payload.owner,
+                  etaHours: payload.eta_hours,
+                  status: "open",
+                  notes: payload.notes,
+                },
+              ],
+            },
+          }));
+        });
+      }
+    } catch {
+      if (dashboardSource === "api") {
+        setDashboardSource("fallback");
+      }
+      setRequestError("Task creation failed. The incident still remains usable for the demo.");
     } finally {
       setBusyAction(null);
     }
@@ -290,8 +349,13 @@ export default function Page() {
           </div>
 
           <div className="queue">
+            {!hasAnomalies ? (
+              <section className="empty-state queue-empty-state">
+                <p>No anomalies are currently above the screening threshold for this window.</p>
+              </section>
+            ) : null}
             {anomalies.map((anomaly) => {
-              const isSelected = anomaly.id === selectedAnomaly.id;
+              const isSelected = anomaly.id === selectedAnomaly?.id;
 
               return (
                 <button
@@ -334,14 +398,16 @@ export default function Page() {
           <div className="section-head">
             <div>
               <p className="eyebrow">Operations canvas</p>
-              <h2>{selectedAnomaly.assetName}</h2>
+              <h2>{selectedAnomaly?.assetName ?? "No active anomaly"}</h2>
             </div>
-            <div className="badge-stack">
-              <span className={`severity ${severityTone[selectedAnomaly.severity]}`}>
-                {severityLabel[selectedAnomaly.severity]}
-              </span>
-              <span className="soft-badge">{selectedAnomaly.region}</span>
-            </div>
+            {selectedAnomaly ? (
+              <div className="badge-stack">
+                <span className={`severity ${severityTone[selectedAnomaly.severity]}`}>
+                  {severityLabel[selectedAnomaly.severity]}
+                </span>
+                <span className="soft-badge">{selectedAnomaly.region}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="map-frame">
@@ -350,7 +416,7 @@ export default function Page() {
               <button
                 key={anomaly.id}
                 aria-label={anomaly.assetName}
-                className={`site-dot ${anomaly.id === selectedAnomaly.id ? "site-dot-active" : ""}`}
+                className={`site-dot ${anomaly.id === selectedAnomaly?.id ? "site-dot-active" : ""}`}
                 onClick={() => setSelectedAnomalyId(anomaly.id)}
                 style={{
                   left: `${anomaly.sitePosition.x}%`,
@@ -362,47 +428,58 @@ export default function Page() {
               </button>
             ))}
 
-            <div className="map-overlay">
-              <div>
-                <span>Coordinates</span>
-                <strong>{selectedAnomaly.coordinates}</strong>
+            {selectedAnomaly ? (
+              <div className="map-overlay">
+                <div>
+                  <span>Coordinates</span>
+                  <strong>{selectedAnomaly.coordinates}</strong>
+                </div>
+                <div>
+                  <span>Signal score</span>
+                  <strong>{selectedAnomaly.signalScore} / 100</strong>
+                </div>
+                <div>
+                  <span>Confidence</span>
+                  <strong>{selectedAnomaly.confidence}</strong>
+                </div>
               </div>
-              <div>
-                <span>Signal score</span>
-                <strong>{selectedAnomaly.signalScore} / 100</strong>
-              </div>
-              <div>
-                <span>Confidence</span>
-                <strong>{selectedAnomaly.confidence}</strong>
-              </div>
+            ) : null}
+          </div>
+
+          {selectedAnomaly ? (
+            <div className="detail-grid">
+              <article className="detail-panel">
+                <p className="eyebrow">Signal rationale</p>
+                <h3>Why this case deserves attention</h3>
+                <p>{selectedAnomaly.summary}</p>
+                <ul className="compact-list">
+                  <li>Facility type: {selectedAnomaly.facilityType}</li>
+                  <li>Flare persistence: {selectedAnomaly.flareHours} observed hours</li>
+                  <li>Recommended action: {selectedAnomaly.recommendedAction}</li>
+                </ul>
+              </article>
+
+              <article className="detail-panel">
+                <p className="eyebrow">Anomaly trend</p>
+                <h3>Current week vs prior baseline</h3>
+                <div className="trend">
+                  {selectedAnomaly.trend.map((point) => (
+                    <div key={point.label} className="trend-bar-wrap">
+                      <div className="trend-bar" style={{ height: `${point.anomalyIndex}%` }} />
+                      <span>{point.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
             </div>
-          </div>
-
-          <div className="detail-grid">
-            <article className="detail-panel">
-              <p className="eyebrow">Signal rationale</p>
-              <h3>Why this case deserves attention</h3>
-              <p>{selectedAnomaly.summary}</p>
-              <ul className="compact-list">
-                <li>Facility type: {selectedAnomaly.facilityType}</li>
-                <li>Flare persistence: {selectedAnomaly.flareHours} observed hours</li>
-                <li>Recommended action: {selectedAnomaly.recommendedAction}</li>
-              </ul>
-            </article>
-
-            <article className="detail-panel">
-              <p className="eyebrow">Anomaly trend</p>
-              <h3>Current week vs prior baseline</h3>
-              <div className="trend">
-                {selectedAnomaly.trend.map((point) => (
-                  <div key={point.label} className="trend-bar-wrap">
-                    <div className="trend-bar" style={{ height: `${point.anomalyIndex}%` }} />
-                    <span>{point.label}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
+          ) : (
+            <section className="empty-state">
+              <p>
+                No anomaly crossed the threshold in this window. That is a valid screening outcome,
+                and the product should stay stable when it happens.
+              </p>
+            </section>
+          )}
         </section>
 
         <aside className="rail">
@@ -440,16 +517,30 @@ export default function Page() {
               <section className="task-stack">
                 <div className="mini-head">
                   <h3>Verification tasks</h3>
-                  <button
-                    className="ghost-button"
-                    disabled={busyAction === `report-${activeIncident.id}`}
-                    onClick={() => {
-                      void generateReport();
-                    }}
-                    type="button"
-                  >
-                    {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate MRV report"}
-                  </button>
+                  <div className="action-row">
+                    <button
+                      className="ghost-button"
+                      disabled={busyAction === `create-task-${activeIncident.id}`}
+                      onClick={() => {
+                        void createVerificationTask();
+                      }}
+                      type="button"
+                    >
+                      {busyAction === `create-task-${activeIncident.id}`
+                        ? "Creating..."
+                        : "Create verification task"}
+                    </button>
+                    <button
+                      className="ghost-button"
+                      disabled={busyAction === `report-${activeIncident.id}`}
+                      onClick={() => {
+                        void generateReport();
+                      }}
+                      type="button"
+                    >
+                      {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate MRV report"}
+                    </button>
+                  </div>
                 </div>
 
                 {activeIncident.tasks.map((task) => (
@@ -469,7 +560,7 @@ export default function Page() {
                 </div>
 
                 <div className="report-sections">
-                  {reportSections.map((section) => (
+                  {reportSections?.map((section) => (
                     <article key={section.title}>
                       <span>{section.title}</span>
                       <p>{section.body}</p>
@@ -514,6 +605,7 @@ export default function Page() {
           <ul className="compact-list">
             <li>`GET /api/v1/dashboard` for seeded state</li>
             <li>`POST /api/v1/anomalies/{'{id}'}/promote` for incident creation</li>
+            <li>`POST /api/v1/incidents/{'{id}'}/tasks` for verification task creation</li>
             <li>`POST /api/v1/incidents/{'{id}'}/report` for MRV export preview</li>
           </ul>
         </div>
@@ -586,6 +678,31 @@ function createFallbackIncident(anomaly: Anomaly): Incident {
       },
     ],
   };
+}
+
+function buildVerificationTaskPayload(anomaly: Anomaly, sequence: number) {
+  const templates = [
+    {
+      title: `Schedule field verification for ${anomaly.assetName}`,
+      owner: "Ops coordinator",
+      eta_hours: 4,
+      notes: "Bundle this stop with the next integrity patrol to keep the pilot low-friction.",
+    },
+    {
+      title: `Review maintenance context around ${anomaly.assetName}`,
+      owner: "Reliability engineer",
+      eta_hours: 6,
+      notes: "Check compressor upset history, flare line interventions, and recent shutdown events.",
+    },
+    {
+      title: `Prepare regulator-facing MRV note for ${anomaly.assetName}`,
+      owner: "ESG lead",
+      eta_hours: 8,
+      notes: "Summarize anomaly evidence, planned verification, and likely operational explanation.",
+    },
+  ];
+
+  return templates[(sequence - 1) % templates.length];
 }
 
 function buildReportSections(anomaly: Anomaly, incident?: Incident) {

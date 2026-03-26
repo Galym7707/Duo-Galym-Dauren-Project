@@ -82,6 +82,12 @@ npm install
 npm run dev --workspace=@duo/web
 ```
 
+Optional environment for live API wiring:
+
+```bash
+set NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
 Backend:
 
 ```bash
@@ -96,6 +102,7 @@ fastapi dev app/main.py
 - incident workspace с задачами верификации
 - MRV report preview
 - FastAPI API contract под дальнейшую интеграцию реальных данных
+- frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
 
 ## Что дальше по приоритету
 

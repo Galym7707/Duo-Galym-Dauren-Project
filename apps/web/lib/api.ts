@@ -76,6 +76,7 @@ type ApiIncident = {
   report_generated_at?: string | null;
   narrative: string;
   tasks: ApiIncidentTask[];
+  report_sections?: ApiReportSection[] | null;
 };
 
 type ApiReportSection = {
@@ -86,6 +87,13 @@ type ApiReportSection = {
 type ApiGenerateReportResponse = {
   incident: ApiIncident;
   report: ApiReportSection[];
+};
+
+type CreateTaskPayload = {
+  title: string;
+  owner: string;
+  eta_hours: number;
+  notes: string;
 };
 
 export function fallbackDashboardState(): DashboardHydrationState {
@@ -132,6 +140,20 @@ export async function completeTask(incidentId: string, taskId: string): Promise<
     },
   );
   return normalizeIncident(payload);
+}
+
+export async function createTask(
+  incidentId: string,
+  payload: CreateTaskPayload,
+): Promise<Incident> {
+  const response = await requestJson<ApiIncident>(`/api/v1/incidents/${incidentId}/tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return normalizeIncident(response);
 }
 
 export async function generateReport(incidentId: string): Promise<Incident> {
@@ -227,6 +249,7 @@ function normalizeIncident(incident: ApiIncident): Incident {
     reportGeneratedAt: incident.report_generated_at ?? undefined,
     narrative: incident.narrative,
     tasks: incident.tasks.map(normalizeTask),
+    reportSections: incident.report_sections?.map(normalizeReportSection),
   };
 }
 
