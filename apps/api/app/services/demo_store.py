@@ -173,6 +173,7 @@ class DemoStore:
                 stage="incident",
                 title="Tengiz anomaly promoted",
                 detail="AN-104 was escalated into incident INC-204 for verification ownership.",
+                incident_id="INC-204",
             ),
             ActivityEvent(
                 id="ACT-1003",
@@ -180,6 +181,7 @@ class DemoStore:
                 stage="verification",
                 title="LDAR walkdown dispatched",
                 detail="Field verification route was aligned with the Atyrau maintenance shift.",
+                incident_id="INC-204",
             ),
             ActivityEvent(
                 id="ACT-1004",
@@ -187,6 +189,7 @@ class DemoStore:
                 stage="report",
                 title="MRV preview generated",
                 detail="Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+                incident_id="INC-204",
             ),
         ]
         self._activity_index = 1004
@@ -268,6 +271,7 @@ class DemoStore:
                 f"{anomaly.asset_name} was promoted into {incident_id} "
                 f"with owner {payload.owner}."
             ),
+            incident_id=incident_id,
         )
         return deepcopy(incident)
 
@@ -290,6 +294,7 @@ class DemoStore:
             stage="verification",
             title="Verification task created",
             detail=f"{task.title} was assigned to {task.owner} for {incident_id}.",
+            incident_id=incident_id,
         )
         return deepcopy(incident)
 
@@ -313,6 +318,7 @@ class DemoStore:
             stage="verification",
             title="Verification task completed",
             detail=f"{task_id} was marked done for {incident_id}.",
+            incident_id=incident_id,
         )
         return deepcopy(incident)
 
@@ -329,6 +335,7 @@ class DemoStore:
             stage="report",
             title="MRV report generated",
             detail=f"{incident_id} now has an updated MRV summary for stakeholder review.",
+            incident_id=incident_id,
         )
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
@@ -340,6 +347,7 @@ class DemoStore:
         anomaly = self._find_anomaly(incident.anomaly_id)
         report_sections = incident.report_sections or self._build_report_sections(anomaly, incident)
         completed_tasks = self._completed_tasks(incident)
+        audit_events = self._incident_activity(incident_id)
 
         task_lines = "".join(
             [
@@ -361,6 +369,17 @@ class DemoStore:
                     "</section>"
                 )
                 for section in report_sections
+            ]
+        )
+        audit_lines = "".join(
+            [
+                (
+                    "<li>"
+                    f"<strong>{escape(event.title)}</strong> - {escape(event.detail)}"
+                    f" <span>({escape(event.occurred_at)})</span>"
+                    "</li>"
+                )
+                for event in audit_events
             ]
         )
         auto_print_script = (
@@ -387,6 +406,7 @@ class DemoStore:
             ".toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0 28px;}"
             ".toolbar button{padding:10px 14px;border:1px solid #b9c9d4;background:#ffffff;cursor:pointer;font:inherit;}"
             "ul{padding-left:20px;}"
+            "li{margin-bottom:8px;}"
             "@media print{body{margin:22px;} .toolbar{display:none;} .meta{gap:8px 14px;}}"
             "</style>"
             "</head>"
@@ -410,6 +430,9 @@ class DemoStore:
             f"{section_lines}"
             "<section><h2>Verification Tasks</h2><ul>"
             f"{task_lines}"
+            "</ul></section>"
+            "<section><h2>Audit Timeline</h2><ul>"
+            f"{audit_lines}"
             "</ul></section>"
             f"{auto_print_script}"
             "</body></html>"
@@ -504,7 +527,9 @@ class DemoStore:
             if incident_id in self.incidents:
                 self.incidents[incident_id].narrative = narrative
 
-    def _record_activity(self, *, stage: str, title: str, detail: str) -> None:
+    def _record_activity(
+        self, *, stage: str, title: str, detail: str, incident_id: str | None = None
+    ) -> None:
         self._activity_index += 1
         self.activity_feed.insert(
             0,
@@ -514,6 +539,7 @@ class DemoStore:
                 stage=stage,
                 title=title,
                 detail=detail,
+                incident_id=incident_id,
             ),
         )
         self.activity_feed = self.activity_feed[:8]
@@ -547,6 +573,13 @@ class DemoStore:
 
     def _strongest_anomaly(self) -> Anomaly:
         return max(self.anomalies, key=lambda anomaly: anomaly.signal_score)
+
+    def _incident_activity(self, incident_id: str) -> list[ActivityEvent]:
+        return [
+            event.model_copy(deep=True)
+            for event in self.activity_feed
+            if event.incident_id == incident_id or event.stage == "ingest"
+        ]
 
     def _trend(self, values: list[int]) -> list[TrendPoint]:
         return [

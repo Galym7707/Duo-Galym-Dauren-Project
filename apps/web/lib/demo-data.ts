@@ -71,6 +71,7 @@ export type ActivityEvent = {
   stage: "ingest" | "incident" | "verification" | "report";
   title: string;
   detail: string;
+  incidentId?: string;
 };
 
 export type DashboardState = {
@@ -237,6 +238,7 @@ export const seededActivityFeed: ActivityEvent[] = [
     stage: "incident",
     title: "Tengiz anomaly promoted",
     detail: "AN-104 was escalated into incident INC-204 for verification ownership.",
+    incidentId: "INC-204",
   },
   {
     id: "ACT-1003",
@@ -244,6 +246,7 @@ export const seededActivityFeed: ActivityEvent[] = [
     stage: "verification",
     title: "LDAR walkdown dispatched",
     detail: "Field verification route was aligned with the Atyrau maintenance shift.",
+    incidentId: "INC-204",
   },
   {
     id: "ACT-1004",
@@ -251,6 +254,7 @@ export const seededActivityFeed: ActivityEvent[] = [
     stage: "report",
     title: "MRV preview generated",
     detail: "Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+    incidentId: "INC-204",
   },
 ];
 

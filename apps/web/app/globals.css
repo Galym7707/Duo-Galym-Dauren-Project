@@ -775,6 +775,20 @@ button {
   gap: 10px;
 }
 
+.report-timeline {
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.report-timeline > span {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
 .task-card-done {
   border-color: var(--accent);
 }

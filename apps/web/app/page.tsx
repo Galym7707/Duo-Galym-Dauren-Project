@@ -242,6 +242,7 @@ export default function Page() {
           stage: "incident",
           title: "Incident created from screening signal",
           detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+          incidentId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
         });
       }
 
@@ -255,6 +256,7 @@ export default function Page() {
         stage: "incident",
         title: "Incident created from screening signal",
         detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+        incidentId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
       });
       setActiveStep("incident");
       setRequestError("Promotion request failed, so the UI stayed on the local demo state.");
@@ -287,6 +289,7 @@ export default function Page() {
           stage: "verification",
           title: "Verification task completed",
           detail: `${taskId} was marked done for ${activeIncident.id}.`,
+          incidentId: activeIncident.id,
         });
       }
     } catch {
@@ -298,6 +301,7 @@ export default function Page() {
         stage: "verification",
         title: "Verification task completed",
         detail: `${taskId} was marked done for ${activeIncident.id}.`,
+        incidentId: activeIncident.id,
       });
       setRequestError("Task completion failed, so the UI switched back to local demo state.");
     } finally {
@@ -326,6 +330,7 @@ export default function Page() {
           stage: "verification",
           title: "Verification task created",
           detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+          incidentId: activeIncident.id,
         });
       }
     } catch {
@@ -337,6 +342,7 @@ export default function Page() {
         stage: "verification",
         title: "Verification task created",
         detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+        incidentId: activeIncident.id,
       });
       setRequestError("Task creation failed. The incident still remains usable for the demo.");
     } finally {
@@ -363,6 +369,7 @@ export default function Page() {
           stage: "report",
           title: "MRV report generated",
           detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+          incidentId: activeIncident.id,
         });
       }
 
@@ -376,6 +383,7 @@ export default function Page() {
         stage: "report",
         title: "MRV report generated",
         detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+        incidentId: activeIncident.id,
       });
       setActiveStep("report");
       setRequestError("Report generation failed, so the fallback MRV preview was kept active.");
@@ -405,6 +413,12 @@ export default function Page() {
       : selectedAnomaly
         ? buildReportSections(selectedAnomaly, undefined, 0)
         : [];
+  const incidentActivity =
+    activeIncident && activityFeed.length > 0
+      ? activityFeed.filter(
+          (event) => event.incidentId === activeIncident.id || event.stage === "ingest",
+        )
+      : [];
 
   const exportReportArtifact = async () => {
     if (!activeIncident || !selectedAnomaly) {
@@ -417,7 +431,12 @@ export default function Page() {
 
     try {
       let fileName = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
-      let content = buildReportHtml(selectedAnomaly, activeIncident, reportSections);
+      let content = buildReportHtml(
+        selectedAnomaly,
+        activeIncident,
+        reportSections,
+        incidentActivity,
+      );
       let contentType = "text/html;charset=utf-8";
 
       if (dashboardSource === "api") {
@@ -454,7 +473,13 @@ export default function Page() {
       }
     }
 
-    const html = buildReportHtml(selectedAnomaly, activeIncident, reportSections, true);
+    const html = buildReportHtml(
+      selectedAnomaly,
+      activeIncident,
+      reportSections,
+      incidentActivity,
+      true,
+    );
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener,noreferrer");
@@ -1112,6 +1137,22 @@ export default function Page() {
                         </article>
                       ))}
                     </div>
+
+                    <section className="report-timeline">
+                      <span>Audit timeline</span>
+                      <div className="activity-list">
+                        {incidentActivity.map((event) => (
+                          <article key={event.id} className="activity-item">
+                            <span className={`activity-stage activity-stage-${event.stage}`}>
+                              {activityStageLabel(event)}
+                            </span>
+                            <strong>{event.title}</strong>
+                            <p>{event.detail}</p>
+                            <small>{event.occurredAt}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
                   </section>
 
                   <aside className="side-surface">
@@ -1374,6 +1415,7 @@ function buildReportHtml(
   anomaly: Anomaly,
   incident: Incident,
   sections: ReportSection[],
+  activityEvents: ActivityEvent[],
   autoPrint = false,
 ) {
   const taskItems = incident.tasks
@@ -1387,6 +1429,12 @@ function buildReportHtml(
     .map(
       (section) =>
         `<section><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.body)}</p></section>`,
+    )
+    .join("");
+  const auditItems = activityEvents
+    .map(
+      (event) =>
+        `<li><strong>${escapeHtml(event.title)}</strong> - ${escapeHtml(event.detail)} - ${escapeHtml(event.occurredAt)}</li>`,
     )
     .join("");
 
@@ -1465,6 +1513,10 @@ function buildReportHtml(
       <section>
         <h2>Verification tasks</h2>
         <ul>${taskItems}</ul>
+      </section>
+      <section>
+        <h2>Audit timeline</h2>
+        <ul>${auditItems}</ul>
       </section>
     </main>
   </body>

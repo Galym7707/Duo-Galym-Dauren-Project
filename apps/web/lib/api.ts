@@ -111,6 +111,7 @@ type ApiActivityEvent = {
   stage: ActivityEvent["stage"];
   title: string;
   detail: string;
+  incident_id?: string | null;
 };
 
 type ApiGenerateReportResponse = {
@@ -412,6 +413,7 @@ function normalizeActivityEvent(event: ApiActivityEvent): ActivityEvent {
     stage: event.stage,
     title: event.title,
     detail: event.detail,
+    incidentId: event.incident_id ?? undefined,
   };
 }
 

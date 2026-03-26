@@ -82,6 +82,7 @@ class ActivityEvent(BaseModel):
     stage: ActivityStage
     title: str
     detail: str
+    incident_id: str | None = None
 
 
 class DashboardPayload(BaseModel):
