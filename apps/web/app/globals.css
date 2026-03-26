@@ -538,6 +538,71 @@ button {
   font-size: 1.12rem;
 }
 
+.activity-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.activity-item {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.activity-item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.activity-item strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.activity-item p,
+.activity-item small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.activity-item p {
+  margin: 8px 0 0;
+}
+
+.activity-item small {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.activity-stage {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.activity-stage-ingest {
+  color: var(--accent);
+}
+
+.activity-stage-incident {
+  color: var(--accent-strong);
+}
+
+.activity-stage-verification {
+  color: var(--watch);
+}
+
+.activity-stage-report {
+  color: var(--medium);
+}
+
 .focus-stage {
   min-height: 720px;
 }

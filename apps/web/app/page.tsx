@@ -19,6 +19,7 @@ import {
   syncPipeline,
 } from "../lib/api";
 import {
+  type ActivityEvent,
   type Anomaly,
   type Incident,
   type IncidentTask,
@@ -76,6 +77,7 @@ export default function Page() {
   const [kpiCards, setKpiCards] = useState(fallback.kpis);
   const [anomalies, setAnomalies] = useState(fallback.anomalies);
   const [incidents, setIncidents] = useState(fallback.incidents);
+  const [activityFeed, setActivityFeed] = useState(fallback.activityFeed);
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
     fallbackPipelineStatus(fallback.anomalies.length),
@@ -111,6 +113,7 @@ export default function Page() {
         setKpiCards(state.kpis);
         setAnomalies(state.anomalies);
         setIncidents(state.incidents);
+        setActivityFeed(state.activityFeed);
         setPipelineStatus(nextPipelineStatus);
         setSelectedAnomalyId((current) => {
           const exists = state.anomalies.some((item) => item.id === current);
@@ -232,8 +235,14 @@ export default function Page() {
       if (dashboardSource === "api") {
         const incident = await promoteAnomalyRequest(selectedAnomaly.id);
         applyIncidentUpdate(incident, selectedAnomaly.id);
+        await refreshDashboardFromApi();
       } else {
         applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
+        appendFallbackActivity({
+          stage: "incident",
+          title: "Incident created from screening signal",
+          detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+        });
       }
 
       setActiveStep("incident");
@@ -242,6 +251,11 @@ export default function Page() {
         setDashboardSource("fallback");
       }
       applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
+      appendFallbackActivity({
+        stage: "incident",
+        title: "Incident created from screening signal",
+        detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+      });
       setActiveStep("incident");
       setRequestError("Promotion request failed, so the UI stayed on the local demo state.");
     } finally {
@@ -266,14 +280,25 @@ export default function Page() {
       if (dashboardSource === "api") {
         const incident = await completeTaskRequest(activeIncident.id, taskId);
         applyIncidentUpdate(incident, incident.anomalyId);
+        await refreshDashboardFromApi();
       } else {
         applyTaskCompletionFallback(activeIncident, taskId);
+        appendFallbackActivity({
+          stage: "verification",
+          title: "Verification task completed",
+          detail: `${taskId} was marked done for ${activeIncident.id}.`,
+        });
       }
     } catch {
       if (dashboardSource === "api") {
         setDashboardSource("fallback");
       }
       applyTaskCompletionFallback(activeIncident, taskId);
+      appendFallbackActivity({
+        stage: "verification",
+        title: "Verification task completed",
+        detail: `${taskId} was marked done for ${activeIncident.id}.`,
+      });
       setRequestError("Task completion failed, so the UI switched back to local demo state.");
     } finally {
       setBusyAction(null);
@@ -294,14 +319,25 @@ export default function Page() {
       if (dashboardSource === "api") {
         const incident = await createTaskRequest(activeIncident.id, payload);
         applyIncidentUpdate(incident, incident.anomalyId);
+        await refreshDashboardFromApi();
       } else {
         applyTaskCreationFallback(activeIncident, payload);
+        appendFallbackActivity({
+          stage: "verification",
+          title: "Verification task created",
+          detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+        });
       }
     } catch {
       if (dashboardSource === "api") {
         setDashboardSource("fallback");
       }
       applyTaskCreationFallback(activeIncident, payload);
+      appendFallbackActivity({
+        stage: "verification",
+        title: "Verification task created",
+        detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+      });
       setRequestError("Task creation failed. The incident still remains usable for the demo.");
     } finally {
       setBusyAction(null);
@@ -320,8 +356,14 @@ export default function Page() {
       if (dashboardSource === "api") {
         const incident = await generateReportRequest(activeIncident.id);
         applyIncidentUpdate(incident, incident.anomalyId);
+        await refreshDashboardFromApi();
       } else {
         applyReportFallback(activeIncident, selectedAnomaly);
+        appendFallbackActivity({
+          stage: "report",
+          title: "MRV report generated",
+          detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+        });
       }
 
       setActiveStep("report");
@@ -330,6 +372,11 @@ export default function Page() {
         setDashboardSource("fallback");
       }
       applyReportFallback(activeIncident, selectedAnomaly);
+      appendFallbackActivity({
+        stage: "report",
+        title: "MRV report generated",
+        detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+      });
       setActiveStep("report");
       setRequestError("Report generation failed, so the fallback MRV preview was kept active.");
     } finally {
@@ -414,6 +461,13 @@ export default function Page() {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
+  async function refreshDashboardFromApi() {
+    const refreshedDashboard = await loadDashboardState();
+    if (refreshedDashboard.source === "api") {
+      applyDashboardHydration(refreshedDashboard, refreshedDashboard.source);
+    }
+  }
+
   function applyIncidentUpdate(incident: Incident, anomalyId: string) {
     startTransition(() => {
       setIncidents((current) => ({
@@ -439,10 +493,24 @@ export default function Page() {
       setKpiCards(state.kpis);
       setAnomalies(state.anomalies);
       setIncidents(state.incidents);
+      setActivityFeed(state.activityFeed);
       setSelectedAnomalyId((current) => {
         const exists = state.anomalies.some((item) => item.id === current);
         return exists ? current : state.anomalies[0]?.id ?? current;
       });
+    });
+  }
+
+  function appendFallbackActivity(event: Omit<ActivityEvent, "id" | "occurredAt">) {
+    startTransition(() => {
+      setActivityFeed((current) => [
+        {
+          id: `LOCAL-${event.stage}-${Date.now()}`,
+          occurredAt: new Date().toISOString().replace("T", " ").slice(0, 16),
+          ...event,
+        },
+        ...current,
+      ].slice(0, 8));
     });
   }
 
@@ -700,6 +768,22 @@ export default function Page() {
                 ? "This remains the strongest seeded case because it combines the highest signal score, the largest estimated impact, and persistent flare activity in Atyrau."
                 : "A zero-anomaly window is still a valid screening outcome. Keep the pipeline visible and use manual sync to prove the ingest path."}
             </p>
+          </section>
+
+          <section className="pilot-note">
+            <p className="eyebrow">MRV audit trail</p>
+            <div className="activity-list">
+              {activityFeed.slice(0, 4).map((event) => (
+                <article key={event.id} className="activity-item">
+                  <span className={`activity-stage activity-stage-${event.stage}`}>
+                    {activityStageLabel(event)}
+                  </span>
+                  <strong>{event.title}</strong>
+                  <p>{event.detail}</p>
+                  <small>{event.occurredAt}</small>
+                </article>
+              ))}
+            </div>
           </section>
         </aside>
 
@@ -1132,6 +1216,21 @@ function EmptyStage({
       </button>
     </div>
   );
+}
+
+function activityStageLabel(event: ActivityEvent) {
+  switch (event.stage) {
+    case "ingest":
+      return "Ingest";
+    case "incident":
+      return "Incident";
+    case "verification":
+      return "Verify";
+    case "report":
+      return "Report";
+    default:
+      return "MRV";
+  }
 }
 
 function getStageTitle(step: StepId, anomaly: Anomaly, incident?: Incident) {

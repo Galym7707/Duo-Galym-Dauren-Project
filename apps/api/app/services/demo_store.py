@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
 from html import escape
 
 from app.models import (
+    ActivityEvent,
     Anomaly,
     CreateTaskRequest,
     DashboardPayload,
@@ -157,6 +159,37 @@ class DemoStore:
                 ],
             )
         }
+        self.activity_feed: list[ActivityEvent] = [
+            ActivityEvent(
+                id="ACT-1001",
+                occurred_at="2026-03-26 07:40",
+                stage="ingest",
+                title="Seeded CH4 screening loaded",
+                detail="Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+            ),
+            ActivityEvent(
+                id="ACT-1002",
+                occurred_at="2026-03-26 08:20",
+                stage="incident",
+                title="Tengiz anomaly promoted",
+                detail="AN-104 was escalated into incident INC-204 for verification ownership.",
+            ),
+            ActivityEvent(
+                id="ACT-1003",
+                occurred_at="2026-03-26 10:10",
+                stage="verification",
+                title="LDAR walkdown dispatched",
+                detail="Field verification route was aligned with the Atyrau maintenance shift.",
+            ),
+            ActivityEvent(
+                id="ACT-1004",
+                occurred_at="2026-03-26 12:10",
+                stage="report",
+                title="MRV preview generated",
+                detail="Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+            ),
+        ]
+        self._activity_index = 1004
         self._seeded_demo_posture = self.kpis[3].model_copy(deep=True)
         self._seeded_anomaly_context = {
             anomaly.id: {
@@ -175,6 +208,7 @@ class DemoStore:
             kpis=deepcopy(self.kpis),
             anomalies=deepcopy(self.anomalies),
             incidents=[deepcopy(incident) for incident in self.incidents.values()],
+            activity_feed=deepcopy(self.activity_feed),
         )
 
     def list_anomalies(self) -> list[Anomaly]:
@@ -225,6 +259,14 @@ class DemoStore:
         )
         anomaly.linked_incident_id = incident_id
         self.incidents[incident_id] = incident
+        self._record_activity(
+            stage="incident",
+            title="Incident created from screening signal",
+            detail=(
+                f"{anomaly.asset_name} was promoted into {incident_id} "
+                f"with owner {payload.owner}."
+            ),
+        )
         return deepcopy(incident)
 
     def create_task(self, incident_id: str, payload: CreateTaskRequest) -> Incident:
@@ -242,6 +284,11 @@ class DemoStore:
         )
         incident.tasks.append(task)
         incident.report_sections = None
+        self._record_activity(
+            stage="verification",
+            title="Verification task created",
+            detail=f"{task.title} was assigned to {task.owner} for {incident_id}.",
+        )
         return deepcopy(incident)
 
     def complete_task(self, incident_id: str, task_id: str) -> Incident:
@@ -260,6 +307,11 @@ class DemoStore:
             incident.status = "mitigation"
 
         incident.report_sections = None
+        self._record_activity(
+            stage="verification",
+            title="Verification task completed",
+            detail=f"{task_id} was marked done for {incident_id}.",
+        )
         return deepcopy(incident)
 
     def generate_report(self, incident_id: str) -> GenerateReportResponse:
@@ -271,6 +323,11 @@ class DemoStore:
         incident.report_generated_at = "2026-03-27 09:00"
         report = self._build_report_sections(anomaly, incident)
         incident.report_sections = report
+        self._record_activity(
+            stage="report",
+            title="MRV report generated",
+            detail=f"{incident_id} now has an updated MRV summary for stakeholder review.",
+        )
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
     def export_report_html(self, incident_id: str, auto_print: bool = False) -> str:
@@ -410,6 +467,12 @@ class DemoStore:
                 f"{status_message}"
             )
 
+        self._record_activity(
+            stage="ingest",
+            title="Google Earth Engine sync verified",
+            detail=f"{observation_fragment} {mean_fragment}",
+        )
+
     def clear_live_evidence(self) -> None:
         self.kpis[3] = self._seeded_demo_posture.model_copy(deep=True)
 
@@ -425,6 +488,20 @@ class DemoStore:
         for incident_id, narrative in self._seeded_incident_narratives.items():
             if incident_id in self.incidents:
                 self.incidents[incident_id].narrative = narrative
+
+    def _record_activity(self, *, stage: str, title: str, detail: str) -> None:
+        self._activity_index += 1
+        self.activity_feed.insert(
+            0,
+            ActivityEvent(
+                id=f"ACT-{self._activity_index}",
+                occurred_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+                stage=stage,
+                title=title,
+                detail=detail,
+            ),
+        )
+        self.activity_feed = self.activity_feed[:8]
 
     def _build_report_sections(
         self, anomaly: Anomaly, incident: Incident

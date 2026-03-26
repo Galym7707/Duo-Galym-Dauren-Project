@@ -1,4 +1,5 @@
 import {
+  type ActivityEvent,
   type Anomaly,
   createDemoDashboardState,
   type DashboardState,
@@ -39,6 +40,7 @@ type ApiDashboardPayload = {
   kpis: ApiKpi[];
   anomalies: ApiAnomaly[];
   incidents: ApiIncident[];
+  activity_feed: ApiActivityEvent[];
 };
 
 type ApiKpi = {
@@ -101,6 +103,14 @@ type ApiIncident = {
 type ApiReportSection = {
   title: string;
   body: string;
+};
+
+type ApiActivityEvent = {
+  id: string;
+  occurred_at: string;
+  stage: ActivityEvent["stage"];
+  title: string;
+  detail: string;
 };
 
 type ApiGenerateReportResponse = {
@@ -317,6 +327,7 @@ function normalizeDashboard(payload: ApiDashboardPayload): DashboardState {
     kpis: payload.kpis.map(normalizeKpi),
     anomalies,
     incidents,
+    activityFeed: payload.activity_feed.map(normalizeActivityEvent),
   };
 }
 
@@ -391,6 +402,16 @@ function normalizeReportSection(section: ApiReportSection): ReportSection {
   return {
     title: section.title,
     body: section.body,
+  };
+}
+
+function normalizeActivityEvent(event: ApiActivityEvent): ActivityEvent {
+  return {
+    id: event.id,
+    occurredAt: event.occurred_at,
+    stage: event.stage,
+    title: event.title,
+    detail: event.detail,
   };
 }
 

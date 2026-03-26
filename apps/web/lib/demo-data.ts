@@ -65,10 +65,19 @@ export type ReportSection = {
   body: string;
 };
 
+export type ActivityEvent = {
+  id: string;
+  occurredAt: string;
+  stage: "ingest" | "incident" | "verification" | "report";
+  title: string;
+  detail: string;
+};
+
 export type DashboardState = {
   kpis: Kpi[];
   anomalies: Anomaly[];
   incidents: Record<string, Incident>;
+  activityFeed: ActivityEvent[];
 };
 
 export const kpis: Kpi[] = [
@@ -214,6 +223,37 @@ export const seededIncidents: Record<string, Incident> = {
   },
 };
 
+export const seededActivityFeed: ActivityEvent[] = [
+  {
+    id: "ACT-1001",
+    occurredAt: "2026-03-26 07:40",
+    stage: "ingest",
+    title: "Seeded CH4 screening loaded",
+    detail: "Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+  },
+  {
+    id: "ACT-1002",
+    occurredAt: "2026-03-26 08:20",
+    stage: "incident",
+    title: "Tengiz anomaly promoted",
+    detail: "AN-104 was escalated into incident INC-204 for verification ownership.",
+  },
+  {
+    id: "ACT-1003",
+    occurredAt: "2026-03-26 10:10",
+    stage: "verification",
+    title: "LDAR walkdown dispatched",
+    detail: "Field verification route was aligned with the Atyrau maintenance shift.",
+  },
+  {
+    id: "ACT-1004",
+    occurredAt: "2026-03-26 12:10",
+    stage: "report",
+    title: "MRV preview generated",
+    detail: "Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+  },
+];
+
 export function createDemoDashboardState(): DashboardState {
   return {
     kpis: kpis.map((kpi) => ({ ...kpi })),
@@ -232,5 +272,6 @@ export function createDemoDashboardState(): DashboardState {
         },
       ]),
     ),
+    activityFeed: seededActivityFeed.map((event) => ({ ...event })),
   };
 }

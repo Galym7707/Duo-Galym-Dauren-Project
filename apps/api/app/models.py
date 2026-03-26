@@ -9,6 +9,7 @@ IncidentStatus = Literal["triage", "verification", "mitigation"]
 TaskStatus = Literal["open", "done"]
 PipelineSource = Literal["seeded", "gee"]
 PipelineState = Literal["ready", "degraded", "error", "syncing"]
+ActivityStage = Literal["ingest", "incident", "verification", "report"]
 
 
 class SitePosition(BaseModel):
@@ -75,10 +76,23 @@ class ReportSection(BaseModel):
     body: str
 
 
+class ActivityEvent(BaseModel):
+    id: str
+    occurred_at: str
+    stage: ActivityStage
+    title: str
+    detail: str
+
+
 class DashboardPayload(BaseModel):
     kpis: list[KpiCard]
     anomalies: list[Anomaly]
     incidents: list[Incident]
+    activity_feed: list[ActivityEvent]
+
+
+class ActivityFeedPayload(BaseModel):
+    events: list[ActivityEvent]
 
 
 class PromoteAnomalyRequest(BaseModel):
