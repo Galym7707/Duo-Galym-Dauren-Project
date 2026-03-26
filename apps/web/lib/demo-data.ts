@@ -214,13 +214,6 @@ export const seededIncidents: Record<string, Incident> = {
   },
 };
 
-export const demoScript = [
-  "Select the strongest anomaly and explain why it matters in Kazakhstan right now.",
-  "Promote the anomaly into an incident so the story moves from visibility to action.",
-  "Show task ownership and verification steps to prove this is not a passive dashboard.",
-  "Generate the MRV report preview to close the loop for ESG and compliance teams.",
-];
-
 export function createDemoDashboardState(): DashboardState {
   return {
     kpis: kpis.map((kpi) => ({ ...kpi })),

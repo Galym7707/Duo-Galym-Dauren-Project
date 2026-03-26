@@ -289,6 +289,13 @@ class DemoStore:
                 for section in report_sections
             ]
         )
+        auto_print_script = (
+            "<script>"
+            "window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });"
+            "</script>"
+            if auto_print
+            else ""
+        )
 
         return (
             "<!doctype html>"
@@ -330,13 +337,7 @@ class DemoStore:
             "<section><h2>Verification Tasks</h2><ul>"
             f"{task_lines}"
             "</ul></section>"
-            (
-                "<script>"
-                "window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });"
-                "</script>"
-                if auto_print
-                else ""
-            )
+            f"{auto_print_script}"
             "</body></html>"
         )
 

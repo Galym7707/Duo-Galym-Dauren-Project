@@ -2,14 +2,7 @@
 
 import { startTransition, useEffect, useState } from "react";
 import {
-  demoScript,
-  type Anomaly,
-  type Incident,
-  type IncidentTask,
-} from "../lib/demo-data";
-import {
-  completeTask,
-  createTask,
+  completeTask as completeTaskRequest,
   type DashboardHydrationState,
   downloadReport,
   fallbackDashboardState,
@@ -18,6 +11,36 @@ import {
   loadDashboardState,
   promoteAnomaly as promoteAnomalyRequest,
 } from "../lib/api";
+import {
+  type Anomaly,
+  type Incident,
+  type IncidentTask,
+  type ReportSection,
+} from "../lib/demo-data";
+
+type StepId = "signal" | "incident" | "verification" | "report";
+type ThemeMode = "day" | "night";
+
+const stepOrder: StepId[] = ["signal", "incident", "verification", "report"];
+
+const stepMeta: Record<StepId, { label: string; note: string }> = {
+  signal: {
+    label: "Signal",
+    note: "Pick one anomaly worth escalating.",
+  },
+  incident: {
+    label: "Incident",
+    note: "Turn screening into an owned case.",
+  },
+  verification: {
+    label: "Verification",
+    note: "Show tasks, owners, and progress.",
+  },
+  report: {
+    label: "Report",
+    note: "Close the loop for MRV review.",
+  },
+};
 
 const severityTone: Record<Anomaly["severity"], string> = {
   high: "severity-high",
@@ -31,17 +54,37 @@ const severityLabel: Record<Anomaly["severity"], string> = {
   watch: "Watch",
 };
 
+const incidentStatusLabel: Record<Incident["status"], string> = {
+  triage: "Triage",
+  verification: "Verification",
+  mitigation: "Mitigation",
+};
+
 export default function Page() {
   const fallback = fallbackDashboardState();
+  const [theme, setTheme] = useState<ThemeMode>("night");
+  const [activeStep, setActiveStep] = useState<StepId>("signal");
   const [dashboardSource, setDashboardSource] =
     useState<DashboardHydrationState["source"]>(fallback.source);
   const [kpiCards, setKpiCards] = useState(fallback.kpis);
   const [anomalies, setAnomalies] = useState(fallback.anomalies);
   const [incidents, setIncidents] = useState(fallback.incidents);
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0].id);
+  const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | string>(null);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("saryna-theme");
+    if (storedTheme === "day" || storedTheme === "night") {
+      setTheme(storedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("saryna-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +102,7 @@ export default function Page() {
         setIncidents(state.incidents);
         setSelectedAnomalyId((current) => {
           const exists = state.anomalies.some((item) => item.id === current);
-          return exists ? current : state.anomalies[0]?.id ?? current;
+          return exists ? current : state.anomalies[0]?.id ?? "";
         });
         setLoadingDashboard(false);
       });
@@ -72,25 +115,59 @@ export default function Page() {
     };
   }, []);
 
-  const selectedAnomaly =
-    anomalies.find((item) => item.id === selectedAnomalyId) ?? anomalies[0] ?? null;
-  const hasAnomalies = Boolean(selectedAnomaly);
+  const strongestAnomaly =
+    anomalies.length > 0
+      ? anomalies.reduce((best, current) =>
+          current.signalScore > best.signalScore ? current : best,
+        )
+      : null;
 
-  const activeIncident = selectedAnomaly?.linkedIncidentId
-    ? incidents[selectedAnomaly.linkedIncidentId]
-    : undefined;
+  const selectedAnomaly =
+    anomalies.find((item) => item.id === selectedAnomalyId) ?? strongestAnomaly ?? null;
+
+  const activeIncident =
+    selectedAnomaly?.linkedIncidentId && incidents[selectedAnomaly.linkedIncidentId]
+      ? incidents[selectedAnomaly.linkedIncidentId]
+      : undefined;
 
   const completedTasks = activeIncident
     ? activeIncident.tasks.filter((task) => task.status === "done").length
     : 0;
 
-  const reportSections =
-    selectedAnomaly &&
-    (activeIncident?.reportSections ?? buildReportSections(selectedAnomaly, activeIncident));
-  const pipelineStages = buildPipelineStages(selectedAnomaly);
+  const currentStepIndex = stepOrder.indexOf(activeStep);
+  const previousStep = currentStepIndex > 0 ? stepOrder[currentStepIndex - 1] : undefined;
+  const nextStep =
+    currentStepIndex < stepOrder.length - 1 ? stepOrder[currentStepIndex + 1] : undefined;
+
+  const topStats = selectedAnomaly
+    ? [
+        {
+          label: "Focus signal",
+          value: `${selectedAnomaly.signalScore} / 100`,
+          detail: selectedAnomaly.assetName,
+        },
+        {
+          label: "Potential impact",
+          value: `${selectedAnomaly.co2eTonnes} tCO2e`,
+          detail: selectedAnomaly.region,
+        },
+        {
+          label: "Workflow state",
+          value: activeIncident ? incidentStatusLabel[activeIncident.status] : "Screening",
+          detail: activeIncident
+            ? `${completedTasks}/${activeIncident.tasks.length} tasks complete`
+            : "Promote only when evidence is strong enough",
+        },
+      ]
+    : [];
 
   const promoteToIncident = async () => {
-    if (!selectedAnomaly || selectedAnomaly.linkedIncidentId) {
+    if (!selectedAnomaly) {
+      return;
+    }
+
+    if (selectedAnomaly.linkedIncidentId) {
+      setActiveStep("incident");
       return;
     }
 
@@ -104,12 +181,15 @@ export default function Page() {
       } else {
         applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
       }
+
+      setActiveStep("incident");
     } catch {
       if (dashboardSource === "api") {
         setDashboardSource("fallback");
       }
       applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
-      setRequestError("Incident promotion failed. The fallback demo state is still available.");
+      setActiveStep("incident");
+      setRequestError("Promotion request failed, so the UI stayed on the local demo state.");
     } finally {
       setBusyAction(null);
     }
@@ -130,7 +210,7 @@ export default function Page() {
 
     try {
       if (dashboardSource === "api") {
-        const incident = await completeTask(activeIncident.id, taskId);
+        const incident = await completeTaskRequest(activeIncident.id, taskId);
         applyIncidentUpdate(incident, incident.anomalyId);
       } else {
         applyTaskCompletionFallback(activeIncident, taskId);
@@ -140,14 +220,14 @@ export default function Page() {
         setDashboardSource("fallback");
       }
       applyTaskCompletionFallback(activeIncident, taskId);
-      setRequestError("Task update failed. Keep the seeded state for the recording fallback.");
+      setRequestError("Task completion failed, so the UI switched back to local demo state.");
     } finally {
       setBusyAction(null);
     }
   };
 
   const generateReport = async () => {
-    if (!activeIncident) {
+    if (!activeIncident || !selectedAnomaly) {
       return;
     }
 
@@ -161,62 +241,41 @@ export default function Page() {
       } else {
         applyReportFallback(activeIncident, selectedAnomaly);
       }
+
+      setActiveStep("report");
     } catch {
       if (dashboardSource === "api") {
         setDashboardSource("fallback");
       }
       applyReportFallback(activeIncident, selectedAnomaly);
-      setRequestError("MRV report generation failed. Keep the seeded preview for the demo.");
+      setActiveStep("report");
+      setRequestError("Report generation failed, so the fallback MRV preview was kept active.");
     } finally {
       setBusyAction(null);
     }
   };
 
-  const createVerificationTask = async () => {
-    if (!activeIncident) {
+  const jumpToStep = (step: StepId) => {
+    if (step !== "signal" && !activeIncident) {
       return;
     }
 
-    const actionId = `create-task-${activeIncident.id}`;
-    setBusyAction(actionId);
-    setRequestError(null);
-
-    try {
-      const payload = buildVerificationTaskPayload(selectedAnomaly, activeIncident.tasks.length + 1);
-
-      if (dashboardSource === "api") {
-        const incident = await createTask(activeIncident.id, payload);
-        applyIncidentUpdate(incident, incident.anomalyId);
-      } else {
-        startTransition(() => {
-          setIncidents((current) => ({
-            ...current,
-            [activeIncident.id]: {
-              ...activeIncident,
-              tasks: [
-                ...activeIncident.tasks,
-                {
-                  id: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
-                  title: payload.title,
-                  owner: payload.owner,
-                  etaHours: payload.eta_hours,
-                  status: "open",
-                  notes: payload.notes,
-                },
-              ],
-            },
-          }));
-        });
-      }
-    } catch {
-      if (dashboardSource === "api") {
-        setDashboardSource("fallback");
-      }
-      setRequestError("Task creation failed. The incident still remains usable for the demo.");
-    } finally {
-      setBusyAction(null);
-    }
+    setActiveStep(step);
   };
+
+  const changeSelectedAnomaly = (anomalyId: string) => {
+    setSelectedAnomalyId(anomalyId);
+    setActiveStep("signal");
+    setRequestError(null);
+  };
+
+  const reportSections: ReportSection[] =
+    selectedAnomaly && activeIncident
+      ? activeIncident.reportSections ??
+        buildReportSections(selectedAnomaly, activeIncident, completedTasks)
+      : selectedAnomaly
+        ? buildReportSections(selectedAnomaly, undefined, 0)
+        : [];
 
   const exportReportArtifact = async () => {
     if (!activeIncident || !selectedAnomaly) {
@@ -229,7 +288,7 @@ export default function Page() {
 
     try {
       let fileName = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
-      let content = buildReportHtml(selectedAnomaly, activeIncident, reportSections ?? []);
+      let content = buildReportHtml(selectedAnomaly, activeIncident, reportSections);
       let contentType = "text/html;charset=utf-8";
 
       if (dashboardSource === "api") {
@@ -247,7 +306,7 @@ export default function Page() {
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setRequestError("Report export failed. The on-screen MRV preview is still available.");
+      setRequestError("Report export failed. The in-app preview is still available.");
     } finally {
       setBusyAction(null);
     }
@@ -266,7 +325,7 @@ export default function Page() {
       }
     }
 
-    const html = buildReportHtml(selectedAnomaly, activeIncident, reportSections ?? [], true);
+    const html = buildReportHtml(selectedAnomaly, activeIncident, reportSections, true);
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener,noreferrer");
@@ -294,145 +353,170 @@ export default function Page() {
 
   function applyTaskCompletionFallback(incident: Incident, taskId: string) {
     startTransition(() => {
-      setIncidents((current) => ({
-        ...current,
-        [incident.id]: {
-          ...incident,
-          status: incident.tasks.every((task) => task.id === taskId || task.status === "done")
-            ? "mitigation"
-            : incident.status,
-          tasks: incident.tasks.map((task) =>
-            task.id === taskId
-              ? {
-                  ...task,
-                  status: "done",
-                }
-              : task,
-          ),
-        },
-      }));
+      setIncidents((current) => {
+        const existing = current[incident.id] ?? incident;
+        const tasks: IncidentTask[] = existing.tasks.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                status: "done",
+              }
+            : task,
+        );
+        const doneCount = tasks.filter((task) => task.status === "done").length;
+
+        return {
+          ...current,
+          [incident.id]: {
+            ...existing,
+            tasks,
+            status: doneCount === tasks.length ? "mitigation" : "verification",
+          },
+        };
+      });
     });
   }
 
   function applyReportFallback(incident: Incident, anomaly: Anomaly) {
     startTransition(() => {
-      setIncidents((current) => ({
-        ...current,
-        [incident.id]: {
-          ...incident,
+      setIncidents((current) => {
+        const existing = current[incident.id] ?? incident;
+        const doneCount = existing.tasks.filter((task) => task.status === "done").length;
+        const nextIncident: Incident = {
+          ...existing,
           reportGeneratedAt: "2026-03-27 09:00",
-          status: incident.tasks.every((task) => task.status === "done")
-            ? "mitigation"
-            : incident.status,
-          reportSections: buildReportSections(anomaly, {
-            ...incident,
-            reportGeneratedAt: "2026-03-27 09:00",
-          }),
-        },
-      }));
+          status: doneCount === existing.tasks.length ? "mitigation" : "verification",
+          reportSections: buildReportSections(anomaly, existing, doneCount),
+        };
+
+        return {
+          ...current,
+          [incident.id]: nextIncident,
+        };
+      });
     });
   }
 
+  if (!selectedAnomaly) {
+    return (
+      <main className="app-shell">
+        <section className="focus-stage">
+          <div className="empty-stage">
+            <p>No anomaly is currently selected. Load data from the backend or keep the fallback state.</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="shell">
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Kazakhstan Startup Challenge 2026 / Submission build</p>
-          <h1>Saryna MRV turns methane visibility into operator action.</h1>
-          <p className="hero-text">
-            Screen methane and flare anomalies, escalate the right signal, assign verification,
-            and export a regulator-ready story without pretending satellites can replace LDAR.
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="header-copy">
+          <p className="eyebrow">Saryna MRV / Kazakhstan submission build</p>
+          <h1>Move one anomaly through a clear response flow.</h1>
+          <p className="header-text">
+            This frontend is the redesigned step-based workspace. The backend stays current from
+            the repository, while the screen hierarchy stays minimal and focused.
           </p>
-
-          <div className="hero-strip">
-            <div>
-              <span>Nearest goal</span>
-              <strong>Submission-ready MVP by April 3</strong>
-            </div>
-            <div>
-              <span>Main risk</span>
-              <strong>Pretty dashboard without workflow proof</strong>
-            </div>
-            <div>
-              <span>Positioning</span>
-              <strong>MRV bridge for ESG, compliance, and operations</strong>
-            </div>
-          </div>
-
-          <div className="status-row">
-            <span className={`status-pill ${dashboardSource === "api" ? "status-live" : "status-fallback"}`}>
-              {dashboardSource === "api" ? "Live API connected" : "Fallback demo state"}
-            </span>
-            <span className="status-copy">
-              {loadingDashboard
-                ? "Checking FastAPI backend..."
-                : dashboardSource === "api"
-                  ? "Frontend is reading and mutating the FastAPI contract."
-                  : "FastAPI is unavailable, so the UI stays demo-safe with seeded state."}
-            </span>
-          </div>
-
-          {requestError ? <p className="inline-error">{requestError}</p> : null}
         </div>
 
-        <div className="hero-aside">
-          <p className="aside-label">Demo loop</p>
-          <ol className="demo-loop">
-            <li>Detect anomaly</li>
-            <li>Promote incident</li>
-            <li>Assign verification task</li>
-            <li>Export MRV report</li>
-          </ol>
-        </div>
-      </section>
-
-      <section className="kpi-row">
-        {kpiCards.map((kpi) => (
-          <article key={kpi.label} className="kpi-block">
-            <span>{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <p>{kpi.detail}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="pipeline-row">
-        {pipelineStages.map((stage) => (
-          <article key={stage.label} className="pipeline-stage">
-            <span>{stage.label}</span>
-            <strong>{stage.value}</strong>
-            <p>{stage.detail}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="workspace">
-        <aside className="rail">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Anomaly queue</p>
-              <h2>Screen before you mobilize</h2>
-            </div>
-            <span className="rail-count">{anomalies.length} signals</span>
+        <div className="header-tools">
+          <div className="summary-grid">
+            {topStats.map((stat) => (
+              <article key={stat.label} className="summary-item">
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+                <p>{stat.detail}</p>
+              </article>
+            ))}
           </div>
 
-          <div className="queue">
-            {!hasAnomalies ? (
-              <section className="empty-state queue-empty-state">
-                <p>No anomalies are currently above the screening threshold for this window.</p>
-              </section>
-            ) : null}
+          <section className="status-card">
+            <div className="status-line">
+              <span
+                className={`status-badge ${
+                  dashboardSource === "api" ? "status-live" : "status-fallback"
+                }`}
+              >
+                {loadingDashboard
+                  ? "Checking backend"
+                  : dashboardSource === "api"
+                    ? "Backend connected"
+                    : "Fallback state"}
+              </span>
+              <span className="status-copy">
+                {loadingDashboard
+                  ? "Loading dashboard state..."
+                  : dashboardSource === "api"
+                    ? "Frontend is reading and mutating the FastAPI contract."
+                    : "API is unavailable, so the demo uses the local seeded state."}
+              </span>
+            </div>
+            {requestError ? <p className="status-error">{requestError}</p> : null}
+          </section>
+
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((current) => (current === "night" ? "day" : "night"))}
+            type="button"
+          >
+            <span>{theme === "night" ? "Switch to day mode" : "Switch to night mode"}</span>
+            <strong>{theme === "night" ? "Night" : "Day"}</strong>
+          </button>
+        </div>
+      </header>
+
+      <nav aria-label="Workflow steps" className="flow-nav">
+        {stepOrder.map((step, index) => {
+          const isLocked = step !== "signal" && !activeIncident;
+          const isActive = step === activeStep;
+
+          return (
+            <button
+              key={step}
+              className={`flow-step ${isActive ? "flow-step-active" : ""} ${
+                isLocked ? "flow-step-locked" : ""
+              }`}
+              disabled={isLocked}
+              onClick={() => jumpToStep(step)}
+              type="button"
+            >
+              <span className="step-index">0{index + 1}</span>
+              <div className="step-copy">
+                <strong>{stepMeta[step].label}</strong>
+                <small>{stepMeta[step].note}</small>
+              </div>
+            </button>
+          );
+        })}
+      </nav>
+
+      <section className="app-workspace">
+        <aside className="signal-panel">
+          <div className="panel-head">
+            <div>
+              <p className="eyebrow">Signal queue</p>
+              <h2>Keep the queue short and defensible</h2>
+            </div>
+            <span className="panel-count">{anomalies.length} live</span>
+          </div>
+
+          <div className="signal-list">
             {anomalies.map((anomaly) => {
-              const isSelected = anomaly.id === selectedAnomaly?.id;
+              const isSelected = anomaly.id === selectedAnomaly.id;
+              const incident = anomaly.linkedIncidentId
+                ? incidents[anomaly.linkedIncidentId]
+                : undefined;
 
               return (
                 <button
                   key={anomaly.id}
-                  className={`queue-item ${isSelected ? "queue-item-active" : ""}`}
-                  onClick={() => setSelectedAnomalyId(anomaly.id)}
+                  className={`signal-item ${isSelected ? "signal-item-active" : ""}`}
+                  onClick={() => changeSelectedAnomaly(anomaly.id)}
                   type="button"
                 >
-                  <div className="queue-meta">
+                  <div className="signal-top">
                     <span className={`severity ${severityTone[anomaly.severity]}`}>
                       {severityLabel[anomaly.severity]}
                     </span>
@@ -440,268 +524,375 @@ export default function Page() {
                   </div>
 
                   <strong>{anomaly.assetName}</strong>
-                  <p>{anomaly.summary}</p>
+                  <p>
+                    {anomaly.region} / {anomaly.facilityType}
+                  </p>
 
-                  <dl className="queue-stats">
-                    <div>
-                      <dt>CH4 uplift</dt>
-                      <dd>+{anomaly.methaneDeltaPct}%</dd>
-                    </div>
-                    <div>
-                      <dt>Potential CO2e</dt>
-                      <dd>{anomaly.co2eTonnes} t</dd>
-                    </div>
-                    <div>
-                      <dt>Status</dt>
-                      <dd>{anomaly.linkedIncidentId ? "Incident open" : "Awaiting triage"}</dd>
-                    </div>
-                  </dl>
+                  <div className="signal-metrics">
+                    <span>Score {anomaly.signalScore}</span>
+                    <span>{anomaly.co2eTonnes} tCO2e</span>
+                    <span>{incident ? incidentStatusLabel[incident.status] : "Screening"}</span>
+                  </div>
                 </button>
               );
             })}
           </div>
+
+          <section className="pilot-note">
+            <p className="eyebrow">Strongest anomaly</p>
+            <h3>{strongestAnomaly?.assetName ?? selectedAnomaly.assetName}</h3>
+            <p>
+              This remains the strongest seeded case because it combines the highest signal
+              score, the largest estimated impact, and persistent flare activity in Atyrau.
+            </p>
+          </section>
         </aside>
 
-        <section className="canvas">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Operations canvas</p>
-              <h2>{selectedAnomaly?.assetName ?? "No active anomaly"}</h2>
+        <section className="focus-stage">
+          <div
+            className="stage-frame stage-enter"
+            key={`${activeStep}-${selectedAnomaly.id}-${activeIncident?.id ?? "none"}-${theme}`}
+          >
+            <div className="stage-header">
+              <div>
+                <p className="eyebrow">
+                  Step {currentStepIndex + 1} / {stepMeta[activeStep].label}
+                </p>
+                <h2>{getStageTitle(activeStep, selectedAnomaly, activeIncident)}</h2>
+                <p className="stage-text">
+                  {getStageDescription(activeStep, selectedAnomaly, activeIncident)}
+                </p>
+              </div>
+
+              <div className="stage-nav">
+                <button
+                  className="secondary-button"
+                  disabled={!previousStep}
+                  onClick={() => previousStep && jumpToStep(previousStep)}
+                  type="button"
+                >
+                  Back
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!nextStep || (activeStep === "signal" && !activeIncident)}
+                  onClick={() => nextStep && jumpToStep(nextStep)}
+                  type="button"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-            {selectedAnomaly ? (
-              <div className="badge-stack">
-                <span className={`severity ${severityTone[selectedAnomaly.severity]}`}>
-                  {severityLabel[selectedAnomaly.severity]}
-                </span>
-                <span className="soft-badge">{selectedAnomaly.region}</span>
-              </div>
-            ) : null}
-          </div>
 
-          <div className="map-frame">
-            <div className="map-grid" />
-            {anomalies.map((anomaly) => (
-              <button
-                key={anomaly.id}
-                aria-label={anomaly.assetName}
-                className={`site-dot ${anomaly.id === selectedAnomaly?.id ? "site-dot-active" : ""}`}
-                onClick={() => setSelectedAnomalyId(anomaly.id)}
-                style={{
-                  left: `${anomaly.sitePosition.x}%`,
-                  top: `${anomaly.sitePosition.y}%`,
-                }}
-                type="button"
-              >
-                <span />
-              </button>
-            ))}
+            {activeStep === "signal" ? (
+              <div className="stage-layout">
+                <section className="main-surface">
+                  <div className="data-strip">
+                    <article className="data-point">
+                      <span>Signal score</span>
+                      <strong>{selectedAnomaly.signalScore} / 100</strong>
+                    </article>
+                    <article className="data-point">
+                      <span>Methane uplift</span>
+                      <strong>+{selectedAnomaly.methaneDeltaPct}%</strong>
+                    </article>
+                    <article className="data-point">
+                      <span>Flare persistence</span>
+                      <strong>{selectedAnomaly.flareHours} h</strong>
+                    </article>
+                    <article className="data-point">
+                      <span>Coordinates</span>
+                      <strong>{selectedAnomaly.coordinates}</strong>
+                    </article>
+                  </div>
 
-            {selectedAnomaly ? (
-              <div className="map-overlay">
-                <div>
-                  <span>Coordinates</span>
-                  <strong>{selectedAnomaly.coordinates}</strong>
-                </div>
-                <div>
-                  <span>Signal score</span>
-                  <strong>{selectedAnomaly.signalScore} / 100</strong>
-                </div>
-                <div>
-                  <span>Confidence</span>
-                  <strong>{selectedAnomaly.confidence}</strong>
-                </div>
-              </div>
-            ) : null}
-          </div>
+                  <section className="focus-block">
+                    <h3>Why this matters in Kazakhstan right now</h3>
+                    <p>{buildWhyNow(selectedAnomaly)}</p>
+                  </section>
 
-          {selectedAnomaly ? (
-            <div className="detail-grid">
-              <article className="detail-panel">
-                <p className="eyebrow">Signal rationale</p>
-                <h3>Why this case deserves attention</h3>
-                <p>{selectedAnomaly.summary}</p>
-                <ul className="compact-list">
-                  <li>Facility type: {selectedAnomaly.facilityType}</li>
-                  <li>Flare persistence: {selectedAnomaly.flareHours} observed hours</li>
-                  <li>Recommended action: {selectedAnomaly.recommendedAction}</li>
-                </ul>
-              </article>
-
-              <article className="detail-panel">
-                <p className="eyebrow">Anomaly trend</p>
-                <h3>Current week vs prior baseline</h3>
-                <div className="trend">
-                  {selectedAnomaly.trend.map((point) => (
-                    <div key={point.label} className="trend-bar-wrap">
-                      <div className="trend-bar" style={{ height: `${point.anomalyIndex}%` }} />
-                      <span>{point.label}</span>
+                  <section className="map-surface">
+                    <div className="map-head">
+                      <div>
+                        <span>Kazakhstan pilot view</span>
+                        <strong>{selectedAnomaly.region}</strong>
+                      </div>
+                      <span>{selectedAnomaly.confidence}</span>
                     </div>
-                  ))}
-                </div>
-              </article>
-            </div>
-          ) : (
-            <section className="empty-state">
-              <p>
-                No anomaly crossed the threshold in this window. That is a valid screening outcome,
-                and the product should stay stable when it happens.
-              </p>
-            </section>
-          )}
-        </section>
 
-        <aside className="rail">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Incident workspace</p>
-              <h2>{activeIncident ? activeIncident.id : "No incident yet"}</h2>
-            </div>
+                    <div className="map-plane">
+                      {anomalies.map((anomaly) => (
+                        <button
+                          key={anomaly.id}
+                          aria-label={anomaly.assetName}
+                          className={`map-dot ${anomaly.id === selectedAnomaly.id ? "map-dot-active" : ""}`}
+                          onClick={() => changeSelectedAnomaly(anomaly.id)}
+                          style={{
+                            left: `${anomaly.sitePosition.x}%`,
+                            top: `${anomaly.sitePosition.y}%`,
+                          }}
+                          type="button"
+                        />
+                      ))}
+                    </div>
+                  </section>
+                </section>
 
-            {activeIncident ? (
-              <span className="rail-count">
-                {completedTasks}/{activeIncident.tasks.length} tasks done
-              </span>
-            ) : null}
-          </div>
+                <aside className="side-surface">
+                  <section className="note-block">
+                    <span>Facility</span>
+                    <strong>{selectedAnomaly.facilityType}</strong>
+                    <p>{selectedAnomaly.summary}</p>
+                  </section>
 
-          {activeIncident ? (
-            <>
-              <section className="incident-summary">
-                <div className="incident-line">
-                  <span>Owner</span>
-                  <strong>{activeIncident.owner}</strong>
-                </div>
-                <div className="incident-line">
-                  <span>Priority</span>
-                  <strong>{activeIncident.priority}</strong>
-                </div>
-                <div className="incident-line">
-                  <span>Verification window</span>
-                  <strong>{activeIncident.verificationWindow}</strong>
-                </div>
-                <p>{activeIncident.narrative}</p>
-              </section>
+                  <section className="note-block">
+                    <span>Recommended next move</span>
+                    <strong>{selectedAnomaly.recommendedAction}</strong>
+                    <p>
+                      Keep the front page focused on one defendable signal instead of a wall of
+                      competing metrics.
+                    </p>
+                  </section>
 
-              <section className="task-stack">
-                <div className="mini-head">
-                  <h3>Verification tasks</h3>
                   <div className="action-row">
                     <button
-                      className="ghost-button"
-                      disabled={busyAction === `create-task-${activeIncident.id}`}
+                      className="primary-button"
+                      disabled={busyAction === "promote"}
                       onClick={() => {
-                        void createVerificationTask();
+                        void promoteToIncident();
                       }}
                       type="button"
                     >
-                      {busyAction === `create-task-${activeIncident.id}`
-                        ? "Creating..."
-                        : "Create verification task"}
-                    </button>
-                    <button
-                      className="ghost-button"
-                      disabled={busyAction === `report-${activeIncident.id}`}
-                      onClick={() => {
-                        void generateReport();
-                      }}
-                      type="button"
-                    >
-                      {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate MRV report"}
-                    </button>
-                    <button
-                      className="ghost-button"
-                      disabled={busyAction === `export-${activeIncident.id}`}
-                      onClick={() => {
-                        void exportReportArtifact();
-                      }}
-                      type="button"
-                    >
-                      {busyAction === `export-${activeIncident.id}` ? "Exporting..." : "Download MRV report"}
-                    </button>
-                    <button
-                      className="ghost-button"
-                      onClick={openPrintView}
-                      type="button"
-                    >
-                      Open print view
+                      {selectedAnomaly.linkedIncidentId
+                        ? "Open incident"
+                        : busyAction === "promote"
+                          ? "Promoting..."
+                          : "Promote to incident"}
                     </button>
                   </div>
+                </aside>
+              </div>
+            ) : null}
+
+            {activeStep === "incident" ? (
+              activeIncident ? (
+                <div className="stage-layout">
+                  <section className="main-surface">
+                    <section className="focus-block">
+                      <h3>{activeIncident.title}</h3>
+                      <p>{activeIncident.narrative}</p>
+                    </section>
+
+                    <div className="detail-grid">
+                      <article className="detail-item">
+                        <span>Owner</span>
+                        <strong>{activeIncident.owner}</strong>
+                      </article>
+                      <article className="detail-item">
+                        <span>Priority</span>
+                        <strong>{activeIncident.priority}</strong>
+                      </article>
+                      <article className="detail-item">
+                        <span>Window</span>
+                        <strong>{activeIncident.verificationWindow}</strong>
+                      </article>
+                      <article className="detail-item">
+                        <span>Status</span>
+                        <strong>{incidentStatusLabel[activeIncident.status]}</strong>
+                      </article>
+                    </div>
+                  </section>
+
+                  <aside className="side-surface">
+                    <section className="note-block">
+                      <span>Why the incident exists</span>
+                      <strong>Visibility becomes action only with ownership.</strong>
+                      <p>
+                        The anomaly is now attached to a named owner, a priority, and a response
+                        clock. That is the point where the product stops looking like a passive
+                        dashboard.
+                      </p>
+                    </section>
+
+                    <div className="action-row">
+                      <button
+                        className="primary-button"
+                        onClick={() => setActiveStep("verification")}
+                        type="button"
+                      >
+                        Go to verification
+                      </button>
+                    </div>
+                  </aside>
                 </div>
+              ) : (
+                <EmptyStage
+                  body="This anomaly is still in screening mode. Promote it first if you want the workflow to move into owned operational action."
+                  cta="Promote to incident"
+                  onAction={promoteToIncident}
+                />
+              )
+            ) : null}
 
-                {activeIncident.tasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    busy={busyAction === task.id}
-                    onComplete={() => markTaskDone(task.id)}
-                  />
-                ))}
-              </section>
+            {activeStep === "verification" ? (
+              activeIncident ? (
+                <div className="stage-layout">
+                  <section className="main-surface">
+                    <div className="progress-head">
+                      <div>
+                        <span>Verification progress</span>
+                        <strong>
+                          {completedTasks}/{activeIncident.tasks.length} tasks complete
+                        </strong>
+                      </div>
+                      <span>{activeIncident.owner}</span>
+                    </div>
 
-              <section className="report-panel">
-                <div className="mini-head">
-                  <h3>MRV report preview</h3>
-                  <span>{activeIncident.reportGeneratedAt ?? "Not generated yet"}</span>
+                    <div className="progress-track" aria-hidden="true">
+                      <div
+                        className="progress-bar"
+                        style={{
+                          width: `${(completedTasks / activeIncident.tasks.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="task-list">
+                      {activeIncident.tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          busy={busyAction === task.id}
+                          task={task}
+                          onComplete={() => {
+                            void markTaskDone(task.id);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </section>
+
+                  <aside className="side-surface">
+                    <section className="note-block">
+                      <span>Verification principle</span>
+                      <strong>Each task needs a human owner and a short ETA.</strong>
+                      <p>
+                        That keeps the interface legible for operations teams and gives ESG or
+                        compliance reviewers something concrete to trust.
+                      </p>
+                    </section>
+
+                    <div className="action-row">
+                      <button
+                        className="primary-button"
+                        disabled={busyAction === `report-${activeIncident.id}`}
+                        onClick={() => {
+                          void generateReport();
+                        }}
+                        type="button"
+                      >
+                        {busyAction === `report-${activeIncident.id}`
+                          ? "Generating..."
+                          : "Generate MRV preview"}
+                      </button>
+                    </div>
+                  </aside>
                 </div>
+              ) : (
+                <EmptyStage
+                  body="There is no verification workspace until the signal becomes an incident."
+                  cta="Return to signal review"
+                  onAction={() => setActiveStep("signal")}
+                />
+              )
+            ) : null}
 
-                <div className="report-sections">
-                  {reportSections?.map((section) => (
-                    <article key={section.title}>
-                      <span>{section.title}</span>
-                      <p>{section.body}</p>
-                    </article>
-                  ))}
+            {activeStep === "report" ? (
+              activeIncident ? (
+                <div className="stage-layout">
+                  <section className="main-surface">
+                    <div className="report-head">
+                      <div>
+                        <span>MRV report preview</span>
+                        <strong>
+                          {activeIncident.reportGeneratedAt ?? "Generate when the team is ready"}
+                        </strong>
+                      </div>
+                      {!activeIncident.reportGeneratedAt ? (
+                        <button
+                          className="secondary-button"
+                          disabled={busyAction === `report-${activeIncident.id}`}
+                          onClick={() => {
+                            void generateReport();
+                          }}
+                          type="button"
+                        >
+                          {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate now"}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="report-list">
+                      {reportSections.map((section) => (
+                        <article key={section.title} className="report-item">
+                          <span>{section.title}</span>
+                          <p>{section.body}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+
+                  <aside className="side-surface">
+                    <section className="note-block">
+                      <span>Close the loop</span>
+                      <strong>Measurement, action, verification, report.</strong>
+                      <p>
+                        The final screen is intentionally plain. It should read like a clean
+                        operational summary, not another dashboard.
+                      </p>
+                    </section>
+
+                    <div className="report-actions">
+                      <button
+                        className="secondary-button"
+                        disabled={busyAction === `export-${activeIncident.id}`}
+                        onClick={() => {
+                          void exportReportArtifact();
+                        }}
+                        type="button"
+                      >
+                        {busyAction === `export-${activeIncident.id}`
+                          ? "Exporting..."
+                          : "Download HTML"}
+                      </button>
+                      <button className="secondary-button" onClick={openPrintView} type="button">
+                        Open print view
+                      </button>
+                      <button
+                        className="primary-button"
+                        onClick={() => setActiveStep("signal")}
+                        type="button"
+                      >
+                        Review another signal
+                      </button>
+                    </div>
+                  </aside>
                 </div>
-              </section>
-            </>
-          ) : (
-            <section className="empty-state">
-              <p>
-                This signal is still in screening mode. Promote it only if it strengthens the
-                story from visibility to action.
-              </p>
-              <button
-                className="primary-button"
-                disabled={busyAction === "promote"}
-                onClick={() => {
-                  void promoteToIncident();
-                }}
-                type="button"
-              >
-                {busyAction === "promote" ? "Promoting..." : "Promote to incident"}
-              </button>
-            </section>
-          )}
-        </aside>
-      </section>
-
-      <section className="footer-band">
-        <div>
-          <p className="eyebrow">90-second script</p>
-          <ul className="compact-list">
-            {demoScript.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <p className="eyebrow">Backend contract</p>
-          <ul className="compact-list">
-            <li>`GET /api/v1/dashboard` for seeded state</li>
-            <li>`POST /api/v1/anomalies/{'{id}'}/promote` for incident creation</li>
-            <li>`POST /api/v1/incidents/{'{id}'}/tasks` for verification task creation</li>
-            <li>`POST /api/v1/incidents/{'{id}'}/report` for MRV export preview</li>
-            <li>`GET /api/v1/incidents/{'{id}'}/report/export` for downloadable HTML MRV artifact</li>
-            <li>`GET /api/v1/incidents/{'{id}'}/report/view` for print-ready report view</li>
-          </ul>
-        </div>
+              ) : (
+                <EmptyStage
+                  body="The report screen becomes available after an incident is active."
+                  cta="Return to signal review"
+                  onAction={() => setActiveStep("signal")}
+                />
+              )
+            ) : null}
+          </div>
+        </section>
       </section>
     </main>
   );
 }
 
-function TaskRow({
+function TaskCard({
   task,
   busy,
   onComplete,
@@ -711,17 +902,17 @@ function TaskRow({
   onComplete: () => void;
 }) {
   return (
-    <article className="task-row">
-      <div>
-        <span className="task-owner">{task.owner}</span>
-        <h4>{task.title}</h4>
+    <article className={`task-card ${task.status === "done" ? "task-card-done" : ""}`}>
+      <div className="task-copy">
+        <span>{task.owner}</span>
+        <h3>{task.title}</h3>
         <p>{task.notes}</p>
       </div>
 
-      <div className="task-actions">
-        <span>{task.etaHours}h</span>
+      <div className="task-side">
+        <strong>{task.etaHours} h</strong>
         <button
-          className="ghost-button"
+          className="secondary-button"
           disabled={task.status === "done" || busy}
           onClick={onComplete}
           type="button"
@@ -733,173 +924,243 @@ function TaskRow({
   );
 }
 
+function EmptyStage({
+  body,
+  cta,
+  onAction,
+}: {
+  body: string;
+  cta: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="empty-stage">
+      <p>{body}</p>
+      <button className="primary-button" onClick={onAction} type="button">
+        {cta}
+      </button>
+    </div>
+  );
+}
+
+function getStageTitle(step: StepId, anomaly: Anomaly, incident?: Incident) {
+  switch (step) {
+    case "signal":
+      return `Review ${anomaly.assetName}`;
+    case "incident":
+      return incident ? incident.id : "Create an incident";
+    case "verification":
+      return incident ? "Verification workspace" : "Verification not started";
+    case "report":
+      return incident ? "MRV report preview" : "Report not available";
+    default:
+      return "Workflow";
+  }
+}
+
+function getStageDescription(step: StepId, anomaly: Anomaly, incident?: Incident) {
+  switch (step) {
+    case "signal":
+      return `Select the anomaly that best justifies operational attention. ${anomaly.assetName} is currently in focus.`;
+    case "incident":
+      return incident
+        ? "The case now has an owner, a priority, and a verification window."
+        : "Promote the signal before you move deeper into the workflow.";
+    case "verification":
+      return incident
+        ? "Keep verification narrow, assigned, and measurable."
+        : "Verification stays locked until the signal becomes an incident.";
+    case "report":
+      return incident
+        ? "Export a short MRV-ready summary after the workflow is documented."
+        : "No report exists until there is an incident to summarize.";
+    default:
+      return "";
+  }
+}
+
+function buildWhyNow(anomaly: Anomaly) {
+  return `${anomaly.assetName} matters now because it shows +${anomaly.methaneDeltaPct}% methane uplift, ${anomaly.flareHours} observed flare hours, and an estimated ${anomaly.co2eTonnes} tCO2e impact in ${anomaly.region}. For Kazakhstan operators facing growing pressure around methane visibility, export readiness, and defensible ESG narratives, this is the kind of signal that can justify quick verification without overclaiming what satellite data can do.`;
+}
+
+function buildReportSections(
+  anomaly: Anomaly,
+  incident: Incident | undefined,
+  completedTasks: number,
+): ReportSection[] {
+  return [
+    {
+      title: "Measurement",
+      body: `Seeded satellite screening flagged ${anomaly.assetName} in ${anomaly.region} with +${anomaly.methaneDeltaPct}% methane uplift and ${anomaly.flareHours} observed flare hours.`,
+    },
+    {
+      title: "Operational response",
+      body: incident
+        ? `${incident.owner} owns the case under ${incident.priority} priority with a ${incident.verificationWindow.toLowerCase()} window.`
+        : "The signal is still in screening mode and has not been promoted into an owned case.",
+    },
+    {
+      title: "Verification status",
+      body: incident
+        ? `${completedTasks}/${incident.tasks.length} verification tasks are complete and the current estimated impact is ${anomaly.co2eTonnes} tCO2e.`
+        : `Current seeded estimate is ${anomaly.co2eTonnes} tCO2e, pending escalation and verification ownership.`,
+    },
+  ];
+}
+
 function createFallbackIncident(anomaly: Anomaly): Incident {
-  const incidentId = `INC-${anomaly.id.slice(3)}`;
+  const incidentId = `INC-${anomaly.id.replace("AN-", "")}`;
 
   return {
     id: incidentId,
     anomalyId: anomaly.id,
-    title: `New verification case for ${anomaly.assetName}`,
+    title: `${anomaly.assetName} escalation`,
     status: "triage",
     owner: "MRV response lead",
-    priority: anomaly.severity === "high" ? "P1" : "P2",
-    verificationWindow: anomaly.severity === "high" ? "Next 12 hours" : "Next 24 hours",
+    priority: anomaly.severity === "high" ? "P1" : anomaly.severity === "medium" ? "P2" : "P3",
+    verificationWindow:
+      anomaly.severity === "high"
+        ? "Next 12 hours"
+        : anomaly.severity === "medium"
+          ? "Next 24 hours"
+          : "Next 48 hours",
     narrative:
-      "This incident was promoted directly from the anomaly queue to prove the screening-to-action flow before we connect live operator systems.",
+      "Fallback incident created in the frontend so the flow remains usable when the API is unavailable.",
     tasks: [
       {
         id: `${incidentId}-TASK-1`,
-        title: "Validate signal persistence against 12-week baseline",
-        owner: "Remote sensing analyst",
-        etaHours: 2,
-        status: "done",
-        notes: "Baseline and current window exported for review.",
+        title: "Assign field review owner",
+        owner: "MRV response lead",
+        etaHours: 1,
+        status: "open",
+        notes: "Confirm who owns first verification contact and response window.",
       },
       {
         id: `${incidentId}-TASK-2`,
-        title: "Assign field verification owner",
-        owner: "Area operations coordinator",
+        title: "Cross-check recent maintenance activity",
+        owner: "Reliability engineer",
         etaHours: 4,
         status: "open",
-        notes: "Route can be merged with scheduled integrity patrol.",
+        notes: "Look for compressor, flare, or shutdown activity that could explain the signal.",
+      },
+      {
+        id: `${incidentId}-TASK-3`,
+        title: "Prepare ESG evidence note",
+        owner: "Compliance lead",
+        etaHours: 6,
+        status: "open",
+        notes: "Document what is measured, what is assumed, and what still requires verification.",
       },
     ],
   };
 }
 
-function buildVerificationTaskPayload(anomaly: Anomaly, sequence: number) {
-  const templates = [
-    {
-      title: `Schedule field verification for ${anomaly.assetName}`,
-      owner: "Ops coordinator",
-      eta_hours: 4,
-      notes: "Bundle this stop with the next integrity patrol to keep the pilot low-friction.",
-    },
-    {
-      title: `Review maintenance context around ${anomaly.assetName}`,
-      owner: "Reliability engineer",
-      eta_hours: 6,
-      notes: "Check compressor upset history, flare line interventions, and recent shutdown events.",
-    },
-    {
-      title: `Prepare regulator-facing MRV note for ${anomaly.assetName}`,
-      owner: "ESG lead",
-      eta_hours: 8,
-      notes: "Summarize anomaly evidence, planned verification, and likely operational explanation.",
-    },
-  ];
-
-  return templates[(sequence - 1) % templates.length];
-}
-
-function buildPipelineStages(anomaly: Anomaly | null) {
-  return [
-    {
-      label: "Ingest layer",
-      value: "Open-data screening route prepared",
-      detail: anomaly
-        ? `Current demo case is anchored to the ${anomaly.detectedAt} signal window.`
-        : "No anomaly crossed the threshold in the current review window.",
-    },
-    {
-      label: "Normalization layer",
-      value: "Scoring logic is demo-visible",
-      detail: anomaly
-        ? `${anomaly.assetName} is shown against a recent baseline and CO2e framing.`
-        : "Normalization remains part of the workflow even when no case is escalated.",
-    },
-    {
-      label: "Verification layer",
-      value: "Incident handoff is ready",
-      detail: anomaly
-        ? "Incident, task, and MRV artifact can be created from the same workspace."
-        : "Verification stays dormant until a new anomaly crosses the threshold.",
-    },
-  ];
-}
-
-function buildReportSections(anomaly: Anomaly, incident?: Incident) {
-  const tasks = incident?.tasks ?? [];
-  const completed = tasks.filter((task) => task.status === "done").length;
-
-  return [
-    {
-      title: "Measurement",
-      body: `Satellite screening flagged ${anomaly.assetName} in ${anomaly.region} with +${anomaly.methaneDeltaPct}% methane uplift and ${anomaly.flareHours} flare-observed hours.`,
-    },
-    {
-      title: "Reporting",
-      body: `Current potential impact is estimated at ${anomaly.co2eTonnes} tCO2e. ${completed}/${tasks.length || 2} verification tasks are complete.`,
-    },
-    {
-      title: "Verification",
-      body: incident
-        ? `${incident.owner} owns the case under ${incident.priority} priority with a ${incident.verificationWindow.toLowerCase()} window.`
-        : "Incident not yet promoted. Keep this signal in screening mode until persistence justifies field action.",
-    },
-  ];
-}
-
 function buildReportHtml(
   anomaly: Anomaly,
   incident: Incident,
-  reportSections: { title: string; body: string }[],
+  sections: ReportSection[],
   autoPrint = false,
 ) {
-  const completed = incident.tasks.filter((task) => task.status === "done").length;
-  const sections =
-    reportSections.length > 0 ? reportSections : buildReportSections(anomaly, incident);
-  const tasks = incident.tasks
+  const taskItems = incident.tasks
     .map(
       (task) =>
-        `<li><strong>${task.title}</strong> - ${task.owner} - ETA ${task.etaHours}h - ${task.status === "done" ? "Done" : "Open"}</li>`,
+        `<li><strong>${escapeHtml(task.title)}</strong> - ${escapeHtml(task.owner)} - ${task.etaHours}h - ${escapeHtml(task.status)}</li>`,
     )
     .join("");
-  const sectionHtml = sections
-    .map((section) => `<section><h2>${section.title}</h2><p>${section.body}</p></section>`)
+
+  const sectionMarkup = sections
+    .map(
+      (section) =>
+        `<section><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.body)}</p></section>`,
+    )
     .join("");
 
-  return [
-    "<!doctype html>",
-    "<html lang='en'>",
-    "<head>",
-    "<meta charset='utf-8' />",
-    `<title>${incident.id} MRV Report</title>`,
-    "<style>",
-    "body{font-family:Segoe UI,Arial,sans-serif;margin:40px;color:#10212b;line-height:1.55;}",
-    "h1{margin-bottom:8px;}h2{margin:24px 0 8px;}section{margin-top:20px;}",
-    ".meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:24px 0;}",
-    ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}",
-    ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}",
-    ".value{display:block;margin-top:6px;font-weight:600;}",
-    ".toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0 28px;}",
-    ".toolbar button{padding:10px 14px;border:1px solid #b9c9d4;background:#ffffff;cursor:pointer;font:inherit;}",
-    "ul{padding-left:20px;}",
-    "@media print{body{margin:22px;} .toolbar{display:none;} .meta{gap:8px 14px;}}",
-    "</style>",
-    "</head>",
-    "<body>",
-    `<h1>MRV Incident Report: ${incident.id}</h1>`,
-    "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>",
-    "<div class='toolbar'>",
-    "<span>Print-ready MRV note for stakeholder review.</span>",
-    "<button onclick='window.print()'>Print / Save as PDF</button>",
-    "</div>",
-    "<div class='meta'>",
-    `<div><span class='label'>Generated</span><span class='value'>${incident.reportGeneratedAt ?? "On-demand export"}</span></div>`,
-    `<div><span class='label'>Asset</span><span class='value'>${anomaly.assetName}</span></div>`,
-    `<div><span class='label'>Region</span><span class='value'>${anomaly.region}</span></div>`,
-    `<div><span class='label'>Coordinates</span><span class='value'>${anomaly.coordinates}</span></div>`,
-    `<div><span class='label'>Priority</span><span class='value'>${incident.priority}</span></div>`,
-    `<div><span class='label'>Verification window</span><span class='value'>${incident.verificationWindow}</span></div>`,
-    `<div><span class='label'>Potential impact</span><span class='value'>${anomaly.co2eTonnes} tCO2e</span></div>`,
-    `<div><span class='label'>Task progress</span><span class='value'>${completed}/${incident.tasks.length} completed</span></div>`,
-    "</div>",
-    sectionHtml,
-    `<section><h2>Verification Tasks</h2><ul>${tasks}</ul></section>`,
-    autoPrint
-      ? "<script>window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });</script>"
-      : "",
-    "</body></html>",
-  ].join("");
+  const printScript = autoPrint
+    ? `<script>window.addEventListener("load",()=>{window.print();});</script>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(incident.id)} MRV Preview</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 40px;
+        font-family: Aptos, "Segoe UI", sans-serif;
+        color: #1f2933;
+        background: #f7f4ee;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 36px;
+        border: 1px solid #d8d2c7;
+        background: #fffdf8;
+      }
+      h1, h2, h3 { margin: 0; }
+      h1 {
+        font-family: "Iowan Old Style", Georgia, serif;
+        font-size: 2.2rem;
+        letter-spacing: -0.04em;
+      }
+      .meta, .intro, ul, section p {
+        color: #495662;
+        line-height: 1.7;
+      }
+      .meta {
+        margin: 18px 0 28px;
+        display: grid;
+        gap: 8px;
+      }
+      .summary {
+        padding: 20px;
+        margin-bottom: 24px;
+        border: 1px solid #d8d2c7;
+        background: #f5f1e9;
+      }
+      section {
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid #e5dfd2;
+      }
+      ul {
+        padding-left: 20px;
+      }
+    </style>
+    ${printScript}
+  </head>
+  <body>
+    <main>
+      <h1>Saryna MRV Report Preview</h1>
+      <div class="meta">
+        <span>Incident: ${escapeHtml(incident.id)}</span>
+        <span>Asset: ${escapeHtml(anomaly.assetName)}</span>
+        <span>Region: ${escapeHtml(anomaly.region)}</span>
+        <span>Owner: ${escapeHtml(incident.owner)}</span>
+      </div>
+      <div class="summary">
+        <h3>Why this anomaly matters</h3>
+        <p class="intro">${escapeHtml(buildWhyNow(anomaly))}</p>
+      </div>
+      ${sectionMarkup}
+      <section>
+        <h2>Verification tasks</h2>
+        <ul>${taskItems}</ul>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

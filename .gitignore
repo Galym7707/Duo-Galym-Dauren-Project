@@ -12,6 +12,12 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+*.egg-info/
 
 # Logs
 *.log
+.codex-*.png
+
+# Local env
+.env.local
+apps/web/.env.local
