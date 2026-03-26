@@ -192,6 +192,11 @@ export default function Page() {
     const actionId = "pipeline-sync";
     setBusyAction(actionId);
     setRequestError(null);
+    setPipelineStatus((current) => ({
+      ...current,
+      state: "syncing",
+      statusMessage: "Earth Engine sync is running. Waiting for CH4 screening summary...",
+    }));
 
     try {
       const nextStatus = await syncPipeline("gee");
@@ -561,6 +566,8 @@ export default function Page() {
               <span className="status-copy">
                 {loadingDashboard
                   ? "Loading dashboard state..."
+                  : busyAction === "pipeline-sync"
+                    ? "Earth Engine sync is in progress. The workflow stays interactive while the ingest proof updates."
                   : dashboardSource === "api"
                     ? "Frontend is reading and mutating the FastAPI contract."
                     : "API is unavailable, so the demo uses the local seeded state."}
@@ -807,6 +814,20 @@ export default function Page() {
                     <p>
                       Keep the front page focused on one defendable signal instead of a wall of
                       competing metrics.
+                    </p>
+                  </section>
+
+                  <section className="note-block">
+                    <span>Live ingest evidence</span>
+                    <strong>
+                      {pipelineStatus.source === "gee"
+                        ? pipelineStatus.providerLabel
+                        : "Seeded screening path"}
+                    </strong>
+                    <p>
+                      {pipelineStatus.latestObservationAt
+                        ? `Latest CH4 observation: ${pipelineStatus.latestObservationAt}. ${pipelineStatus.statusMessage}`
+                        : pipelineStatus.statusMessage}
                     </p>
                   </section>
 

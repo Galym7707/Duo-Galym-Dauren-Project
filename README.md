@@ -102,6 +102,10 @@ Earth Engine project for live CH4 sync:
 set EARTH_ENGINE_PROJECT=gen-lang-client-0372752376
 ```
 
+Live backend runbook:
+
+- `docs/backend-live-sync.md`
+
 ## Что уже реализовано
 
 - demo-safe anomaly queue
