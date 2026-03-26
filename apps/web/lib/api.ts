@@ -195,6 +195,15 @@ export async function downloadReport(incidentId: string): Promise<DownloadedRepo
   };
 }
 
+export function getReportViewUrl(incidentId: string, autoPrint = false): string | null {
+  if (!apiBaseUrl) {
+    return null;
+  }
+
+  const suffix = autoPrint ? "?auto_print=true" : "";
+  return `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/view${suffix}`;
+}
+
 function normalizeDashboard(payload: ApiDashboardPayload): DashboardState {
   const anomalies = payload.anomalies.map(normalizeAnomaly);
   const incidents = Object.fromEntries(

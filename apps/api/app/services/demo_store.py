@@ -258,7 +258,7 @@ class DemoStore:
         incident.report_sections = report
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
-    def export_report_html(self, incident_id: str) -> str:
+    def export_report_html(self, incident_id: str, auto_print: bool = False) -> str:
         incident = self.incidents.get(incident_id)
         if incident is None:
             raise KeyError(incident_id)
@@ -303,12 +303,19 @@ class DemoStore:
             ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}"
             ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}"
             ".value{display:block;margin-top:6px;font-weight:600;}"
+            ".toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0 28px;}"
+            ".toolbar button{padding:10px 14px;border:1px solid #b9c9d4;background:#ffffff;cursor:pointer;font:inherit;}"
             "ul{padding-left:20px;}"
+            "@media print{body{margin:22px;} .toolbar{display:none;} .meta{gap:8px 14px;}}"
             "</style>"
             "</head>"
             "<body>"
             f"<h1>MRV Incident Report: {incident.id}</h1>"
             "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>"
+            "<div class='toolbar'>"
+            "<span>Print-ready MRV note for stakeholder review.</span>"
+            "<button onclick='window.print()'>Print / Save as PDF</button>"
+            "</div>"
             "<div class='meta'>"
             f"<div><span class='label'>Generated</span><span class='value'>{incident.report_generated_at or 'On-demand export'}</span></div>"
             f"<div><span class='label'>Asset</span><span class='value'>{anomaly.asset_name}</span></div>"
@@ -323,6 +330,13 @@ class DemoStore:
             "<section><h2>Verification Tasks</h2><ul>"
             f"{task_lines}"
             "</ul></section>"
+            (
+                "<script>"
+                "window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });"
+                "</script>"
+                if auto_print
+                else ""
+            )
             "</body></html>"
         )
 

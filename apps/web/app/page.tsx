@@ -14,6 +14,7 @@ import {
   downloadReport,
   fallbackDashboardState,
   generateReport as generateReportRequest,
+  getReportViewUrl,
   loadDashboardState,
   promoteAnomaly as promoteAnomalyRequest,
 } from "../lib/api";
@@ -250,6 +251,26 @@ export default function Page() {
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const openPrintView = () => {
+    if (!activeIncident || !selectedAnomaly) {
+      return;
+    }
+
+    if (dashboardSource === "api") {
+      const reportViewUrl = getReportViewUrl(activeIncident.id, true);
+      if (reportViewUrl) {
+        window.open(reportViewUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+    }
+
+    const html = buildReportHtml(selectedAnomaly, activeIncident, reportSections ?? [], true);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
   function applyIncidentUpdate(incident: Incident, anomalyId: string) {
@@ -597,6 +618,13 @@ export default function Page() {
                     >
                       {busyAction === `export-${activeIncident.id}` ? "Exporting..." : "Download MRV report"}
                     </button>
+                    <button
+                      className="ghost-button"
+                      onClick={openPrintView}
+                      type="button"
+                    >
+                      Open print view
+                    </button>
                   </div>
                 </div>
 
@@ -665,6 +693,7 @@ export default function Page() {
             <li>`POST /api/v1/incidents/{'{id}'}/tasks` for verification task creation</li>
             <li>`POST /api/v1/incidents/{'{id}'}/report` for MRV export preview</li>
             <li>`GET /api/v1/incidents/{'{id}'}/report/export` for downloadable HTML MRV artifact</li>
+            <li>`GET /api/v1/incidents/{'{id}'}/report/view` for print-ready report view</li>
           </ul>
         </div>
       </section>
@@ -811,7 +840,12 @@ function buildReportSections(anomaly: Anomaly, incident?: Incident) {
   ];
 }
 
-function buildReportHtml(anomaly: Anomaly, incident: Incident, reportSections: { title: string; body: string }[]) {
+function buildReportHtml(
+  anomaly: Anomaly,
+  incident: Incident,
+  reportSections: { title: string; body: string }[],
+  autoPrint = false,
+) {
   const completed = incident.tasks.filter((task) => task.status === "done").length;
   const sections =
     reportSections.length > 0 ? reportSections : buildReportSections(anomaly, incident);
@@ -838,12 +872,19 @@ function buildReportHtml(anomaly: Anomaly, incident: Incident, reportSections: {
     ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}",
     ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}",
     ".value{display:block;margin-top:6px;font-weight:600;}",
+    ".toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0 28px;}",
+    ".toolbar button{padding:10px 14px;border:1px solid #b9c9d4;background:#ffffff;cursor:pointer;font:inherit;}",
     "ul{padding-left:20px;}",
+    "@media print{body{margin:22px;} .toolbar{display:none;} .meta{gap:8px 14px;}}",
     "</style>",
     "</head>",
     "<body>",
     `<h1>MRV Incident Report: ${incident.id}</h1>`,
     "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>",
+    "<div class='toolbar'>",
+    "<span>Print-ready MRV note for stakeholder review.</span>",
+    "<button onclick='window.print()'>Print / Save as PDF</button>",
+    "</div>",
     "<div class='meta'>",
     `<div><span class='label'>Generated</span><span class='value'>${incident.reportGeneratedAt ?? "On-demand export"}</span></div>`,
     `<div><span class='label'>Asset</span><span class='value'>${anomaly.assetName}</span></div>`,
@@ -856,6 +897,9 @@ function buildReportHtml(anomaly: Anomaly, incident: Incident, reportSections: {
     "</div>",
     sectionHtml,
     `<section><h2>Verification Tasks</h2><ul>${tasks}</ul></section>`,
+    autoPrint
+      ? "<script>window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });</script>"
+      : "",
     "</body></html>",
   ].join("");
 }

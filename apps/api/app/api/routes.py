@@ -90,3 +90,16 @@ async def export_report(incident_id: str) -> Response:
             "Content-Disposition": f'attachment; filename="{incident_id.lower()}-mrv-report.html"',
         },
     )
+
+
+@router.get("/incidents/{incident_id}/report/view")
+async def view_report(incident_id: str, auto_print: bool = False) -> Response:
+    try:
+        report_html = store.export_report_html(incident_id, auto_print=auto_print)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
+
+    return Response(
+        content=report_html,
+        media_type="text/html; charset=utf-8",
+    )
