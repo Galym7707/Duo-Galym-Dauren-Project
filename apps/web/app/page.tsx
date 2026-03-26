@@ -88,6 +88,7 @@ export default function Page() {
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | string>(null);
+  const [pipelineSyncTarget, setPipelineSyncTarget] = useState<"gee" | "seeded" | null>(null);
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("saryna-theme");
@@ -208,6 +209,11 @@ export default function Page() {
       : pipelineStatus.state === "degraded"
         ? "status-fallback"
         : "status-problem";
+  const liveScreeningReady = pipelineStatus.source === "gee" && pipelineStatus.state === "ready";
+  const liveScreeningAnomalyId = liveScreeningReady ? strongestAnomaly?.id : undefined;
+  const queueCountLabel = liveScreeningAnomalyId
+    ? `${anomalies.length} queued / 1 GEE-verified`
+    : `${anomalies.length} queued`;
 
   const topStats = selectedAnomaly
     ? [
@@ -231,7 +237,7 @@ export default function Page() {
       ]
     : [];
 
-  const runPipelineSync = async () => {
+  const runPipelineSync = async (source: "gee" | "seeded") => {
     if (!hasApiBaseUrl) {
       setRequestError("Live pipeline sync needs the FastAPI backend to be available.");
       return;
@@ -239,15 +245,19 @@ export default function Page() {
 
     const actionId = "pipeline-sync";
     setBusyAction(actionId);
+    setPipelineSyncTarget(source);
     setRequestError(null);
     setPipelineStatus((current) => ({
       ...current,
       state: "syncing",
-      statusMessage: "Earth Engine sync is running. Waiting for CH4 screening summary...",
+      statusMessage:
+        source === "gee"
+          ? "Earth Engine sync is running. Waiting for CH4 screening summary..."
+          : "Reverting to seeded demo playback. Clearing live screening evidence...",
     }));
 
     try {
-      const nextStatus = await syncPipeline("gee");
+      const nextStatus = await syncPipeline(source);
       const refreshedDashboard = await loadDashboardState();
 
       setPipelineStatus(nextStatus);
@@ -260,6 +270,7 @@ export default function Page() {
       setRequestError("Pipeline sync failed. The seeded workflow remains available for the demo.");
     } finally {
       setBusyAction(null);
+      setPipelineSyncTarget(null);
     }
   };
 
@@ -779,10 +790,10 @@ export default function Page() {
                 {loadingDashboard
                   ? "Loading dashboard state..."
                   : busyAction === "pipeline-sync"
-                    ? "Earth Engine sync is in progress. The workflow stays interactive while the ingest proof updates."
-                  : dashboardSource === "api"
-                    ? "Frontend is reading and mutating the FastAPI contract."
-                    : "API is unavailable, so the demo uses the local seeded state."}
+                    ? "Pipeline sync is in progress. The workflow stays interactive while the ingest proof updates."
+                    : dashboardSource === "api"
+                      ? "Frontend is reading and mutating the FastAPI contract."
+                      : "API is unavailable, so the demo uses the local seeded state."}
               </span>
             </div>
 
@@ -806,17 +817,38 @@ export default function Page() {
             </div>
 
             <div className="pipeline-actions">
-              <p>Use manual sync to prove the CH4 ingest path without risking the demo workflow.</p>
-              <button
-                className="secondary-button"
-                disabled={busyAction === "pipeline-sync" || !hasApiBaseUrl}
-                onClick={() => {
-                  void runPipelineSync();
-                }}
-                type="button"
-              >
-                {busyAction === "pipeline-sync" ? "Syncing..." : "Run GEE sync"}
-              </button>
+              <p>
+                Use manual sync to prove the CH4 ingest path, then fall back to seeded playback if
+                you want the demo to return to its baseline state.
+              </p>
+              <div className="pipeline-action-buttons">
+                <button
+                  className="secondary-button"
+                  disabled={busyAction === "pipeline-sync" || !hasApiBaseUrl}
+                  onClick={() => {
+                    void runPipelineSync("gee");
+                  }}
+                  type="button"
+                >
+                  {busyAction === "pipeline-sync" && pipelineSyncTarget === "gee"
+                    ? "Syncing..."
+                    : "Run GEE sync"}
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={
+                    busyAction === "pipeline-sync" || !hasApiBaseUrl || pipelineStatus.source === "seeded"
+                  }
+                  onClick={() => {
+                    void runPipelineSync("seeded");
+                  }}
+                  type="button"
+                >
+                  {busyAction === "pipeline-sync" && pipelineSyncTarget === "seeded"
+                    ? "Resetting..."
+                    : "Return to seeded mode"}
+                </button>
+              </div>
             </div>
 
             {requestError ? <p className="status-error">{requestError}</p> : null}
@@ -865,7 +897,7 @@ export default function Page() {
               <p className="eyebrow">Signal queue</p>
               <h2>Keep the queue short and defensible</h2>
             </div>
-            <span className="panel-count">{anomalies.length} live</span>
+            <span className="panel-count">{queueCountLabel}</span>
           </div>
 
           <div className="signal-list">
@@ -899,6 +931,14 @@ export default function Page() {
                     <span>{anomaly.co2eTonnes} tCO2e</span>
                     <span>{incident ? incidentStatusLabel[incident.status] : "Screening"}</span>
                   </div>
+
+                  {liveScreeningAnomalyId === anomaly.id ? (
+                    <div className="signal-evidence-row">
+                      <span className="status-badge status-live signal-evidence-badge">
+                        GEE verified
+                      </span>
+                    </div>
+                  ) : null}
                 </button>
               );
             })}
@@ -909,7 +949,9 @@ export default function Page() {
             <h3>{strongestAnomaly?.assetName ?? "No anomaly above threshold"}</h3>
             <p>
               {strongestAnomaly
-                ? "This remains the strongest seeded case because it combines the highest signal score, the largest estimated impact, and persistent flare activity in Atyrau."
+                ? liveScreeningReady
+                  ? "This remains the lead signal because the queue is still demo-safe, but the top case now also carries live CH4 screening evidence from Earth Engine."
+                  : "This remains the strongest seeded case because it combines the highest signal score, the largest estimated impact, and persistent flare activity in Atyrau."
                 : "A zero-anomaly window is still a valid screening outcome. Keep the pipeline visible and use manual sync to prove the ingest path."}
             </p>
           </section>
@@ -1058,6 +1100,12 @@ export default function Page() {
                         ? `Latest CH4 observation: ${pipelineStatus.latestObservationAt}. ${pipelineStatus.statusMessage}`
                         : pipelineStatus.statusMessage}
                     </p>
+                    {liveScreeningReady && selectedAnomaly.id === liveScreeningAnomalyId ? (
+                      <small className="note-evidence">
+                        This lead signal is the current stage-safe carrier of live CH4 screening
+                        evidence.
+                      </small>
+                    ) : null}
                   </section>
 
                   <div className="action-row">

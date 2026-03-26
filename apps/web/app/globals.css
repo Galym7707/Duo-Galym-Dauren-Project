@@ -293,6 +293,12 @@ button {
   flex-wrap: wrap;
 }
 
+.pipeline-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .status-error {
   margin: 0;
   color: var(--high);
@@ -456,7 +462,8 @@ button {
 .signal-top,
 .signal-metrics,
 .action-row,
-.stage-nav {
+.stage-nav,
+.signal-evidence-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -494,9 +501,24 @@ button {
   margin: 8px 0 0;
 }
 
+.note-evidence {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .signal-metrics {
   margin-top: 14px;
   font-size: 0.82rem;
+}
+
+.signal-evidence-row {
+  margin-top: 12px;
+}
+
+.signal-evidence-badge {
+  padding-inline: 8px;
 }
 
 .severity {
