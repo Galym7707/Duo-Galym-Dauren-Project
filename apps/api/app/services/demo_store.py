@@ -157,6 +157,18 @@ class DemoStore:
                 ],
             )
         }
+        self._seeded_demo_posture = self.kpis[3].model_copy(deep=True)
+        self._seeded_anomaly_context = {
+            anomaly.id: {
+                "summary": anomaly.summary,
+                "recommended_action": anomaly.recommended_action,
+                "confidence": anomaly.confidence,
+            }
+            for anomaly in self.anomalies
+        }
+        self._seeded_incident_narratives = {
+            incident_id: incident.narrative for incident_id, incident in self.incidents.items()
+        }
 
     def dashboard(self) -> DashboardPayload:
         return DashboardPayload(
@@ -344,6 +356,76 @@ class DemoStore:
             "</body></html>"
         )
 
+    def apply_gee_evidence(
+        self,
+        *,
+        project_id: str | None,
+        latest_observation_at: str | None,
+        mean_ch4_ppb: float | None,
+        status_message: str,
+    ) -> None:
+        mean_fragment = (
+            f"Mean CH4 over Kazakhstan: {mean_ch4_ppb} ppb."
+            if mean_ch4_ppb is not None
+            else "Mean CH4 summary is not available for this sync."
+        )
+        observation_fragment = (
+            f"Latest observation: {latest_observation_at}."
+            if latest_observation_at
+            else "Latest observation timestamp is not available."
+        )
+
+        self.kpis[3] = KpiCard(
+            label="Live ingest",
+            value="GEE verified",
+            detail=(
+                f"{observation_fragment} Project: {project_id or 'not reported'}"
+            ),
+        )
+
+        strongest_anomaly = self._strongest_anomaly()
+        seeded_context = self._seeded_anomaly_context[strongest_anomaly.id]
+        strongest_anomaly.summary = (
+            f"{seeded_context['summary']} "
+            f"Latest Earth Engine sync validated the Kazakhstan CH4 screening path. "
+            f"{observation_fragment} {mean_fragment}"
+        )
+        strongest_anomaly.recommended_action = (
+            "Use this signal as the screening priority for operator triage. "
+            "Earth Engine now proves the CH4 ingest path, while asset-level attribution still "
+            "depends on verification workflow."
+        )
+        strongest_anomaly.confidence = (
+            f"{seeded_context['confidence']} / live GEE sync verified"
+        )
+
+        linked_incident_id = strongest_anomaly.linked_incident_id
+        if linked_incident_id and linked_incident_id in self.incidents:
+            seeded_narrative = self._seeded_incident_narratives.get(
+                linked_incident_id, self.incidents[linked_incident_id].narrative
+            )
+            self.incidents[linked_incident_id].narrative = (
+                f"{seeded_narrative} "
+                f"Latest Earth Engine sync confirmed the screening layer is live for Kazakhstan. "
+                f"{status_message}"
+            )
+
+    def clear_live_evidence(self) -> None:
+        self.kpis[3] = self._seeded_demo_posture.model_copy(deep=True)
+
+        for anomaly in self.anomalies:
+            seeded_context = self._seeded_anomaly_context.get(anomaly.id)
+            if seeded_context is None:
+                continue
+
+            anomaly.summary = seeded_context["summary"]
+            anomaly.recommended_action = seeded_context["recommended_action"]
+            anomaly.confidence = seeded_context["confidence"]
+
+        for incident_id, narrative in self._seeded_incident_narratives.items():
+            if incident_id in self.incidents:
+                self.incidents[incident_id].narrative = narrative
+
     def _build_report_sections(
         self, anomaly: Anomaly, incident: Incident
     ) -> list[ReportSection]:
@@ -370,6 +452,9 @@ class DemoStore:
 
     def _completed_tasks(self, incident: Incident) -> int:
         return len([task for task in incident.tasks if task.status == "done"])
+
+    def _strongest_anomaly(self) -> Anomaly:
+        return max(self.anomalies, key=lambda anomaly: anomaly.signal_score)
 
     def _trend(self, values: list[int]) -> list[TrendPoint]:
         return [

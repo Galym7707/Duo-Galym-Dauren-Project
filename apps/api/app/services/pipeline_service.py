@@ -18,6 +18,7 @@ class PipelineService:
 
     def sync_seeded(self) -> PipelineStatus:
         now = self._now()
+        self.store.clear_live_evidence()
         self._status = PipelineStatus(
             source="seeded",
             state="ready",
@@ -52,6 +53,12 @@ class PipelineService:
         summary = self.provider.sync_summary()
 
         if summary.status == "ready":
+            self.store.apply_gee_evidence(
+                project_id=summary.project_id,
+                latest_observation_at=summary.latest_observation_at,
+                mean_ch4_ppb=summary.mean_ch4_ppb,
+                status_message=summary.message,
+            )
             mean_fragment = (
                 f"Latest mean CH4 column over Kazakhstan: {summary.mean_ch4_ppb} ppb."
                 if summary.mean_ch4_ppb is not None
@@ -89,6 +96,7 @@ class PipelineService:
             return self.get_status()
 
         degraded_state = "degraded" if summary.status == "degraded" else "error"
+        self.store.clear_live_evidence()
         self._status = PipelineStatus(
             source="gee",
             state=degraded_state,
