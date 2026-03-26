@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
 
 from app.models import (
+    ActivityFeedPayload,
     Anomaly,
     CreateTaskRequest,
     DashboardPayload,
@@ -23,6 +24,11 @@ pipeline_service = PipelineService(store)
 @router.get("/dashboard", response_model=DashboardPayload)
 async def get_dashboard() -> DashboardPayload:
     return store.dashboard()
+
+
+@router.get("/activity", response_model=ActivityFeedPayload)
+async def get_activity_feed() -> ActivityFeedPayload:
+    return ActivityFeedPayload(events=store.list_activity())
 
 
 @router.get("/pipeline/status", response_model=PipelineStatus)
@@ -64,6 +70,14 @@ async def list_incidents() -> list[Incident]:
 async def get_incident(incident_id: str) -> Incident:
     try:
         return store.get_incident(incident_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
+
+
+@router.get("/incidents/{incident_id}/audit", response_model=ActivityFeedPayload)
+async def get_incident_audit(incident_id: str) -> ActivityFeedPayload:
+    try:
+        return ActivityFeedPayload(events=store.list_incident_activity(incident_id))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
 

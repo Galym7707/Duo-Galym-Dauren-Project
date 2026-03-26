@@ -166,6 +166,7 @@ class DemoStore:
                 stage="ingest",
                 title="Seeded CH4 screening loaded",
                 detail="Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+                incident_id="INC-204",
             ),
             ActivityEvent(
                 id="ACT-1002",
@@ -192,6 +193,14 @@ class DemoStore:
                 incident_id="INC-204",
             ),
         ]
+        self.incident_activity_feed: dict[str, list[ActivityEvent]] = {
+            incident_id: [
+                event.model_copy(deep=True)
+                for event in self.activity_feed
+                if event.incident_id == incident_id
+            ]
+            for incident_id in self.incidents
+        }
         self._activity_index = 1004
         self._seeded_kpis = [kpi.model_copy(deep=True) for kpi in self.kpis]
         self._seeded_demo_posture = self.kpis[3].model_copy(deep=True)
@@ -215,6 +224,14 @@ class DemoStore:
             incidents=[deepcopy(incident) for incident in self.incidents.values()],
             activity_feed=deepcopy(self.activity_feed),
         )
+
+    def list_activity(self) -> list[ActivityEvent]:
+        return deepcopy(self.activity_feed)
+
+    def list_incident_activity(self, incident_id: str) -> list[ActivityEvent]:
+        if incident_id not in self.incidents:
+            raise KeyError(incident_id)
+        return self._incident_activity(incident_id)
 
     def list_anomalies(self) -> list[Anomaly]:
         return deepcopy(self.anomalies)
@@ -508,6 +525,7 @@ class DemoStore:
             stage="ingest",
             title="Google Earth Engine sync verified",
             detail=f"{observation_fragment} {mean_fragment}",
+            incident_id=linked_incident_id,
         )
 
     def clear_live_evidence(self) -> None:
@@ -531,18 +549,21 @@ class DemoStore:
         self, *, stage: str, title: str, detail: str, incident_id: str | None = None
     ) -> None:
         self._activity_index += 1
-        self.activity_feed.insert(
-            0,
-            ActivityEvent(
-                id=f"ACT-{self._activity_index}",
-                occurred_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
-                stage=stage,
-                title=title,
-                detail=detail,
-                incident_id=incident_id,
-            ),
+        event = ActivityEvent(
+            id=f"ACT-{self._activity_index}",
+            occurred_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+            stage=stage,
+            title=title,
+            detail=detail,
+            incident_id=incident_id,
         )
+        self.activity_feed.insert(0, event)
         self.activity_feed = self.activity_feed[:8]
+        if incident_id:
+            self.incident_activity_feed.setdefault(incident_id, []).insert(
+                0,
+                event.model_copy(deep=True),
+            )
 
     def _build_report_sections(
         self, anomaly: Anomaly, incident: Incident
@@ -575,11 +596,7 @@ class DemoStore:
         return max(self.anomalies, key=lambda anomaly: anomaly.signal_score)
 
     def _incident_activity(self, incident_id: str) -> list[ActivityEvent]:
-        return [
-            event.model_copy(deep=True)
-            for event in self.activity_feed
-            if event.incident_id == incident_id or event.stage == "ingest"
-        ]
+        return deepcopy(self.incident_activity_feed.get(incident_id, []))
 
     def _trend(self, values: list[int]) -> list[TrendPoint]:
         return [

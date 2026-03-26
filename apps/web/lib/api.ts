@@ -119,6 +119,10 @@ type ApiGenerateReportResponse = {
   report: ApiReportSection[];
 };
 
+type ApiActivityFeedPayload = {
+  events: ApiActivityEvent[];
+};
+
 type ApiPipelineStage = {
   label: string;
   value: string;
@@ -201,6 +205,43 @@ export async function loadDashboardState(): Promise<DashboardHydrationState> {
     };
   } catch {
     return fallbackDashboardState();
+  }
+}
+
+export async function loadActivityFeed(
+  fallbackEvents: ActivityEvent[] = createDemoDashboardState().activityFeed,
+): Promise<ActivityEvent[]> {
+  if (!apiBaseUrl) {
+    return fallbackEvents;
+  }
+
+  try {
+    const payload = await requestJson<ApiActivityFeedPayload>("/api/v1/activity");
+    return payload.events.map(normalizeActivityEvent);
+  } catch {
+    return fallbackEvents;
+  }
+}
+
+export async function loadIncidentActivity(
+  incidentId: string,
+  fallbackEvents: ActivityEvent[],
+): Promise<ActivityEvent[]> {
+  const filteredFallback = fallbackEvents.filter(
+    (event) => event.incidentId === incidentId || event.stage === "ingest",
+  );
+
+  if (!apiBaseUrl) {
+    return filteredFallback;
+  }
+
+  try {
+    const payload = await requestJson<ApiActivityFeedPayload>(
+      `/api/v1/incidents/${incidentId}/audit`,
+    );
+    return payload.events.map(normalizeActivityEvent);
+  } catch {
+    return filteredFallback;
   }
 }
 

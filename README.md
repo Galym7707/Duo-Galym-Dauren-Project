@@ -114,6 +114,7 @@ Live backend runbook:
 - FastAPI API contract под дальнейшую интеграцию реальных данных
 - frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
 - pipeline status and manual Earth Engine sync scaffold for CH4 screening
+- MRV audit feed exposed as first-class API resources for global and incident-specific evidence views
 
 ## Что дальше по приоритету
 

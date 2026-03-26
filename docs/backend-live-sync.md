@@ -122,11 +122,13 @@ This keeps the product honest:
 
 - `GET /health`
 - `GET /api/v1/dashboard`
+- `GET /api/v1/activity`
 - `GET /api/v1/pipeline/status`
 - `POST /api/v1/pipeline/sync`
 - `GET /api/v1/anomalies`
 - `POST /api/v1/anomalies/{anomaly_id}/promote`
 - `GET /api/v1/incidents/{incident_id}`
+- `GET /api/v1/incidents/{incident_id}/audit`
 - `POST /api/v1/incidents/{incident_id}/tasks`
 - `POST /api/v1/incidents/{incident_id}/tasks/{task_id}/complete`
 - `POST /api/v1/incidents/{incident_id}/report`

@@ -12,7 +12,9 @@ import {
   generateReport as generateReportRequest,
   hasApiBaseUrl,
   getReportViewUrl,
+  loadActivityFeed,
   loadDashboardState,
+  loadIncidentActivity,
   loadPipelineStatus,
   type PipelineStatus,
   promoteAnomaly as promoteAnomalyRequest,
@@ -78,6 +80,7 @@ export default function Page() {
   const [anomalies, setAnomalies] = useState(fallback.anomalies);
   const [incidents, setIncidents] = useState(fallback.incidents);
   const [activityFeed, setActivityFeed] = useState(fallback.activityFeed);
+  const [incidentActivityFeed, setIncidentActivityFeed] = useState<ActivityEvent[]>([]);
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
     fallbackPipelineStatus(fallback.anomalies.length),
@@ -103,6 +106,7 @@ export default function Page() {
 
     async function hydrateDashboard() {
       const state = await loadDashboardState();
+      const nextActivityFeed = await loadActivityFeed(state.activityFeed);
       const nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
       if (cancelled) {
         return;
@@ -113,7 +117,7 @@ export default function Page() {
         setKpiCards(state.kpis);
         setAnomalies(state.anomalies);
         setIncidents(state.incidents);
-        setActivityFeed(state.activityFeed);
+        setActivityFeed(nextActivityFeed);
         setPipelineStatus(nextPipelineStatus);
         setSelectedAnomalyId((current) => {
           const exists = state.anomalies.some((item) => item.id === current);
@@ -144,6 +148,47 @@ export default function Page() {
     selectedAnomaly?.linkedIncidentId && incidents[selectedAnomaly.linkedIncidentId]
       ? incidents[selectedAnomaly.linkedIncidentId]
       : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const incidentId = activeIncident?.id;
+    const fallbackIncidentActivity = incidentId
+      ? activityFeed.filter((event) => event.incidentId === incidentId || event.stage === "ingest")
+      : [];
+
+    if (!incidentId) {
+      setIncidentActivityFeed([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (dashboardSource !== "api") {
+      setIncidentActivityFeed(fallbackIncidentActivity);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const resolvedIncidentId = incidentId;
+
+    async function hydrateIncidentActivity() {
+      const events = await loadIncidentActivity(resolvedIncidentId, activityFeed);
+      if (cancelled) {
+        return;
+      }
+
+      startTransition(() => {
+        setIncidentActivityFeed(events);
+      });
+    }
+
+    void hydrateIncidentActivity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeIncident?.id, activityFeed, dashboardSource]);
 
   const completedTasks = activeIncident
     ? activeIncident.tasks.filter((task) => task.status === "done").length
@@ -413,12 +458,7 @@ export default function Page() {
       : selectedAnomaly
         ? buildReportSections(selectedAnomaly, undefined, 0)
         : [];
-  const incidentActivity =
-    activeIncident && activityFeed.length > 0
-      ? activityFeed.filter(
-          (event) => event.incidentId === activeIncident.id || event.stage === "ingest",
-        )
-      : [];
+  const incidentActivity = activeIncident ? incidentActivityFeed : [];
 
   const exportReportArtifact = async () => {
     if (!activeIncident || !selectedAnomaly) {
@@ -489,7 +529,14 @@ export default function Page() {
   async function refreshDashboardFromApi() {
     const refreshedDashboard = await loadDashboardState();
     if (refreshedDashboard.source === "api") {
-      applyDashboardHydration(refreshedDashboard, refreshedDashboard.source);
+      const refreshedActivityFeed = await loadActivityFeed(refreshedDashboard.activityFeed);
+      applyDashboardHydration(
+        {
+          ...refreshedDashboard,
+          activityFeed: refreshedActivityFeed,
+        },
+        refreshedDashboard.source,
+      );
     }
   }
 
