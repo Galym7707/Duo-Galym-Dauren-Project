@@ -32,8 +32,9 @@ async def get_pipeline_status() -> PipelineStatus:
 
 @router.post("/pipeline/sync", response_model=PipelineSyncResponse)
 async def sync_pipeline(payload: PipelineSyncRequest) -> PipelineSyncResponse:
-    handler = pipeline_service.sync_gee if payload.source == "gee" else pipeline_service.sync_seeded
-    status_model = await run_in_threadpool(handler)
+    status_model = await run_in_threadpool(
+        pipeline_service.sync_gee if payload.source == "gee" else pipeline_service.sync_seeded
+    )
     return PipelineSyncResponse(status=status_model)
 
 

@@ -45,29 +45,21 @@ class GeeProvider:
         # We validate live Earth Engine access and fetch a broad CH4 summary over Kazakhstan.
         # Asset-level anomaly generation still stays in the demo store until the full ingest layer lands.
         kazakhstan_bounds = ee.Geometry.Rectangle([46.0, 40.0, 87.0, 56.0], geodesic=False)
-        collection = (
-            ee.ImageCollection(self.DATASET_ID)
-            .filterBounds(kazakhstan_bounds)
-            .select(self.BAND_NAME)
-        )
-
         try:
+            collection = (
+                ee.ImageCollection(self.DATASET_ID)
+                .filterBounds(kazakhstan_bounds)
+                .select(self.BAND_NAME)
+            )
             scene_count = int(collection.size().getInfo())
-        except Exception as error:  # pragma: no cover - runtime/environment dependent
-            return GeeSyncSummary(
-                project_id=self.project_id,
-                status="error",
-                message=f"Earth Engine query failed while counting Kazakhstan scenes: {error}",
-            )
 
-        if scene_count == 0:
-            return GeeSyncSummary(
-                project_id=self.project_id,
-                status="degraded",
-                message="Earth Engine connected, but no CH4 scenes were returned for the configured collection.",
-            )
+            if scene_count == 0:
+                return GeeSyncSummary(
+                    project_id=self.project_id,
+                    status="degraded",
+                    message="Earth Engine connected, but no Kazakhstan CH4 scenes were returned for the configured collection.",
+                )
 
-        try:
             latest = collection.sort("system:time_start", False).first()
             latest_millis = int(latest.get("system:time_start").getInfo())
             latest_observation_at = datetime.fromtimestamp(latest_millis / 1000, UTC).strftime(
@@ -89,9 +81,8 @@ class GeeProvider:
             return GeeSyncSummary(
                 project_id=self.project_id,
                 status="error",
-                message=f"Earth Engine query failed while summarizing CH4 over Kazakhstan: {error}",
+                message=f"Earth Engine CH4 query failed: {error}",
             )
-
         return GeeSyncSummary(
             project_id=self.project_id,
             status="ready",

@@ -436,7 +436,7 @@ export default function Page() {
       setIncidents(state.incidents);
       setSelectedAnomalyId((current) => {
         const exists = state.anomalies.some((item) => item.id === current);
-        return exists ? current : state.anomalies[0]?.id ?? "";
+        return exists ? current : state.anomalies[0]?.id ?? current;
       });
     });
   }
