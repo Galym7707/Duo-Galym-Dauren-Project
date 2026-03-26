@@ -96,6 +96,12 @@ type CreateTaskPayload = {
   notes: string;
 };
 
+export type DownloadedReport = {
+  content: string;
+  fileName: string;
+  contentType: string;
+};
+
 export function fallbackDashboardState(): DashboardHydrationState {
   return {
     ...createDemoDashboardState(),
@@ -167,6 +173,25 @@ export async function generateReport(incidentId: string): Promise<Incident> {
   return {
     ...normalizeIncident(payload.incident),
     reportSections: payload.report.map(normalizeReportSection),
+  };
+}
+
+export async function downloadReport(incidentId: string): Promise<DownloadedReport> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/incidents/${incidentId}/report/export`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  const disposition = response.headers.get("content-disposition");
+  const match = disposition?.match(/filename="([^"]+)"/);
+
+  return {
+    content: await response.text(),
+    fileName: match?.[1] ?? `${incidentId.toLowerCase()}-mrv-report.html`,
+    contentType: response.headers.get("content-type") ?? "text/html;charset=utf-8",
   };
 }
 

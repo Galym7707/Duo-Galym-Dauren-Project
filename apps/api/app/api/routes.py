@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.models import (
     Anomaly,
@@ -74,3 +74,19 @@ async def generate_report(incident_id: str) -> GenerateReportResponse:
         return store.generate_report(incident_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
+
+
+@router.get("/incidents/{incident_id}/report/export")
+async def export_report(incident_id: str) -> Response:
+    try:
+        report_html = store.export_report_html(incident_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
+
+    return Response(
+        content=report_html,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{incident_id.lower()}-mrv-report.html"',
+        },
+    )

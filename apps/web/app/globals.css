@@ -46,7 +46,8 @@ button {
 .hero,
 .workspace,
 .footer-band,
-.kpi-row {
+.kpi-row,
+.pipeline-row {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
@@ -198,9 +199,43 @@ button {
   margin-top: 18px;
 }
 
+.pipeline-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
 .kpi-block {
   padding: 22px;
   border-right: 1px solid var(--line);
+}
+
+.pipeline-stage {
+  padding: 20px 22px;
+  border-right: 1px solid var(--line);
+}
+
+.pipeline-stage:last-child {
+  border-right: none;
+}
+
+.pipeline-stage span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.79rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pipeline-stage strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1rem;
+}
+
+.pipeline-stage p {
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .kpi-block:last-child {

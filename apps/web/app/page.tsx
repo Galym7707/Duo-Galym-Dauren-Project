@@ -11,6 +11,7 @@ import {
   completeTask,
   createTask,
   type DashboardHydrationState,
+  downloadReport,
   fallbackDashboardState,
   generateReport as generateReportRequest,
   loadDashboardState,
@@ -85,6 +86,7 @@ export default function Page() {
   const reportSections =
     selectedAnomaly &&
     (activeIncident?.reportSections ?? buildReportSections(selectedAnomaly, activeIncident));
+  const pipelineStages = buildPipelineStages(selectedAnomaly);
 
   const promoteToIncident = async () => {
     if (!selectedAnomaly || selectedAnomaly.linkedIncidentId) {
@@ -215,6 +217,41 @@ export default function Page() {
     }
   };
 
+  const exportReportArtifact = async () => {
+    if (!activeIncident || !selectedAnomaly) {
+      return;
+    }
+
+    const actionId = `export-${activeIncident.id}`;
+    setBusyAction(actionId);
+    setRequestError(null);
+
+    try {
+      let fileName = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
+      let content = buildReportHtml(selectedAnomaly, activeIncident, reportSections ?? []);
+      let contentType = "text/html;charset=utf-8";
+
+      if (dashboardSource === "api") {
+        const downloaded = await downloadReport(activeIncident.id);
+        fileName = downloaded.fileName;
+        content = downloaded.content;
+        contentType = downloaded.contentType;
+      }
+
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setRequestError("Report export failed. The on-screen MRV preview is still available.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   function applyIncidentUpdate(incident: Incident, anomalyId: string) {
     startTransition(() => {
       setIncidents((current) => ({
@@ -334,6 +371,16 @@ export default function Page() {
             <span>{kpi.label}</span>
             <strong>{kpi.value}</strong>
             <p>{kpi.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="pipeline-row">
+        {pipelineStages.map((stage) => (
+          <article key={stage.label} className="pipeline-stage">
+            <span>{stage.label}</span>
+            <strong>{stage.value}</strong>
+            <p>{stage.detail}</p>
           </article>
         ))}
       </section>
@@ -540,6 +587,16 @@ export default function Page() {
                     >
                       {busyAction === `report-${activeIncident.id}` ? "Generating..." : "Generate MRV report"}
                     </button>
+                    <button
+                      className="ghost-button"
+                      disabled={busyAction === `export-${activeIncident.id}`}
+                      onClick={() => {
+                        void exportReportArtifact();
+                      }}
+                      type="button"
+                    >
+                      {busyAction === `export-${activeIncident.id}` ? "Exporting..." : "Download MRV report"}
+                    </button>
                   </div>
                 </div>
 
@@ -607,6 +664,7 @@ export default function Page() {
             <li>`POST /api/v1/anomalies/{'{id}'}/promote` for incident creation</li>
             <li>`POST /api/v1/incidents/{'{id}'}/tasks` for verification task creation</li>
             <li>`POST /api/v1/incidents/{'{id}'}/report` for MRV export preview</li>
+            <li>`GET /api/v1/incidents/{'{id}'}/report/export` for downloadable HTML MRV artifact</li>
           </ul>
         </div>
       </section>
@@ -705,6 +763,32 @@ function buildVerificationTaskPayload(anomaly: Anomaly, sequence: number) {
   return templates[(sequence - 1) % templates.length];
 }
 
+function buildPipelineStages(anomaly: Anomaly | null) {
+  return [
+    {
+      label: "Ingest layer",
+      value: "Open-data screening route prepared",
+      detail: anomaly
+        ? `Current demo case is anchored to the ${anomaly.detectedAt} signal window.`
+        : "No anomaly crossed the threshold in the current review window.",
+    },
+    {
+      label: "Normalization layer",
+      value: "Scoring logic is demo-visible",
+      detail: anomaly
+        ? `${anomaly.assetName} is shown against a recent baseline and CO2e framing.`
+        : "Normalization remains part of the workflow even when no case is escalated.",
+    },
+    {
+      label: "Verification layer",
+      value: "Incident handoff is ready",
+      detail: anomaly
+        ? "Incident, task, and MRV artifact can be created from the same workspace."
+        : "Verification stays dormant until a new anomaly crosses the threshold.",
+    },
+  ];
+}
+
 function buildReportSections(anomaly: Anomaly, incident?: Incident) {
   const tasks = incident?.tasks ?? [];
   const completed = tasks.filter((task) => task.status === "done").length;
@@ -725,4 +809,53 @@ function buildReportSections(anomaly: Anomaly, incident?: Incident) {
         : "Incident not yet promoted. Keep this signal in screening mode until persistence justifies field action.",
     },
   ];
+}
+
+function buildReportHtml(anomaly: Anomaly, incident: Incident, reportSections: { title: string; body: string }[]) {
+  const completed = incident.tasks.filter((task) => task.status === "done").length;
+  const sections =
+    reportSections.length > 0 ? reportSections : buildReportSections(anomaly, incident);
+  const tasks = incident.tasks
+    .map(
+      (task) =>
+        `<li><strong>${task.title}</strong> - ${task.owner} - ETA ${task.etaHours}h - ${task.status === "done" ? "Done" : "Open"}</li>`,
+    )
+    .join("");
+  const sectionHtml = sections
+    .map((section) => `<section><h2>${section.title}</h2><p>${section.body}</p></section>`)
+    .join("");
+
+  return [
+    "<!doctype html>",
+    "<html lang='en'>",
+    "<head>",
+    "<meta charset='utf-8' />",
+    `<title>${incident.id} MRV Report</title>`,
+    "<style>",
+    "body{font-family:Segoe UI,Arial,sans-serif;margin:40px;color:#10212b;line-height:1.55;}",
+    "h1{margin-bottom:8px;}h2{margin:24px 0 8px;}section{margin-top:20px;}",
+    ".meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:24px 0;}",
+    ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}",
+    ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}",
+    ".value{display:block;margin-top:6px;font-weight:600;}",
+    "ul{padding-left:20px;}",
+    "</style>",
+    "</head>",
+    "<body>",
+    `<h1>MRV Incident Report: ${incident.id}</h1>`,
+    "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>",
+    "<div class='meta'>",
+    `<div><span class='label'>Generated</span><span class='value'>${incident.reportGeneratedAt ?? "On-demand export"}</span></div>`,
+    `<div><span class='label'>Asset</span><span class='value'>${anomaly.assetName}</span></div>`,
+    `<div><span class='label'>Region</span><span class='value'>${anomaly.region}</span></div>`,
+    `<div><span class='label'>Coordinates</span><span class='value'>${anomaly.coordinates}</span></div>`,
+    `<div><span class='label'>Priority</span><span class='value'>${incident.priority}</span></div>`,
+    `<div><span class='label'>Verification window</span><span class='value'>${incident.verificationWindow}</span></div>`,
+    `<div><span class='label'>Potential impact</span><span class='value'>${anomaly.co2eTonnes} tCO2e</span></div>`,
+    `<div><span class='label'>Task progress</span><span class='value'>${completed}/${incident.tasks.length} completed</span></div>`,
+    "</div>",
+    sectionHtml,
+    `<section><h2>Verification Tasks</h2><ul>${tasks}</ul></section>`,
+    "</body></html>",
+  ].join("");
 }

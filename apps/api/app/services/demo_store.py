@@ -254,8 +254,82 @@ class DemoStore:
 
         anomaly = self._find_anomaly(incident.anomaly_id)
         incident.report_generated_at = "2026-03-27 09:00"
+        report = self._build_report_sections(anomaly, incident)
+        incident.report_sections = report
+        return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
-        report = [
+    def export_report_html(self, incident_id: str) -> str:
+        incident = self.incidents.get(incident_id)
+        if incident is None:
+            raise KeyError(incident_id)
+
+        anomaly = self._find_anomaly(incident.anomaly_id)
+        report_sections = incident.report_sections or self._build_report_sections(anomaly, incident)
+        completed_tasks = self._completed_tasks(incident)
+
+        task_lines = "".join(
+            [
+                (
+                    "<li>"
+                    f"<strong>{task.title}</strong> - {task.owner} - ETA {task.eta_hours}h"
+                    f" - {'Done' if task.status == 'done' else 'Open'}"
+                    "</li>"
+                )
+                for task in incident.tasks
+            ]
+        )
+        section_lines = "".join(
+            [
+                (
+                    "<section>"
+                    f"<h2>{section.title}</h2>"
+                    f"<p>{section.body}</p>"
+                    "</section>"
+                )
+                for section in report_sections
+            ]
+        )
+
+        return (
+            "<!doctype html>"
+            "<html lang='en'>"
+            "<head>"
+            "<meta charset='utf-8' />"
+            f"<title>{incident.id} MRV Report</title>"
+            "<style>"
+            "body{font-family:Segoe UI,Arial,sans-serif;margin:40px;color:#10212b;line-height:1.55;}"
+            "h1{margin-bottom:8px;}h2{margin:24px 0 8px;}section{margin-top:20px;}"
+            ".meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:24px 0;}"
+            ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}"
+            ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}"
+            ".value{display:block;margin-top:6px;font-weight:600;}"
+            "ul{padding-left:20px;}"
+            "</style>"
+            "</head>"
+            "<body>"
+            f"<h1>MRV Incident Report: {incident.id}</h1>"
+            "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>"
+            "<div class='meta'>"
+            f"<div><span class='label'>Generated</span><span class='value'>{incident.report_generated_at or 'On-demand export'}</span></div>"
+            f"<div><span class='label'>Asset</span><span class='value'>{anomaly.asset_name}</span></div>"
+            f"<div><span class='label'>Region</span><span class='value'>{anomaly.region}</span></div>"
+            f"<div><span class='label'>Coordinates</span><span class='value'>{anomaly.coordinates}</span></div>"
+            f"<div><span class='label'>Priority</span><span class='value'>{incident.priority}</span></div>"
+            f"<div><span class='label'>Verification window</span><span class='value'>{incident.verification_window}</span></div>"
+            f"<div><span class='label'>Potential impact</span><span class='value'>{anomaly.co2e_tonnes} tCO2e</span></div>"
+            f"<div><span class='label'>Task progress</span><span class='value'>{completed_tasks}/{len(incident.tasks)} completed</span></div>"
+            "</div>"
+            f"{section_lines}"
+            "<section><h2>Verification Tasks</h2><ul>"
+            f"{task_lines}"
+            "</ul></section>"
+            "</body></html>"
+        )
+
+    def _build_report_sections(
+        self, anomaly: Anomaly, incident: Incident
+    ) -> list[ReportSection]:
+        return [
             ReportSection(
                 title="Measurement",
                 body=f"Satellite screening flagged {anomaly.asset_name} in {anomaly.region} with +{anomaly.methane_delta_pct}% methane uplift and {anomaly.flare_hours} flare-observed hours.",
@@ -269,8 +343,6 @@ class DemoStore:
                 body=f"{incident.owner} owns the case under {incident.priority} priority with a {incident.verification_window.lower()} window.",
             ),
         ]
-        incident.report_sections = report
-        return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
     def _find_anomaly(self, anomaly_id: str) -> Anomaly:
         for anomaly in self.anomalies:
