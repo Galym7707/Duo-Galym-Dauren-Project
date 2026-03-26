@@ -70,6 +70,39 @@ const incidentStatusLabel: Record<Incident["status"], string> = {
   mitigation: "Mitigation",
 };
 
+const demoCues = [
+  {
+    stamp: "0:00-0:15",
+    title: "Establish the signal queue",
+    body: "Start on Signal. Point to the lead anomaly, queue discipline, and Kazakhstan-ready language around screening rather than overclaiming source precision.",
+  },
+  {
+    stamp: "0:15-0:30",
+    title: "Prove live ingest",
+    body: "Run GEE sync so one lead signal becomes the visible carrier of live CH4 evidence while the rest of the workflow stays demo-safe.",
+  },
+  {
+    stamp: "0:30-0:45",
+    title: "Open the owned incident",
+    body: "Move from anomaly into incident to show owner, priority, and verification window. This is where the product stops looking like a dashboard.",
+  },
+  {
+    stamp: "0:45-1:05",
+    title: "Show verification discipline",
+    body: "Open Verification and point to human owners, short ETA, and task progress. Keep it operational, not academic.",
+  },
+  {
+    stamp: "1:05-1:25",
+    title: "Close the MRV loop",
+    body: "Open Report, show audit timeline, then mention HTML export and print view as boardroom-ready evidence output.",
+  },
+  {
+    stamp: "1:25-1:30",
+    title: "Return to seeded mode",
+    body: "Reset to baseline playback so the product proves live ingest without risking the final stage sequence.",
+  },
+] as const;
+
 export default function Page() {
   const fallback = fallbackDashboardState();
   const [theme, setTheme] = useState<ThemeMode>("night");
@@ -852,6 +885,28 @@ export default function Page() {
             </div>
 
             {requestError ? <p className="status-error">{requestError}</p> : null}
+          </section>
+
+          <section className="demo-card">
+            <div className="demo-card-head">
+              <div>
+                <p className="eyebrow">Demo cues</p>
+                <h2>90-second stage path</h2>
+              </div>
+              <span className={`status-badge ${liveScreeningReady ? "status-live" : "status-fallback"}`}>
+                {liveScreeningReady ? "Live proof ready" : "Start with sync"}
+              </span>
+            </div>
+
+            <div className="demo-cue-list">
+              {demoCues.map((cue) => (
+                <article key={cue.stamp} className="demo-cue">
+                  <span>{cue.stamp}</span>
+                  <strong>{cue.title}</strong>
+                  <p>{cue.body}</p>
+                </article>
+              ))}
+            </div>
           </section>
 
           <button

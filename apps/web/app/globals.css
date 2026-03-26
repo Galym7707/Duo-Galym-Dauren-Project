@@ -130,6 +130,7 @@ button {
 
 .summary-item,
 .status-card,
+.demo-card,
 .pilot-note,
 .data-point,
 .focus-block,
@@ -197,6 +198,56 @@ button {
   display: grid;
   gap: 12px;
   padding: 16px 18px;
+}
+
+.demo-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.demo-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.demo-card-head h2 {
+  margin: 8px 0 0;
+  font-size: 1.12rem;
+}
+
+.demo-cue-list {
+  display: grid;
+  gap: 10px;
+}
+
+.demo-cue {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.demo-cue span {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.demo-cue strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.96rem;
+  line-height: 1.4;
+}
+
+.demo-cue p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .status-line {
