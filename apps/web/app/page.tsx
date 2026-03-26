@@ -285,9 +285,18 @@ export default function Page() {
         applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
         appendFallbackActivity({
           stage: "incident",
+          source: "workflow",
+          action: "anomaly_promoted",
           title: "Incident created from screening signal",
           detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+          actor: "MRV response lead",
           incidentId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
+          entityType: "incident",
+          entityId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
+          metadata: {
+            anomaly_id: selectedAnomaly.id,
+            owner: "MRV response lead",
+          },
         });
       }
 
@@ -299,9 +308,18 @@ export default function Page() {
       applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
       appendFallbackActivity({
         stage: "incident",
+        source: "workflow",
+        action: "anomaly_promoted",
         title: "Incident created from screening signal",
         detail: `${selectedAnomaly.assetName} was promoted into an owned incident workspace.`,
+        actor: "MRV response lead",
         incidentId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
+        entityType: "incident",
+        entityId: `INC-${selectedAnomaly.id.replace("AN-", "")}`,
+        metadata: {
+          anomaly_id: selectedAnomaly.id,
+          owner: "MRV response lead",
+        },
       });
       setActiveStep("incident");
       setRequestError("Promotion request failed, so the UI stayed on the local demo state.");
@@ -332,9 +350,18 @@ export default function Page() {
         applyTaskCompletionFallback(activeIncident, taskId);
         appendFallbackActivity({
           stage: "verification",
+          source: "workflow",
+          action: "task_completed",
           title: "Verification task completed",
           detail: `${taskId} was marked done for ${activeIncident.id}.`,
+          actor: currentTask.owner,
           incidentId: activeIncident.id,
+          entityType: "task",
+          entityId: taskId,
+          metadata: {
+            task_id: taskId,
+            status: "done",
+          },
         });
       }
     } catch {
@@ -344,9 +371,18 @@ export default function Page() {
       applyTaskCompletionFallback(activeIncident, taskId);
       appendFallbackActivity({
         stage: "verification",
+        source: "workflow",
+        action: "task_completed",
         title: "Verification task completed",
         detail: `${taskId} was marked done for ${activeIncident.id}.`,
+        actor: currentTask.owner,
         incidentId: activeIncident.id,
+        entityType: "task",
+        entityId: taskId,
+        metadata: {
+          task_id: taskId,
+          status: "done",
+        },
       });
       setRequestError("Task completion failed, so the UI switched back to local demo state.");
     } finally {
@@ -373,9 +409,18 @@ export default function Page() {
         applyTaskCreationFallback(activeIncident, payload);
         appendFallbackActivity({
           stage: "verification",
+          source: "workflow",
+          action: "task_created",
           title: "Verification task created",
           detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+          actor: payload.owner,
           incidentId: activeIncident.id,
+          entityType: "task",
+          entityId: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
+          metadata: {
+            owner: payload.owner,
+            eta_hours: String(payload.eta_hours),
+          },
         });
       }
     } catch {
@@ -385,9 +430,18 @@ export default function Page() {
       applyTaskCreationFallback(activeIncident, payload);
       appendFallbackActivity({
         stage: "verification",
+        source: "workflow",
+        action: "task_created",
         title: "Verification task created",
         detail: `${payload.title} was assigned to ${payload.owner} for ${activeIncident.id}.`,
+        actor: payload.owner,
         incidentId: activeIncident.id,
+        entityType: "task",
+        entityId: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
+        metadata: {
+          owner: payload.owner,
+          eta_hours: String(payload.eta_hours),
+        },
       });
       setRequestError("Task creation failed. The incident still remains usable for the demo.");
     } finally {
@@ -412,9 +466,18 @@ export default function Page() {
         applyReportFallback(activeIncident, selectedAnomaly);
         appendFallbackActivity({
           stage: "report",
+          source: "workflow",
+          action: "report_generated",
           title: "MRV report generated",
           detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+          actor: activeIncident.owner,
           incidentId: activeIncident.id,
+          entityType: "report",
+          entityId: `${activeIncident.id}-report`,
+          metadata: {
+            incident_id: activeIncident.id,
+            task_completion: `${completedTasks}/${activeIncident.tasks.length}`,
+          },
         });
       }
 
@@ -426,9 +489,18 @@ export default function Page() {
       applyReportFallback(activeIncident, selectedAnomaly);
       appendFallbackActivity({
         stage: "report",
+        source: "workflow",
+        action: "report_generated",
         title: "MRV report generated",
         detail: `${activeIncident.id} now has an updated MRV summary for stakeholder review.`,
+        actor: activeIncident.owner,
         incidentId: activeIncident.id,
+        entityType: "report",
+        entityId: `${activeIncident.id}-report`,
+        metadata: {
+          incident_id: activeIncident.id,
+          task_completion: `${completedTasks}/${activeIncident.tasks.length}`,
+        },
       });
       setActiveStep("report");
       setRequestError("Report generation failed, so the fallback MRV preview was kept active.");
@@ -852,6 +924,7 @@ export default function Page() {
                   </span>
                   <strong>{event.title}</strong>
                   <p>{event.detail}</p>
+                  <small>{activityEvidenceSummary(event)}</small>
                   <small>{event.occurredAt}</small>
                 </article>
               ))}
@@ -1195,6 +1268,7 @@ export default function Page() {
                             </span>
                             <strong>{event.title}</strong>
                             <p>{event.detail}</p>
+                            <small>{activityEvidenceSummary(event)}</small>
                             <small>{event.occurredAt}</small>
                           </article>
                         ))}
@@ -1319,6 +1393,21 @@ function activityStageLabel(event: ActivityEvent) {
     default:
       return "MRV";
   }
+}
+
+function activityEvidenceSummary(event: ActivityEvent) {
+  const base = `Source ${event.source} / Actor ${event.actor} / ${event.entityType}${
+    event.entityId ? ` ${event.entityId}` : ""
+  }`;
+  const metadataEntries = Object.entries(event.metadata).slice(0, 2);
+  if (metadataEntries.length === 0) {
+    return base;
+  }
+
+  const metadataLabel = metadataEntries
+    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`)
+    .join(" / ");
+  return `${base} / ${metadataLabel}`;
 }
 
 function getStageTitle(step: StepId, anomaly: Anomaly, incident?: Incident) {
@@ -1481,7 +1570,7 @@ function buildReportHtml(
   const auditItems = activityEvents
     .map(
       (event) =>
-        `<li><strong>${escapeHtml(event.title)}</strong> - ${escapeHtml(event.detail)} - ${escapeHtml(event.occurredAt)}</li>`,
+        `<li><strong>${escapeHtml(event.title)}</strong> - ${escapeHtml(event.detail)} - ${escapeHtml(event.occurredAt)}<br /><small>${escapeHtml(activityEvidenceSummary(event))}</small></li>`,
     )
     .join("");
 

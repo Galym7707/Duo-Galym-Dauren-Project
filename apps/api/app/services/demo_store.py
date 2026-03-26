@@ -164,33 +164,69 @@ class DemoStore:
                 id="ACT-1001",
                 occurred_at="2026-03-26 07:40",
                 stage="ingest",
+                source="seeded",
+                action="screening_loaded",
                 title="Seeded CH4 screening loaded",
                 detail="Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+                actor="Demo pipeline",
                 incident_id="INC-204",
+                entity_type="pipeline",
+                entity_id="seeded-screening",
+                metadata={
+                    "provider": "Seeded contest dataset",
+                    "scope": "Kazakhstan pilot assets",
+                },
             ),
             ActivityEvent(
                 id="ACT-1002",
                 occurred_at="2026-03-26 08:20",
                 stage="incident",
+                source="workflow",
+                action="anomaly_promoted",
                 title="Tengiz anomaly promoted",
                 detail="AN-104 was escalated into incident INC-204 for verification ownership.",
+                actor="MRV response lead",
                 incident_id="INC-204",
+                entity_type="incident",
+                entity_id="INC-204",
+                metadata={
+                    "anomaly_id": "AN-104",
+                    "owner": "MRV response lead",
+                },
             ),
             ActivityEvent(
                 id="ACT-1003",
                 occurred_at="2026-03-26 10:10",
                 stage="verification",
+                source="workflow",
+                action="task_completed",
                 title="LDAR walkdown dispatched",
                 detail="Field verification route was aligned with the Atyrau maintenance shift.",
+                actor="Ops coordinator",
                 incident_id="INC-204",
+                entity_type="task",
+                entity_id="TASK-1",
+                metadata={
+                    "task_id": "TASK-1",
+                    "status": "done",
+                },
             ),
             ActivityEvent(
                 id="ACT-1004",
                 occurred_at="2026-03-26 12:10",
                 stage="report",
+                source="workflow",
+                action="report_generated",
                 title="MRV preview generated",
                 detail="Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+                actor="ESG lead",
                 incident_id="INC-204",
+                entity_type="report",
+                entity_id="INC-204-report",
+                metadata={
+                    "incident_id": "INC-204",
+                    "artifact": "seeded-preview",
+                },
             ),
         ]
         self.incident_activity_feed: dict[str, list[ActivityEvent]] = {
@@ -283,12 +319,22 @@ class DemoStore:
         self.incidents[incident_id] = incident
         self._record_activity(
             stage="incident",
+            source="workflow",
+            action="anomaly_promoted",
             title="Incident created from screening signal",
             detail=(
                 f"{anomaly.asset_name} was promoted into {incident_id} "
                 f"with owner {payload.owner}."
             ),
+            actor=payload.owner,
             incident_id=incident_id,
+            entity_type="incident",
+            entity_id=incident_id,
+            metadata={
+                "anomaly_id": anomaly.id,
+                "owner": payload.owner,
+                "priority": incident.priority,
+            },
         )
         return deepcopy(incident)
 
@@ -309,9 +355,18 @@ class DemoStore:
         incident.report_sections = None
         self._record_activity(
             stage="verification",
+            source="workflow",
+            action="task_created",
             title="Verification task created",
             detail=f"{task.title} was assigned to {task.owner} for {incident_id}.",
+            actor=task.owner,
             incident_id=incident_id,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={
+                "task_id": task.id,
+                "eta_hours": str(task.eta_hours),
+            },
         )
         return deepcopy(incident)
 
@@ -333,9 +388,18 @@ class DemoStore:
         incident.report_sections = None
         self._record_activity(
             stage="verification",
+            source="workflow",
+            action="task_completed",
             title="Verification task completed",
             detail=f"{task_id} was marked done for {incident_id}.",
+            actor=task.owner,
             incident_id=incident_id,
+            entity_type="task",
+            entity_id=task_id,
+            metadata={
+                "task_id": task_id,
+                "status": "done",
+            },
         )
         return deepcopy(incident)
 
@@ -350,9 +414,18 @@ class DemoStore:
         incident.report_sections = report
         self._record_activity(
             stage="report",
+            source="workflow",
+            action="report_generated",
             title="MRV report generated",
             detail=f"{incident_id} now has an updated MRV summary for stakeholder review.",
+            actor=incident.owner,
             incident_id=incident_id,
+            entity_type="report",
+            entity_id=f"{incident_id}-report",
+            metadata={
+                "incident_id": incident_id,
+                "task_completion": f"{self._completed_tasks(incident)}/{len(incident.tasks)}",
+            },
         )
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
@@ -394,6 +467,9 @@ class DemoStore:
                     "<li>"
                     f"<strong>{escape(event.title)}</strong> - {escape(event.detail)}"
                     f" <span>({escape(event.occurred_at)})</span>"
+                    f"<br /><small>Source: {escape(event.source)} | Actor: {escape(event.actor)} | "
+                    f"Entity: {escape(event.entity_type)}"
+                    f"{f' {escape(event.entity_id)}' if event.entity_id else ''}</small>"
                     "</li>"
                 )
                 for event in audit_events
@@ -523,9 +599,19 @@ class DemoStore:
 
         self._record_activity(
             stage="ingest",
+            source="gee",
+            action="gee_sync_verified",
             title="Google Earth Engine sync verified",
             detail=f"{observation_fragment} {mean_fragment}",
+            actor="Earth Engine adapter",
             incident_id=linked_incident_id,
+            entity_type="pipeline",
+            entity_id="gee-screening",
+            metadata={
+                "project_id": project_id or "not reported",
+                "latest_observation_at": latest_observation_at or "not available",
+                "mean_ch4_ppb": str(mean_ch4_ppb) if mean_ch4_ppb is not None else "not available",
+            },
         )
 
     def clear_live_evidence(self) -> None:
@@ -546,16 +632,33 @@ class DemoStore:
                 self.incidents[incident_id].narrative = narrative
 
     def _record_activity(
-        self, *, stage: str, title: str, detail: str, incident_id: str | None = None
+        self,
+        *,
+        stage: str,
+        source: str,
+        action: str,
+        title: str,
+        detail: str,
+        actor: str,
+        incident_id: str | None = None,
+        entity_type: str,
+        entity_id: str | None = None,
+        metadata: dict[str, str] | None = None,
     ) -> None:
         self._activity_index += 1
         event = ActivityEvent(
             id=f"ACT-{self._activity_index}",
             occurred_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
             stage=stage,
+            source=source,
+            action=action,
             title=title,
             detail=detail,
+            actor=actor,
             incident_id=incident_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            metadata=metadata or {},
         )
         self.activity_feed.insert(0, event)
         self.activity_feed = self.activity_feed[:8]

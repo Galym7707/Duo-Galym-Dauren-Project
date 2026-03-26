@@ -69,9 +69,21 @@ export type ActivityEvent = {
   id: string;
   occurredAt: string;
   stage: "ingest" | "incident" | "verification" | "report";
+  source: "seeded" | "gee" | "workflow";
+  action:
+    | "screening_loaded"
+    | "anomaly_promoted"
+    | "task_created"
+    | "task_completed"
+    | "report_generated"
+    | "gee_sync_verified";
   title: string;
   detail: string;
+  actor: string;
   incidentId?: string;
+  entityType: "pipeline" | "anomaly" | "incident" | "task" | "report";
+  entityId?: string;
+  metadata: Record<string, string>;
 };
 
 export type DashboardState = {
@@ -229,32 +241,69 @@ export const seededActivityFeed: ActivityEvent[] = [
     id: "ACT-1001",
     occurredAt: "2026-03-26 07:40",
     stage: "ingest",
+    source: "seeded",
+    action: "screening_loaded",
     title: "Seeded CH4 screening loaded",
     detail: "Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+    actor: "Demo pipeline",
+    incidentId: "INC-204",
+    entityType: "pipeline",
+    entityId: "seeded-screening",
+    metadata: {
+      provider: "Seeded contest dataset",
+      scope: "Kazakhstan pilot assets",
+    },
   },
   {
     id: "ACT-1002",
     occurredAt: "2026-03-26 08:20",
     stage: "incident",
+    source: "workflow",
+    action: "anomaly_promoted",
     title: "Tengiz anomaly promoted",
     detail: "AN-104 was escalated into incident INC-204 for verification ownership.",
+    actor: "MRV response lead",
     incidentId: "INC-204",
+    entityType: "incident",
+    entityId: "INC-204",
+    metadata: {
+      anomaly_id: "AN-104",
+      owner: "MRV response lead",
+    },
   },
   {
     id: "ACT-1003",
     occurredAt: "2026-03-26 10:10",
     stage: "verification",
+    source: "workflow",
+    action: "task_completed",
     title: "LDAR walkdown dispatched",
     detail: "Field verification route was aligned with the Atyrau maintenance shift.",
+    actor: "Ops coordinator",
     incidentId: "INC-204",
+    entityType: "task",
+    entityId: "TASK-1",
+    metadata: {
+      task_id: "TASK-1",
+      status: "done",
+    },
   },
   {
     id: "ACT-1004",
     occurredAt: "2026-03-26 12:10",
     stage: "report",
+    source: "workflow",
+    action: "report_generated",
     title: "MRV preview generated",
     detail: "Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
+    actor: "ESG lead",
     incidentId: "INC-204",
+    entityType: "report",
+    entityId: "INC-204-report",
+    metadata: {
+      incident_id: "INC-204",
+      artifact: "seeded-preview",
+    },
   },
 ];
 

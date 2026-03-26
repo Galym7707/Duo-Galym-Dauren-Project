@@ -10,6 +10,16 @@ TaskStatus = Literal["open", "done"]
 PipelineSource = Literal["seeded", "gee"]
 PipelineState = Literal["ready", "degraded", "error", "syncing"]
 ActivityStage = Literal["ingest", "incident", "verification", "report"]
+ActivitySource = Literal["seeded", "gee", "workflow"]
+ActivityEntityType = Literal["pipeline", "anomaly", "incident", "task", "report"]
+ActivityAction = Literal[
+    "screening_loaded",
+    "anomaly_promoted",
+    "task_created",
+    "task_completed",
+    "report_generated",
+    "gee_sync_verified",
+]
 
 
 class SitePosition(BaseModel):
@@ -80,9 +90,15 @@ class ActivityEvent(BaseModel):
     id: str
     occurred_at: str
     stage: ActivityStage
+    source: ActivitySource
+    action: ActivityAction
     title: str
     detail: str
+    actor: str
     incident_id: str | None = None
+    entity_type: ActivityEntityType
+    entity_id: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class DashboardPayload(BaseModel):

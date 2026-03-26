@@ -109,9 +109,15 @@ type ApiActivityEvent = {
   id: string;
   occurred_at: string;
   stage: ActivityEvent["stage"];
+  source: ActivityEvent["source"];
+  action: ActivityEvent["action"];
   title: string;
   detail: string;
+  actor: string;
   incident_id?: string | null;
+  entity_type: ActivityEvent["entityType"];
+  entity_id?: string | null;
+  metadata?: Record<string, string> | null;
 };
 
 type ApiGenerateReportResponse = {
@@ -452,9 +458,15 @@ function normalizeActivityEvent(event: ApiActivityEvent): ActivityEvent {
     id: event.id,
     occurredAt: event.occurred_at,
     stage: event.stage,
+    source: event.source,
+    action: event.action,
     title: event.title,
     detail: event.detail,
+    actor: event.actor,
     incidentId: event.incident_id ?? undefined,
+    entityType: event.entity_type,
+    entityId: event.entity_id ?? undefined,
+    metadata: event.metadata ?? {},
   };
 }
 

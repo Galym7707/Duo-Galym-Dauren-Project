@@ -115,6 +115,7 @@ Live backend runbook:
 - frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
 - pipeline status and manual Earth Engine sync scaffold for CH4 screening
 - MRV audit feed exposed as first-class API resources for global and incident-specific evidence views
+- audit events now carry source, actor, entity, and metadata so the timeline reads like evidence, not just UI copy
 
 ## Что дальше по приоритету
 

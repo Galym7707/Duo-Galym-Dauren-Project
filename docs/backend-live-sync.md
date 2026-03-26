@@ -134,3 +134,12 @@ This keeps the product honest:
 - `POST /api/v1/incidents/{incident_id}/report`
 - `GET /api/v1/incidents/{incident_id}/report/export`
 - `GET /api/v1/incidents/{incident_id}/report/view`
+
+Audit endpoints now return structured evidence fields:
+
+- `source`
+- `action`
+- `actor`
+- `entity_type`
+- `entity_id`
+- `metadata`
