@@ -12,9 +12,28 @@ import {
 } from "./demo-data";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+export const hasApiBaseUrl = Boolean(apiBaseUrl);
 
 export type DashboardSource = "api" | "fallback";
 export type DashboardHydrationState = DashboardState & { source: DashboardSource };
+export type PipelineSource = "seeded" | "gee";
+export type PipelineState = "ready" | "degraded" | "error" | "syncing";
+export type PipelineStageCard = {
+  label: string;
+  value: string;
+  detail: string;
+};
+export type PipelineStatus = {
+  source: PipelineSource;
+  state: PipelineState;
+  providerLabel: string;
+  projectId?: string;
+  lastSyncAt?: string;
+  latestObservationAt?: string;
+  anomalyCount: number;
+  statusMessage: string;
+  stages: PipelineStageCard[];
+};
 
 type ApiDashboardPayload = {
   kpis: ApiKpi[];
@@ -89,6 +108,28 @@ type ApiGenerateReportResponse = {
   report: ApiReportSection[];
 };
 
+type ApiPipelineStage = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+type ApiPipelineStatus = {
+  source: PipelineSource;
+  state: PipelineState;
+  provider_label: string;
+  project_id?: string | null;
+  last_sync_at?: string | null;
+  latest_observation_at?: string | null;
+  anomaly_count: number;
+  status_message: string;
+  stages: ApiPipelineStage[];
+};
+
+type ApiPipelineSyncResponse = {
+  status: ApiPipelineStatus;
+};
+
 type CreateTaskPayload = {
   title: string;
   owner: string;
@@ -106,6 +147,33 @@ export function fallbackDashboardState(): DashboardHydrationState {
   return {
     ...createDemoDashboardState(),
     source: "fallback",
+  };
+}
+
+export function fallbackPipelineStatus(anomalyCount: number): PipelineStatus {
+  return {
+    source: "seeded",
+    state: "ready",
+    providerLabel: "Seeded demo pipeline",
+    anomalyCount,
+    statusMessage: "Seeded demo pipeline is active until a live sync is requested.",
+    stages: [
+      {
+        label: "Ingest layer",
+        value: "Seeded dataset active",
+        detail: "Open-data provider calls are not required for the current playback state.",
+      },
+      {
+        label: "Normalization layer",
+        value: "Demo scoring loaded",
+        detail: "Baseline comparison and CO2e framing are already attached to the current anomaly feed.",
+      },
+      {
+        label: "Verification layer",
+        value: "Workflow ready",
+        detail: "Incident, task, and MRV reporting are ready for the contest demo.",
+      },
+    ],
   };
 }
 
@@ -177,6 +245,10 @@ export async function generateReport(incidentId: string): Promise<Incident> {
 }
 
 export async function downloadReport(incidentId: string): Promise<DownloadedReport> {
+  if (!apiBaseUrl) {
+    throw new Error("API base URL is not configured");
+  }
+
   const response = await fetch(`${apiBaseUrl}/api/v1/incidents/${incidentId}/report/export`, {
     cache: "no-store",
   });
@@ -202,6 +274,34 @@ export function getReportViewUrl(incidentId: string, autoPrint = false): string 
 
   const suffix = autoPrint ? "?auto_print=true" : "";
   return `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/view${suffix}`;
+}
+
+export async function loadPipelineStatus(anomalyCount: number): Promise<PipelineStatus> {
+  if (!apiBaseUrl) {
+    return fallbackPipelineStatus(anomalyCount);
+  }
+
+  try {
+    const payload = await requestJson<ApiPipelineStatus>("/api/v1/pipeline/status");
+    return normalizePipelineStatus(payload);
+  } catch {
+    return fallbackPipelineStatus(anomalyCount);
+  }
+}
+
+export async function syncPipeline(source: PipelineSource = "gee"): Promise<PipelineStatus> {
+  if (!apiBaseUrl) {
+    throw new Error("API base URL is not configured");
+  }
+
+  const payload = await requestJson<ApiPipelineSyncResponse>("/api/v1/pipeline/sync", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ source }),
+  });
+  return normalizePipelineStatus(payload.status);
 }
 
 function normalizeDashboard(payload: ApiDashboardPayload): DashboardState {
@@ -291,6 +391,24 @@ function normalizeReportSection(section: ApiReportSection): ReportSection {
   return {
     title: section.title,
     body: section.body,
+  };
+}
+
+function normalizePipelineStatus(status: ApiPipelineStatus): PipelineStatus {
+  return {
+    source: status.source,
+    state: status.state,
+    providerLabel: status.provider_label,
+    projectId: status.project_id ?? undefined,
+    lastSyncAt: status.last_sync_at ?? undefined,
+    latestObservationAt: status.latest_observation_at ?? undefined,
+    anomalyCount: status.anomaly_count,
+    statusMessage: status.status_message,
+    stages: status.stages.map((stage) => ({
+      label: stage.label,
+      value: stage.value,
+      detail: stage.detail,
+    })),
   };
 }
 

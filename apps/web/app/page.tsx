@@ -3,13 +3,20 @@
 import { startTransition, useEffect, useState } from "react";
 import {
   completeTask as completeTaskRequest,
+  createTask as createTaskRequest,
   type DashboardHydrationState,
+  type DashboardSource,
   downloadReport,
   fallbackDashboardState,
+  fallbackPipelineStatus,
   generateReport as generateReportRequest,
+  hasApiBaseUrl,
   getReportViewUrl,
   loadDashboardState,
+  loadPipelineStatus,
+  type PipelineStatus,
   promoteAnomaly as promoteAnomalyRequest,
+  syncPipeline,
 } from "../lib/api";
 import {
   type Anomaly,
@@ -70,6 +77,9 @@ export default function Page() {
   const [anomalies, setAnomalies] = useState(fallback.anomalies);
   const [incidents, setIncidents] = useState(fallback.incidents);
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
+    fallbackPipelineStatus(fallback.anomalies.length),
+  );
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | string>(null);
@@ -91,6 +101,7 @@ export default function Page() {
 
     async function hydrateDashboard() {
       const state = await loadDashboardState();
+      const nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
       if (cancelled) {
         return;
       }
@@ -100,6 +111,7 @@ export default function Page() {
         setKpiCards(state.kpis);
         setAnomalies(state.anomalies);
         setIncidents(state.incidents);
+        setPipelineStatus(nextPipelineStatus);
         setSelectedAnomalyId((current) => {
           const exists = state.anomalies.some((item) => item.id === current);
           return exists ? current : state.anomalies[0]?.id ?? "";
@@ -133,11 +145,21 @@ export default function Page() {
   const completedTasks = activeIncident
     ? activeIncident.tasks.filter((task) => task.status === "done").length
     : 0;
+  const taskProgressPct =
+    activeIncident && activeIncident.tasks.length > 0
+      ? (completedTasks / activeIncident.tasks.length) * 100
+      : 0;
 
   const currentStepIndex = stepOrder.indexOf(activeStep);
   const previousStep = currentStepIndex > 0 ? stepOrder[currentStepIndex - 1] : undefined;
   const nextStep =
     currentStepIndex < stepOrder.length - 1 ? stepOrder[currentStepIndex + 1] : undefined;
+  const pipelineToneClass =
+    pipelineStatus.state === "ready"
+      ? "status-live"
+      : pipelineStatus.state === "degraded"
+        ? "status-fallback"
+        : "status-problem";
 
   const topStats = selectedAnomaly
     ? [
@@ -160,6 +182,33 @@ export default function Page() {
         },
       ]
     : [];
+
+  const runPipelineSync = async () => {
+    if (!hasApiBaseUrl) {
+      setRequestError("Live pipeline sync needs the FastAPI backend to be available.");
+      return;
+    }
+
+    const actionId = "pipeline-sync";
+    setBusyAction(actionId);
+    setRequestError(null);
+
+    try {
+      const nextStatus = await syncPipeline("gee");
+      const refreshedDashboard = await loadDashboardState();
+
+      setPipelineStatus(nextStatus);
+      applyDashboardHydration(refreshedDashboard, refreshedDashboard.source);
+
+      if (nextStatus.state !== "ready") {
+        setRequestError(nextStatus.statusMessage);
+      }
+    } catch {
+      setRequestError("Pipeline sync failed. The seeded workflow remains available for the demo.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
   const promoteToIncident = async () => {
     if (!selectedAnomaly) {
@@ -221,6 +270,34 @@ export default function Page() {
       }
       applyTaskCompletionFallback(activeIncident, taskId);
       setRequestError("Task completion failed, so the UI switched back to local demo state.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const createVerificationTask = async () => {
+    if (!activeIncident || !selectedAnomaly) {
+      return;
+    }
+
+    const actionId = `create-task-${activeIncident.id}`;
+    setBusyAction(actionId);
+    setRequestError(null);
+    const payload = buildVerificationTaskPayload(selectedAnomaly, activeIncident.tasks.length + 1);
+
+    try {
+      if (dashboardSource === "api") {
+        const incident = await createTaskRequest(activeIncident.id, payload);
+        applyIncidentUpdate(incident, incident.anomalyId);
+      } else {
+        applyTaskCreationFallback(activeIncident, payload);
+      }
+    } catch {
+      if (dashboardSource === "api") {
+        setDashboardSource("fallback");
+      }
+      applyTaskCreationFallback(activeIncident, payload);
+      setRequestError("Task creation failed. The incident still remains usable for the demo.");
     } finally {
       setBusyAction(null);
     }
@@ -351,6 +428,19 @@ export default function Page() {
     });
   }
 
+  function applyDashboardHydration(state: DashboardHydrationState, source: DashboardSource) {
+    startTransition(() => {
+      setDashboardSource(source);
+      setKpiCards(state.kpis);
+      setAnomalies(state.anomalies);
+      setIncidents(state.incidents);
+      setSelectedAnomalyId((current) => {
+        const exists = state.anomalies.some((item) => item.id === current);
+        return exists ? current : state.anomalies[0]?.id ?? "";
+      });
+    });
+  }
+
   function applyTaskCompletionFallback(incident: Incident, taskId: string) {
     startTransition(() => {
       setIncidents((current) => {
@@ -370,7 +460,37 @@ export default function Page() {
           [incident.id]: {
             ...existing,
             tasks,
+            reportSections: undefined,
             status: doneCount === tasks.length ? "mitigation" : "verification",
+          },
+        };
+      });
+    });
+  }
+
+  function applyTaskCreationFallback(
+    incident: Incident,
+    payload: { title: string; owner: string; eta_hours: number; notes: string },
+  ) {
+    startTransition(() => {
+      setIncidents((current) => {
+        const existing = current[incident.id] ?? incident;
+        return {
+          ...current,
+          [incident.id]: {
+            ...existing,
+            reportSections: undefined,
+            tasks: [
+              ...existing.tasks,
+              {
+                id: `${incident.id}-TASK-${existing.tasks.length + 1}`,
+                title: payload.title,
+                owner: payload.owner,
+                etaHours: payload.eta_hours,
+                status: "open",
+                notes: payload.notes,
+              },
+            ],
           },
         };
       });
@@ -395,18 +515,6 @@ export default function Page() {
         };
       });
     });
-  }
-
-  if (!selectedAnomaly) {
-    return (
-      <main className="app-shell">
-        <section className="focus-stage">
-          <div className="empty-stage">
-            <p>No anomaly is currently selected. Load data from the backend or keep the fallback state.</p>
-          </div>
-        </section>
-      </main>
-    );
   }
 
   return (
@@ -434,17 +542,22 @@ export default function Page() {
 
           <section className="status-card">
             <div className="status-line">
-              <span
-                className={`status-badge ${
-                  dashboardSource === "api" ? "status-live" : "status-fallback"
-                }`}
-              >
-                {loadingDashboard
-                  ? "Checking backend"
-                  : dashboardSource === "api"
-                    ? "Backend connected"
-                    : "Fallback state"}
-              </span>
+              <div className="status-badge-row">
+                <span
+                  className={`status-badge ${
+                    dashboardSource === "api" ? "status-live" : "status-fallback"
+                  }`}
+                >
+                  {loadingDashboard
+                    ? "Checking backend"
+                    : dashboardSource === "api"
+                      ? "Backend connected"
+                      : "Fallback state"}
+                </span>
+                <span className={`status-badge ${pipelineToneClass}`}>
+                  {pipelineStatus.providerLabel}
+                </span>
+              </div>
               <span className="status-copy">
                 {loadingDashboard
                   ? "Loading dashboard state..."
@@ -453,6 +566,40 @@ export default function Page() {
                     : "API is unavailable, so the demo uses the local seeded state."}
               </span>
             </div>
+
+            <div className="pipeline-meta">
+              <span>{pipelineStatus.statusMessage}</span>
+              {pipelineStatus.projectId ? <span>Project: {pipelineStatus.projectId}</span> : null}
+              {pipelineStatus.lastSyncAt ? <span>Last sync: {pipelineStatus.lastSyncAt}</span> : null}
+              {pipelineStatus.latestObservationAt ? (
+                <span>Observation: {pipelineStatus.latestObservationAt}</span>
+              ) : null}
+            </div>
+
+            <div className="pipeline-grid">
+              {pipelineStatus.stages.map((stage) => (
+                <article key={stage.label} className="pipeline-item">
+                  <span>{stage.label}</span>
+                  <strong>{stage.value}</strong>
+                  <p>{stage.detail}</p>
+                </article>
+              ))}
+            </div>
+
+            <div className="pipeline-actions">
+              <p>Use manual sync to prove the CH4 ingest path without risking the demo workflow.</p>
+              <button
+                className="secondary-button"
+                disabled={busyAction === "pipeline-sync" || !hasApiBaseUrl}
+                onClick={() => {
+                  void runPipelineSync();
+                }}
+                type="button"
+              >
+                {busyAction === "pipeline-sync" ? "Syncing..." : "Run GEE sync"}
+              </button>
+            </div>
+
             {requestError ? <p className="status-error">{requestError}</p> : null}
           </section>
 
@@ -504,7 +651,7 @@ export default function Page() {
 
           <div className="signal-list">
             {anomalies.map((anomaly) => {
-              const isSelected = anomaly.id === selectedAnomaly.id;
+              const isSelected = anomaly.id === selectedAnomaly?.id;
               const incident = anomaly.linkedIncidentId
                 ? incidents[anomaly.linkedIncidentId]
                 : undefined;
@@ -540,10 +687,11 @@ export default function Page() {
 
           <section className="pilot-note">
             <p className="eyebrow">Strongest anomaly</p>
-            <h3>{strongestAnomaly?.assetName ?? selectedAnomaly.assetName}</h3>
+            <h3>{strongestAnomaly?.assetName ?? "No anomaly above threshold"}</h3>
             <p>
-              This remains the strongest seeded case because it combines the highest signal
-              score, the largest estimated impact, and persistent flare activity in Atyrau.
+              {strongestAnomaly
+                ? "This remains the strongest seeded case because it combines the highest signal score, the largest estimated impact, and persistent flare activity in Atyrau."
+                : "A zero-anomaly window is still a valid screening outcome. Keep the pipeline visible and use manual sync to prove the ingest path."}
             </p>
           </section>
         </aside>
@@ -551,8 +699,16 @@ export default function Page() {
         <section className="focus-stage">
           <div
             className="stage-frame stage-enter"
-            key={`${activeStep}-${selectedAnomaly.id}-${activeIncident?.id ?? "none"}-${theme}`}
+            key={`${activeStep}-${selectedAnomaly?.id ?? "none"}-${activeIncident?.id ?? "none"}-${theme}`}
           >
+            {!selectedAnomaly ? (
+              <EmptyStage
+                body="No anomaly is currently above the screening threshold for this window. The ingest and workflow status remain visible, and you can run another sync without leaving the page."
+                cta="Stay on screening"
+                onAction={() => setActiveStep("signal")}
+              />
+            ) : (
+              <>
             <div className="stage-header">
               <div>
                 <p className="eyebrow">
@@ -752,7 +908,7 @@ export default function Page() {
                       <div
                         className="progress-bar"
                         style={{
-                          width: `${(completedTasks / activeIncident.tasks.length) * 100}%`,
+                          width: `${taskProgressPct}%`,
                         }}
                       />
                     </div>
@@ -782,6 +938,18 @@ export default function Page() {
                     </section>
 
                     <div className="action-row">
+                      <button
+                        className="secondary-button"
+                        disabled={busyAction === `create-task-${activeIncident.id}`}
+                        onClick={() => {
+                          void createVerificationTask();
+                        }}
+                        type="button"
+                      >
+                        {busyAction === `create-task-${activeIncident.id}`
+                          ? "Creating..."
+                          : "Create task"}
+                      </button>
                       <button
                         className="primary-button"
                         disabled={busyAction === `report-${activeIncident.id}`}
@@ -885,6 +1053,8 @@ export default function Page() {
                 />
               )
             ) : null}
+              </>
+            )}
           </div>
         </section>
       </section>
@@ -981,6 +1151,31 @@ function getStageDescription(step: StepId, anomaly: Anomaly, incident?: Incident
 
 function buildWhyNow(anomaly: Anomaly) {
   return `${anomaly.assetName} matters now because it shows +${anomaly.methaneDeltaPct}% methane uplift, ${anomaly.flareHours} observed flare hours, and an estimated ${anomaly.co2eTonnes} tCO2e impact in ${anomaly.region}. For Kazakhstan operators facing growing pressure around methane visibility, export readiness, and defensible ESG narratives, this is the kind of signal that can justify quick verification without overclaiming what satellite data can do.`;
+}
+
+function buildVerificationTaskPayload(anomaly: Anomaly, sequence: number) {
+  const templates = [
+    {
+      title: `Schedule field verification for ${anomaly.assetName}`,
+      owner: "Ops coordinator",
+      eta_hours: 4,
+      notes: "Bundle this stop with the next integrity patrol to keep the pilot low-friction.",
+    },
+    {
+      title: `Review maintenance context around ${anomaly.assetName}`,
+      owner: "Reliability engineer",
+      eta_hours: 6,
+      notes: "Check compressor upset history, flare line interventions, and recent shutdown events.",
+    },
+    {
+      title: `Prepare regulator-facing MRV note for ${anomaly.assetName}`,
+      owner: "ESG lead",
+      eta_hours: 8,
+      notes: "Summarize anomaly evidence, planned verification, and likely operational explanation.",
+    },
+  ];
+
+  return templates[(sequence - 1) % templates.length];
 }
 
 function buildReportSections(

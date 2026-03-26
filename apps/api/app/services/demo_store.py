@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from html import escape
 
 from app.models import (
     Anomaly,
@@ -228,6 +229,7 @@ class DemoStore:
             notes=payload.notes,
         )
         incident.tasks.append(task)
+        incident.report_sections = None
         return deepcopy(incident)
 
     def complete_task(self, incident_id: str, task_id: str) -> Incident:
@@ -245,6 +247,7 @@ class DemoStore:
         if all(task.status == "done" for task in incident.tasks):
             incident.status = "mitigation"
 
+        incident.report_sections = None
         return deepcopy(incident)
 
     def generate_report(self, incident_id: str) -> GenerateReportResponse:
@@ -271,7 +274,7 @@ class DemoStore:
             [
                 (
                     "<li>"
-                    f"<strong>{task.title}</strong> - {task.owner} - ETA {task.eta_hours}h"
+                    f"<strong>{escape(task.title)}</strong> - {escape(task.owner)} - ETA {task.eta_hours}h"
                     f" - {'Done' if task.status == 'done' else 'Open'}"
                     "</li>"
                 )
@@ -282,8 +285,8 @@ class DemoStore:
             [
                 (
                     "<section>"
-                    f"<h2>{section.title}</h2>"
-                    f"<p>{section.body}</p>"
+                    f"<h2>{escape(section.title)}</h2>"
+                    f"<p>{escape(section.body)}</p>"
                     "</section>"
                 )
                 for section in report_sections
@@ -302,7 +305,7 @@ class DemoStore:
             "<html lang='en'>"
             "<head>"
             "<meta charset='utf-8' />"
-            f"<title>{incident.id} MRV Report</title>"
+            f"<title>{escape(incident.id)} MRV Report</title>"
             "<style>"
             "body{font-family:Segoe UI,Arial,sans-serif;margin:40px;color:#10212b;line-height:1.55;}"
             "h1{margin-bottom:8px;}h2{margin:24px 0 8px;}section{margin-top:20px;}"
@@ -317,19 +320,19 @@ class DemoStore:
             "</style>"
             "</head>"
             "<body>"
-            f"<h1>MRV Incident Report: {incident.id}</h1>"
+            f"<h1>MRV Incident Report: {escape(incident.id)}</h1>"
             "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>"
             "<div class='toolbar'>"
             "<span>Print-ready MRV note for stakeholder review.</span>"
             "<button onclick='window.print()'>Print / Save as PDF</button>"
             "</div>"
             "<div class='meta'>"
-            f"<div><span class='label'>Generated</span><span class='value'>{incident.report_generated_at or 'On-demand export'}</span></div>"
-            f"<div><span class='label'>Asset</span><span class='value'>{anomaly.asset_name}</span></div>"
-            f"<div><span class='label'>Region</span><span class='value'>{anomaly.region}</span></div>"
-            f"<div><span class='label'>Coordinates</span><span class='value'>{anomaly.coordinates}</span></div>"
-            f"<div><span class='label'>Priority</span><span class='value'>{incident.priority}</span></div>"
-            f"<div><span class='label'>Verification window</span><span class='value'>{incident.verification_window}</span></div>"
+            f"<div><span class='label'>Generated</span><span class='value'>{escape(incident.report_generated_at or 'On-demand export')}</span></div>"
+            f"<div><span class='label'>Asset</span><span class='value'>{escape(anomaly.asset_name)}</span></div>"
+            f"<div><span class='label'>Region</span><span class='value'>{escape(anomaly.region)}</span></div>"
+            f"<div><span class='label'>Coordinates</span><span class='value'>{escape(anomaly.coordinates)}</span></div>"
+            f"<div><span class='label'>Priority</span><span class='value'>{escape(incident.priority)}</span></div>"
+            f"<div><span class='label'>Verification window</span><span class='value'>{escape(incident.verification_window)}</span></div>"
             f"<div><span class='label'>Potential impact</span><span class='value'>{anomaly.co2e_tonnes} tCO2e</span></div>"
             f"<div><span class='label'>Task progress</span><span class='value'>{completed_tasks}/{len(incident.tasks)} completed</span></div>"
             "</div>"

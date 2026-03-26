@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 Severity = Literal["high", "medium", "watch"]
 IncidentStatus = Literal["triage", "verification", "mitigation"]
 TaskStatus = Literal["open", "done"]
+PipelineSource = Literal["seeded", "gee"]
+PipelineState = Literal["ready", "degraded", "error", "syncing"]
 
 
 class SitePosition(BaseModel):
@@ -93,3 +95,29 @@ class CreateTaskRequest(BaseModel):
 class GenerateReportResponse(BaseModel):
     incident: Incident
     report: list[ReportSection]
+
+
+class PipelineStage(BaseModel):
+    label: str
+    value: str
+    detail: str
+
+
+class PipelineStatus(BaseModel):
+    source: PipelineSource
+    state: PipelineState
+    provider_label: str
+    project_id: str | None = None
+    last_sync_at: str | None = None
+    latest_observation_at: str | None = None
+    anomaly_count: int
+    status_message: str
+    stages: list[PipelineStage]
+
+
+class PipelineSyncRequest(BaseModel):
+    source: PipelineSource = "gee"
+
+
+class PipelineSyncResponse(BaseModel):
+    status: PipelineStatus

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Response, status
+from fastapi.concurrency import run_in_threadpool
 
 from app.models import (
     Anomaly,
@@ -6,17 +7,34 @@ from app.models import (
     DashboardPayload,
     GenerateReportResponse,
     Incident,
+    PipelineStatus,
+    PipelineSyncRequest,
+    PipelineSyncResponse,
     PromoteAnomalyRequest,
 )
 from app.services.demo_store import DemoStore
+from app.services.pipeline_service import PipelineService
 
 router = APIRouter(prefix="/api/v1", tags=["mrv"])
 store = DemoStore()
+pipeline_service = PipelineService(store)
 
 
 @router.get("/dashboard", response_model=DashboardPayload)
 async def get_dashboard() -> DashboardPayload:
     return store.dashboard()
+
+
+@router.get("/pipeline/status", response_model=PipelineStatus)
+async def get_pipeline_status() -> PipelineStatus:
+    return pipeline_service.get_status()
+
+
+@router.post("/pipeline/sync", response_model=PipelineSyncResponse)
+async def sync_pipeline(payload: PipelineSyncRequest) -> PipelineSyncResponse:
+    handler = pipeline_service.sync_gee if payload.source == "gee" else pipeline_service.sync_seeded
+    status_model = await run_in_threadpool(handler)
+    return PipelineSyncResponse(status=status_model)
 
 
 @router.get("/anomalies", response_model=list[Anomaly])

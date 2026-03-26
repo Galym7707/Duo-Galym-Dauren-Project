@@ -96,6 +96,12 @@ pip install "fastapi[standard]"
 fastapi dev app/main.py
 ```
 
+Earth Engine project for live CH4 sync:
+
+```bash
+set EARTH_ENGINE_PROJECT=gen-lang-client-0372752376
+```
+
 ## Что уже реализовано
 
 - demo-safe anomaly queue
@@ -103,6 +109,7 @@ fastapi dev app/main.py
 - MRV report preview
 - FastAPI API contract под дальнейшую интеграцию реальных данных
 - frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
+- pipeline status and manual Earth Engine sync scaffold for CH4 screening
 
 ## Что дальше по приоритету
 

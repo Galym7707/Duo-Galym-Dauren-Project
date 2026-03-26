@@ -204,6 +204,12 @@ button {
   gap: 10px;
 }
 
+.status-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .status-badge {
   width: fit-content;
   padding: 6px 10px;
@@ -225,9 +231,66 @@ button {
   color: var(--accent-strong);
 }
 
+.status-problem {
+  border-color: color-mix(in srgb, var(--high) 44%, var(--line-strong));
+  background: color-mix(in srgb, var(--high) 16%, transparent);
+  color: var(--high);
+}
+
 .status-copy {
   color: var(--muted);
   line-height: 1.55;
+}
+
+.pipeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pipeline-item {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.pipeline-item span {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.pipeline-item strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.pipeline-item p,
+.pipeline-actions p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.pipeline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .status-error {
@@ -706,6 +769,7 @@ button {
 
   .summary-grid,
   .flow-nav,
+  .pipeline-grid,
   .data-strip,
   .detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -730,6 +794,7 @@ button {
 
   .summary-grid,
   .flow-nav,
+  .pipeline-grid,
   .data-strip,
   .detail-grid {
     grid-template-columns: 1fr;
@@ -738,7 +803,8 @@ button {
   .stage-header,
   .task-card,
   .progress-head,
-  .report-head {
+  .report-head,
+  .pipeline-actions {
     flex-direction: column;
   }
 
