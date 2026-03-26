@@ -1,0 +1,17 @@
+# OS
+Thumbs.db
+Desktop.ini
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+
+# Logs
+*.log
