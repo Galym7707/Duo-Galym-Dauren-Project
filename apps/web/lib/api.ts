@@ -117,7 +117,7 @@ type ApiActivityEvent = {
   incident_id?: string | null;
   entity_type: ActivityEvent["entityType"];
   entity_id?: string | null;
-  metadata?: Record<string, string> | null;
+  metadata?: Record<string, string | number | boolean | null> | null;
 };
 
 type ApiGenerateReportResponse = {

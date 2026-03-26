@@ -419,7 +419,7 @@ export default function Page() {
           entityId: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
           metadata: {
             owner: payload.owner,
-            eta_hours: String(payload.eta_hours),
+            eta_hours: payload.eta_hours,
           },
         });
       }
@@ -440,7 +440,7 @@ export default function Page() {
         entityId: `${activeIncident.id}-TASK-${activeIncident.tasks.length + 1}`,
         metadata: {
           owner: payload.owner,
-          eta_hours: String(payload.eta_hours),
+          eta_hours: payload.eta_hours,
         },
       });
       setRequestError("Task creation failed. The incident still remains usable for the demo.");
@@ -1399,13 +1399,13 @@ function activityEvidenceSummary(event: ActivityEvent) {
   const base = `Source ${event.source} / Actor ${event.actor} / ${event.entityType}${
     event.entityId ? ` ${event.entityId}` : ""
   }`;
-  const metadataEntries = Object.entries(event.metadata).slice(0, 2);
+  const metadataEntries = Object.entries(event.metadata);
   if (metadataEntries.length === 0) {
     return base;
   }
 
   const metadataLabel = metadataEntries
-    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`)
+    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`)
     .join(" / ");
   return `${base} / ${metadataLabel}`;
 }

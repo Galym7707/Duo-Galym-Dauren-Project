@@ -318,6 +318,25 @@ class DemoStore:
         anomaly.linked_incident_id = incident_id
         self.incidents[incident_id] = incident
         self._record_activity(
+            stage="ingest",
+            source="seeded",
+            action="screening_loaded",
+            title="Measurement evidence linked to incident",
+            detail=(
+                f"{anomaly.id} screening evidence for {anomaly.asset_name} "
+                f"was attached to {incident_id} before escalation."
+            ),
+            actor="Demo pipeline",
+            incident_id=incident_id,
+            entity_type="anomaly",
+            entity_id=anomaly.id,
+            metadata={
+                "signal_score": anomaly.signal_score,
+                "co2e_tonnes": anomaly.co2e_tonnes,
+                "severity": anomaly.severity,
+            },
+        )
+        self._record_activity(
             stage="incident",
             source="workflow",
             action="anomaly_promoted",
@@ -365,7 +384,7 @@ class DemoStore:
             entity_id=task.id,
             metadata={
                 "task_id": task.id,
-                "eta_hours": str(task.eta_hours),
+                "eta_hours": task.eta_hours,
             },
         )
         return deepcopy(incident)
@@ -610,7 +629,7 @@ class DemoStore:
             metadata={
                 "project_id": project_id or "not reported",
                 "latest_observation_at": latest_observation_at or "not available",
-                "mean_ch4_ppb": str(mean_ch4_ppb) if mean_ch4_ppb is not None else "not available",
+                "mean_ch4_ppb": mean_ch4_ppb if mean_ch4_ppb is not None else "not available",
             },
         )
 
@@ -631,6 +650,20 @@ class DemoStore:
             if incident_id in self.incidents:
                 self.incidents[incident_id].narrative = narrative
 
+        self.activity_feed = [
+            event
+            for event in self.activity_feed
+            if not (event.source == "gee" and event.action == "gee_sync_verified")
+        ]
+        self.incident_activity_feed = {
+            incident_id: [
+                event
+                for event in events
+                if not (event.source == "gee" and event.action == "gee_sync_verified")
+            ]
+            for incident_id, events in self.incident_activity_feed.items()
+        }
+
     def _record_activity(
         self,
         *,
@@ -643,7 +676,7 @@ class DemoStore:
         incident_id: str | None = None,
         entity_type: str,
         entity_id: str | None = None,
-        metadata: dict[str, str] | None = None,
+        metadata: dict[str, str | int | float | bool | None] | None = None,
     ) -> None:
         self._activity_index += 1
         event = ActivityEvent(

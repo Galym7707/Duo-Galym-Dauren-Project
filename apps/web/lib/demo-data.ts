@@ -83,7 +83,7 @@ export type ActivityEvent = {
   incidentId?: string;
   entityType: "pipeline" | "anomaly" | "incident" | "task" | "report";
   entityId?: string;
-  metadata: Record<string, string>;
+  metadata: Record<string, string | number | boolean | null>;
 };
 
 export type DashboardState = {

@@ -20,6 +20,7 @@ ActivityAction = Literal[
     "report_generated",
     "gee_sync_verified",
 ]
+ActivityMetadataValue = str | int | float | bool | None
 
 
 class SitePosition(BaseModel):
@@ -98,7 +99,7 @@ class ActivityEvent(BaseModel):
     incident_id: str | None = None
     entity_type: ActivityEntityType
     entity_id: str | None = None
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, ActivityMetadataValue] = Field(default_factory=dict)
 
 
 class DashboardPayload(BaseModel):
