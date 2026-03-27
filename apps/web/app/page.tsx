@@ -53,6 +53,61 @@ type HeroStat = {
 };
 
 type MapCardTone = "seeded" | "live" | "fallback";
+type MapPresetId =
+  | "all-kazakhstan"
+  | "atyrau"
+  | "mangystau"
+  | "aktobe"
+  | "west-kazakhstan"
+  | "kyzylorda"
+  | "pavlodar";
+
+type MapPreset = {
+  id: MapPresetId;
+  region: string | null;
+  label: {
+    en: string;
+    ru: string;
+  };
+};
+
+const MAP_PRESETS: MapPreset[] = [
+  {
+    id: "all-kazakhstan",
+    region: null,
+    label: { en: "All Kazakhstan", ru: "Весь Казахстан" },
+  },
+  {
+    id: "atyrau",
+    region: "Atyrau Region",
+    label: { en: "Atyrau", ru: "Атырау" },
+  },
+  {
+    id: "mangystau",
+    region: "Mangystau Region",
+    label: { en: "Mangystau", ru: "Мангистау" },
+  },
+  {
+    id: "aktobe",
+    region: "Aktobe Region",
+    label: { en: "Aktobe", ru: "Актобе" },
+  },
+  {
+    id: "west-kazakhstan",
+    region: "West Kazakhstan Region",
+    label: { en: "West Kazakhstan", ru: "Западный Казахстан" },
+  },
+  {
+    id: "kyzylorda",
+    region: "Kyzylorda Region",
+    label: { en: "Kyzylorda", ru: "Кызылорда" },
+  },
+  {
+    id: "pavlodar",
+    region: "Pavlodar Region",
+    label: { en: "Pavlodar", ru: "Павлодар" },
+  },
+] as const;
 
 const mapSyncLabelCopy = {
   en: {
@@ -67,28 +122,30 @@ const mapSyncLabelCopy = {
 
 const mapCardCopy = {
   en: {
-    contextSeeded: "Seeded context",
-    contextLive: "Live context",
-    contextFallback: "Fallback context",
-    noteSeeded: "This is a simple position sketch, not a live satellite map.",
+    contextSeeded: "Nationwide seeded view",
+    contextLive: "Live screening view",
+    contextFallback: "Fallback view",
+    noteSeeded:
+      "This map shows seeded screening markers across Kazakhstan. It is a navigation surface, not live plume geometry.",
     noteLive:
-      "The sketch stays static. Screening evidence was refreshed for the selected Kazakhstan window.",
+      "The map stays geographically stable. Screening evidence was refreshed for the selected Kazakhstan window.",
     noteDegraded:
-      "The sketch stays static. The last verified screening snapshot is still shown while the live refresh is degraded.",
+      "The last verified screening snapshot is still shown while the live refresh is degraded.",
     noteUnavailable:
-      "The sketch stays static. Live screening is unavailable, so use the visible context and demo workflow for decisions.",
+      "Live screening is unavailable, so use the visible national context and demo workflow for decisions.",
   },
   ru: {
-    contextSeeded: "Демо-контекст",
-    contextLive: "Live-контекст",
-    contextFallback: "Резервный контекст",
-    noteSeeded: "Это условная схема позиций, а не живая спутниковая карта.",
+    contextSeeded: "Демо-покрытие по стране",
+    contextLive: "Live-скрининг",
+    contextFallback: "Резервный режим",
+    noteSeeded:
+      "Эта карта показывает seeded screening markers по Казахстану. Это навигационный слой, а не геометрия plume в реальном времени.",
     noteLive:
-      "Схема остается статичной. Данные скрининга обновлены для выбранного окна по Казахстану.",
+      "География карты остается стабильной. Данные скрининга обновлены для выбранного окна по Казахстану.",
     noteDegraded:
-      "Схема остается статичной. Последний подтвержденный снимок скрининга все еще показан, пока live-обновление работает с ограничениями.",
+      "Последний подтвержденный снимок скрининга все еще показан, пока live-обновление работает с ограничениями.",
     noteUnavailable:
-      "Схема остается статичной. Live-скрининг сейчас недоступен, поэтому для решений используйте видимый контекст и демо-цепочку.",
+      "Live-скрининг сейчас недоступен, поэтому для решений используйте видимый национальный контекст и демо-цепочку.",
   },
 } as const;
 
@@ -191,6 +248,7 @@ export default function Page() {
   const [mapReactionToken, setMapReactionToken] = useState(0);
   const [mapReactionActive, setMapReactionActive] = useState(false);
   const [mapReactionDotId, setMapReactionDotId] = useState("");
+  const [activeMapPresetId, setActiveMapPresetId] = useState<MapPresetId>("all-kazakhstan");
 
   const t = copy[locale];
   const screeningText = screeningCopy[locale];
@@ -260,15 +318,25 @@ export default function Page() {
     };
   }, []);
 
+  const availableMapPresets = MAP_PRESETS.filter(
+    (preset) => !preset.region || anomalies.some((anomaly) => anomaly.region === preset.region),
+  );
+  const activeMapPreset =
+    availableMapPresets.find((preset) => preset.id === activeMapPresetId) ?? availableMapPresets[0] ?? MAP_PRESETS[0];
+  const visibleAnomalies =
+    activeMapPreset.region === null
+      ? anomalies
+      : anomalies.filter((anomaly) => anomaly.region === activeMapPreset.region);
+  const scopedAnomalies = visibleAnomalies.length > 0 ? visibleAnomalies : anomalies;
   const strongestAnomaly =
-    anomalies.length > 0
-      ? anomalies.reduce((best, current) =>
+    scopedAnomalies.length > 0
+      ? scopedAnomalies.reduce((best, current) =>
           current.signalScore > best.signalScore ? current : best,
         )
       : null;
 
   const selectedAnomaly =
-    anomalies.find((item) => item.id === selectedAnomalyId) ?? strongestAnomaly ?? null;
+    scopedAnomalies.find((item) => item.id === selectedAnomalyId) ?? strongestAnomaly ?? null;
 
   const activeIncident =
     selectedAnomaly?.linkedIncidentId && incidents[selectedAnomaly.linkedIncidentId]
@@ -320,6 +388,12 @@ export default function Page() {
         screeningSnapshot?.syncedAt ??
         screeningText.notAvailable
       : screeningSnapshot?.syncedAt ?? screeningText.notAvailable;
+
+  useEffect(() => {
+    if (scopedAnomalies.length === 0) return;
+    if (scopedAnomalies.some((anomaly) => anomaly.id === selectedAnomalyId)) return;
+    setSelectedAnomalyId(strongestAnomaly?.id ?? scopedAnomalies[0]?.id ?? "");
+  }, [scopedAnomalies, selectedAnomalyId, strongestAnomaly]);
 
   const heroStats: HeroStat[] = selectedAnomaly
     ? [
@@ -547,6 +621,11 @@ export default function Page() {
     workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const changeMapPreset = (presetId: MapPresetId) => {
+    setActiveMapPresetId(presetId);
+    setRequestError(null);
+  };
+
   const handleNavSelect = (target: NavTarget) => {
     if (target === "faq") {
       faqRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -764,7 +843,7 @@ export default function Page() {
           </div>
 
           <div className="signal-list">
-            {anomalies.map((anomaly) => {
+            {scopedAnomalies.map((anomaly) => {
               const incident = anomaly.linkedIncidentId ? incidents[anomaly.linkedIncidentId] : undefined;
               return (
                 <button
@@ -911,11 +990,23 @@ export default function Page() {
                 <div className="section-head">
                   <div>
                     <FieldLabel hint={t.help.map} label={t.panels.map} />
-                    <strong>{translateRegion(selectedAnomaly.region, locale)}</strong>
+                    <strong>{activeMapPreset.label[locale]}</strong>
                   </div>
                   <span className={`map-context-badge map-context-badge-${mapCardTone}`}>
                     {mapContextLabel}
                   </span>
+                </div>
+                <div className="map-preset-strip" role="tablist" aria-label="Map region presets">
+                  {availableMapPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      className={`map-preset-button ${preset.id === activeMapPreset.id ? "map-preset-button-active" : ""}`}
+                      onClick={() => changeMapPreset(preset.id)}
+                      type="button"
+                    >
+                      {preset.label[locale]}
+                    </button>
+                  ))}
                 </div>
                 <div className={`map-evidence-strip map-evidence-strip-${mapCardTone}`}>
                   <article>
@@ -941,7 +1032,7 @@ export default function Page() {
                 </div>
                 <p className="map-note">{mapNote}</p>
                 <AnomalyMap
-                  anomalies={anomalies}
+                  anomalies={scopedAnomalies}
                   liveReactionAnomalyId={mapReactionActive ? mapReactionDotId : undefined}
                   locale={locale}
                   onPrimaryAction={() => void promoteToIncident()}

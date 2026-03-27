@@ -469,12 +469,20 @@ const facilityTranslations = {
 const regionTranslations = {
   "Atyrau Region": { en: "Atyrau Region", ru: "Атырауская область" },
   "Mangystau Region": { en: "Mangystau Region", ru: "Мангистауская область" },
+  "Aktobe Region": { en: "Aktobe Region", ru: "Актюбинская область" },
+  "West Kazakhstan Region": { en: "West Kazakhstan Region", ru: "Западно-Казахстанская область" },
+  "Kyzylorda Region": { en: "Kyzylorda Region", ru: "Кызылординская область" },
+  "Pavlodar Region": { en: "Pavlodar Region", ru: "Павлодарская область" },
 } as const;
 
 const assetTranslations = {
   "Tengiz satellite cluster": { en: "Tengiz satellite cluster", ru: "Тенгизский спутниковый кластер" },
   "Karabatan processing block": { en: "Karabatan processing block", ru: "Карабатанский перерабатывающий блок" },
   "Mangystau export hub": { en: "Mangystau export hub", ru: "Мангистауский экспортный узел" },
+  "Aktobe compressor ring": { en: "Aktobe compressor ring", ru: "Актюбинское компрессорное кольцо" },
+  "Karachaganak gas train": { en: "Karachaganak gas train", ru: "Карачаганакская газовая нитка" },
+  "Kumkol gathering node": { en: "Kumkol gathering node", ru: "Кумкольский узел сбора" },
+  "Pavlodar refinery corridor": { en: "Pavlodar refinery corridor", ru: "Павлодарский перерабатывающий коридор" },
 } as const;
 
 const confidenceTranslations = {
@@ -576,6 +584,22 @@ const anomalySummaryTranslations = {
     en: "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
     ru: "Nightfire-сигнал сильный, но распространение метана остаётся низким. Этот случай больше подходит для наблюдения за динамикой, чем для срочного выезда.",
   },
+  "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.": {
+    en: "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.",
+    ru: "Повышение концентрации метана остается заметным вокруг компрессорного коридора и сопровождается повторяющимся ночным контекстом горения.",
+  },
+  "The signal sits above the rolling baseline, but persistence is still below the strongest western Kazakhstan cluster.": {
+    en: "The signal sits above the rolling baseline, but persistence is still below the strongest western Kazakhstan cluster.",
+    ru: "Сигнал находится выше скользящей базовой линии, но его устойчивость все еще ниже, чем у самого сильного западноказахстанского кластера.",
+  },
+  "A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.": {
+    en: "A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.",
+    ru: "Над производственным коридором виден умеренный рост метана, но тренд остается слабее, чем у западного набора hotspot-сигналов.",
+  },
+  "The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.": {
+    en: "The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.",
+    ru: "Северный перерабатывающий коридор остается заметным на национальной карте, но отклонение по метану остается ограниченным по сравнению с более сильными западными сигналами.",
+  },
 } as const;
 
 const recommendedActionTranslations = {
@@ -590,6 +614,22 @@ const recommendedActionTranslations = {
   "Keep visible in weekly MRV review and compare against operator maintenance schedule.": {
     en: "Keep visible in weekly MRV review and compare against operator maintenance schedule.",
     ru: "Оставить случай в еженедельном разборе и сопоставить его с графиком обслуживания оператора.",
+  },
+  "Escalate for operator review and validate whether compressor routing or purge activity changed this week.": {
+    en: "Escalate for operator review and validate whether compressor routing or purge activity changed this week.",
+    ru: "Передать на разбор оператору и проверить, менялись ли на этой неделе компрессорная маршрутизация или режим продувки.",
+  },
+  "Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.": {
+    en: "Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.",
+    ru: "Оставить площадку в ежедневной очереди screening и подтвердить, повторится ли рост сигнала на следующем проходе.",
+  },
+  "Keep visible for the regional MRV call and compare with the next screening refresh before escalation.": {
+    en: "Keep visible for the regional MRV call and compare with the next screening refresh before escalation.",
+    ru: "Оставить кейс видимым для регионального MRV-звонка и сравнить его со следующим обновлением screening перед эскалацией.",
+  },
+  "Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.": {
+    en: "Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.",
+    ru: "Использовать как низкоприоритетный национальный ориентир в screening review и сохранять фокус на более срочных западных регионах.",
   },
 } as const;
 

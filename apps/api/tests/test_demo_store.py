@@ -18,9 +18,12 @@ def test_seeded_anomalies_expose_numeric_geolocation() -> None:
     store = DemoStore()
 
     anomalies = store.list_anomalies()
+    regions = {anomaly.region for anomaly in anomalies}
 
     assert all(isinstance(anomaly.latitude, float) for anomaly in anomalies)
     assert all(isinstance(anomaly.longitude, float) for anomaly in anomalies)
+    assert len(anomalies) >= 7
+    assert {"Atyrau Region", "Mangystau Region", "Aktobe Region", "West Kazakhstan Region", "Kyzylorda Region"} <= regions
     assert anomalies[0].latitude == 46.094
     assert anomalies[0].longitude == 53.452
 

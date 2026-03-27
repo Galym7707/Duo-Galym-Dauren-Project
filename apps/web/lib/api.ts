@@ -235,13 +235,13 @@ export function fallbackPipelineStatus(anomalyCount: number): PipelineStatus {
       },
     ],
     screeningSnapshot: {
-      areaLabel: "Kazakhstan pilot screening area",
+      areaLabel: "Kazakhstan screening coverage",
       evidenceSource: "Seeded demo baseline",
       freshness: "fresh",
       screeningLevel: "medium",
       syncedAt: "2026-03-26 07:40",
       lastSuccessfulSyncAt: "2026-03-26 07:40",
-      observedWindow: "Seeded playback window for the Kazakhstan pilot assets.",
+      observedWindow: "Seeded playback window across multiple Kazakhstan oil and gas regions.",
       currentCh4Ppb: 1888.6,
       baselineCh4Ppb: 1817.9,
       deltaAbsPpb: 70.7,
@@ -250,7 +250,7 @@ export function fallbackPipelineStatus(anomalyCount: number): PipelineStatus {
         "Seeded comparison used for contest-safe playback until a live sync is requested.",
       caveat: "This snapshot is demo data, not a live Earth Engine pull.",
       recommendedAction:
-        "Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
+        "Use the seeded evidence block to explain nationwide screening coverage, then promote manually when you are ready to open an operational case.",
     },
   };
 }

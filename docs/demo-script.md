@@ -9,6 +9,7 @@ Main risk: adding too much narration and losing the clean workflow story.
 ### 0:00-0:15
 Screen:
 - Stay on the Signal step.
+- Start on `All Kazakhstan`.
 - Keep the strongest anomaly selected.
 
 Say:
@@ -16,6 +17,7 @@ Say:
 - "We start with a short, defensible signal queue and focus on one anomaly worth operational attention."
 
 Point to:
+- nationwide Kazakhstan coverage
 - strongest anomaly
 - signal score
 - potential impact
@@ -23,14 +25,17 @@ Point to:
 
 ### 0:15-0:30
 Screen:
+- Click one regional preset with a stronger signal window.
 - In the screening evidence block, click `Sync latest evidence`.
 - Wait for the evidence card and real map marker state to refresh.
 
 Say:
 - "Here we prove the live CH4 screening path through Google Earth Engine."
+- "We can move from a country view into a regional hotspot without leaving the same workflow."
 - "The product does not auto-create an incident. It refreshes screening evidence and lets a human decide when to promote."
 
 Point to:
+- the regional preset jump
 - evidence source
 - latest observation / sync timestamp
 - current CH4 vs baseline

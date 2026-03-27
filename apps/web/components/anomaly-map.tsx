@@ -23,7 +23,7 @@ type MapInstance = import("maplibre-gl").Map;
 type MarkerInstance = import("maplibre-gl").Marker;
 type StyleSpecification = import("maplibre-gl").StyleSpecification;
 
-const WEST_KAZAKHSTAN_STYLE: StyleSpecification = {
+const KAZAKHSTAN_STYLE: StyleSpecification = {
   version: 8,
   sources: {
     osm: {
@@ -64,8 +64,8 @@ const mapCopy = {
   },
 } as const;
 
-const INITIAL_CENTER: [number, number] = [52.3, 45.2];
-const INITIAL_ZOOM = 5.2;
+const INITIAL_CENTER: [number, number] = [66.9, 48.2];
+const INITIAL_ZOOM = 4.1;
 
 export function AnomalyMap({
   anomalies,
@@ -106,7 +106,7 @@ export function AnomalyMap({
 
         const map = new imported.Map({
           container: containerRef.current,
-          style: WEST_KAZAKHSTAN_STYLE,
+          style: KAZAKHSTAN_STYLE,
           center: INITIAL_CENTER,
           zoom: INITIAL_ZOOM,
           attributionControl: false,
@@ -237,7 +237,7 @@ function fitMapToAnomalies(map: MapInstance, anomalies: Anomaly[]) {
   if (anomalies.length === 1) {
     map.easeTo({
       center: [anomalies[0].longitude, anomalies[0].latitude],
-      zoom: 6.4,
+      zoom: 6.1,
       duration: 0,
     });
     return;
@@ -265,9 +265,9 @@ function fitMapToAnomalies(map: MapInstance, anomalies: Anomaly[]) {
       [bounds.maxLon, bounds.maxLat],
     ],
     {
-      padding: 56,
+      padding: 64,
       duration: 0,
-      maxZoom: 6.6,
+      maxZoom: 6.4,
     },
   );
 }

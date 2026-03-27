@@ -1505,6 +1505,29 @@ body {
   color: color-mix(in srgb, var(--text) 78%, var(--accent));
 }
 
+.map-preset-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.map-preset-button {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.map-preset-button:hover:not(:disabled),
+.map-preset-button-active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--text);
+}
+
 .map-evidence-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1919,6 +1942,10 @@ body {
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
+
+  .map-preset-strip {
+    gap: 8px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1937,6 +1964,11 @@ body {
 
   .map-evidence-strip {
     grid-template-columns: 1fr;
+  }
+
+  .map-preset-button {
+    width: 100%;
+    text-align: left;
   }
 
   .map-selection-card {

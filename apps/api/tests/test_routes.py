@@ -25,12 +25,14 @@ def test_health_and_dashboard_contract() -> None:
     assert dashboard.status_code == 200
     payload = dashboard.json()
     assert len(payload["kpis"]) == 4
-    assert len(payload["anomalies"]) >= 3
+    assert len(payload["anomalies"]) >= 7
     assert len(payload["incidents"]) >= 1
     assert len(payload["activity_feed"]) >= 1
     lead_anomaly = payload["anomalies"][0]
+    regions = {anomaly["region"] for anomaly in payload["anomalies"]}
     assert isinstance(lead_anomaly["latitude"], float)
     assert isinstance(lead_anomaly["longitude"], float)
+    assert {"Atyrau Region", "Mangystau Region", "Aktobe Region", "West Kazakhstan Region", "Kyzylorda Region"} <= regions
 
 
 def test_pipeline_sync_handles_provider_error_with_typed_response() -> None:

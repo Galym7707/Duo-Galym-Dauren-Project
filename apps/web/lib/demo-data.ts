@@ -98,13 +98,13 @@ export type DashboardState = {
 export const kpis: Kpi[] = [
   {
     label: "Open anomalies",
-    value: "3",
-    detail: "2 methane clusters, 1 flare persistence signal",
+    value: "7",
+    detail: "4 methane signals, 3 lower-priority markers across 6 Kazakhstan regions",
   },
   {
     label: "Potential CO2e",
-    value: "428 tCO2e",
-    detail: "Current week across seeded Kazakhstan pilot assets",
+    value: "627 tCO2e",
+    detail: "Current week across seeded Kazakhstan screening coverage",
   },
   {
     label: "Time to triage",
@@ -201,6 +201,106 @@ export const anomalyFeed: Anomaly[] = [
     },
     trend: weeklyTrend([16, 17, 19, 23, 29, 34]),
   },
+  {
+    id: "AN-133",
+    assetName: "Aktobe compressor ring",
+    region: "Aktobe Region",
+    facilityType: "Gathering and compression",
+    severity: "high",
+    detectedAt: "2026-03-25 21:35",
+    methaneDeltaPct: 26,
+    co2eTonnes: 134,
+    flareHours: 8,
+    signalScore: 84,
+    confidence: "High confidence / persistent over 8 days",
+    coordinates: "49.029 N, 57.428 E",
+    latitude: 49.029,
+    longitude: 57.428,
+    summary:
+      "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.",
+    recommendedAction:
+      "Escalate for operator review and validate whether compressor routing or purge activity changed this week.",
+    sitePosition: {
+      x: 37,
+      y: 29,
+    },
+    trend: weeklyTrend([34, 36, 41, 55, 63, 71]),
+  },
+  {
+    id: "AN-141",
+    assetName: "Karachaganak gas train",
+    region: "West Kazakhstan Region",
+    facilityType: "Processing and storage",
+    severity: "medium",
+    detectedAt: "2026-03-25 19:10",
+    methaneDeltaPct: 17,
+    co2eTonnes: 88,
+    flareHours: 5,
+    signalScore: 67,
+    confidence: "Medium confidence / single-week deviation",
+    coordinates: "51.318 N, 53.266 E",
+    latitude: 51.318,
+    longitude: 53.266,
+    summary:
+      "The signal sits above the rolling baseline, but persistence is still below the strongest western Kazakhstan cluster.",
+    recommendedAction:
+      "Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.",
+    sitePosition: {
+      x: 24,
+      y: 18,
+    },
+    trend: weeklyTrend([22, 24, 26, 33, 38, 49]),
+  },
+  {
+    id: "AN-149",
+    assetName: "Kumkol gathering node",
+    region: "Kyzylorda Region",
+    facilityType: "Gathering and compression",
+    severity: "watch",
+    detectedAt: "2026-03-25 16:45",
+    methaneDeltaPct: 13,
+    co2eTonnes: 57,
+    flareHours: 4,
+    signalScore: 52,
+    confidence: "Medium confidence / single-week deviation",
+    coordinates: "45.950 N, 65.480 E",
+    latitude: 45.95,
+    longitude: 65.48,
+    summary:
+      "A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.",
+    recommendedAction:
+      "Keep visible for the regional MRV call and compare with the next screening refresh before escalation.",
+    sitePosition: {
+      x: 58,
+      y: 67,
+    },
+    trend: weeklyTrend([14, 16, 18, 21, 27, 31]),
+  },
+  {
+    id: "AN-156",
+    assetName: "Pavlodar refinery corridor",
+    region: "Pavlodar Region",
+    facilityType: "Processing and storage",
+    severity: "watch",
+    detectedAt: "2026-03-25 14:05",
+    methaneDeltaPct: 7,
+    co2eTonnes: 29,
+    flareHours: 2,
+    signalScore: 36,
+    confidence: "Watchlist / flare-led signal",
+    coordinates: "52.287 N, 76.973 E",
+    latitude: 52.287,
+    longitude: 76.973,
+    summary:
+      "The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.",
+    recommendedAction:
+      "Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.",
+    sitePosition: {
+      x: 81,
+      y: 21,
+    },
+    trend: weeklyTrend([10, 11, 12, 14, 16, 19]),
+  },
 ];
 
 export const seededIncidents: Record<string, Incident> = {
@@ -252,14 +352,14 @@ export const seededActivityFeed: ActivityEvent[] = [
     source: "seeded",
     action: "screening_loaded",
     title: "Seeded CH4 screening loaded",
-    detail: "Kazakhstan pilot anomaly set was loaded for contest-safe playback.",
+    detail: "Kazakhstan-wide seeded anomaly set was loaded for contest-safe playback.",
     actor: "Demo pipeline",
     incidentId: "INC-204",
     entityType: "pipeline",
     entityId: "seeded-screening",
     metadata: {
       provider: "Seeded contest dataset",
-      scope: "Kazakhstan pilot assets",
+      scope: "Kazakhstan screening coverage",
     },
   },
   {
