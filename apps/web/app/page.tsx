@@ -418,16 +418,11 @@ export default function Page() {
 
             <button
               aria-label={t.controls.theme}
-              className="theme-toggle"
+              className={`theme-toggle theme-toggle-${theme}`}
               onClick={() => setTheme((current) => (current === "day" ? "night" : "day"))}
               type="button"
             >
-              <span className={`theme-chip ${theme === "day" ? "theme-chip-active" : ""}`}>
-                <SunIcon />
-              </span>
-              <span className={`theme-chip ${theme === "night" ? "theme-chip-active" : ""}`}>
-                <MoonIcon />
-              </span>
+              {theme === "day" ? <SunIcon /> : <MoonIcon />}
             </button>
           </div>
         </div>
@@ -661,14 +656,7 @@ export default function Page() {
       </section>
 
       <footer className="site-footer">
-        <div>
-          <strong>{t.brand}</strong>
-          <p>{t.footer.line}</p>
-        </div>
-        <div className="footer-status">
-          <span>{t.footer.status}</span>
-          <strong>{dashboardSource === "api" ? t.status.api : t.status.fallback}</strong>
-        </div>
+        <p className="footer-note">{t.footer.note}</p>
       </footer>
     </main>
   );
@@ -747,7 +735,7 @@ function createFallbackIncident(anomaly: Anomaly): Incident {
     anomalyId: anomaly.id,
     title: `${anomaly.assetName} escalation`,
     status: "triage",
-    owner: "MRV response lead",
+    owner: "Response lead",
     priority: anomaly.severity === "high" ? "P1" : anomaly.severity === "medium" ? "P2" : "P3",
     verificationWindow:
       anomaly.severity === "high"
@@ -761,7 +749,7 @@ function createFallbackIncident(anomaly: Anomaly): Incident {
       {
         id: `${incidentId}-TASK-1`,
         title: "Assign field review owner",
-        owner: "MRV response lead",
+        owner: "Response lead",
         etaHours: 1,
         status: "open",
         notes: "Confirm the first verification owner.",

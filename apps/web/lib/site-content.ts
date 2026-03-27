@@ -14,8 +14,8 @@ export const copy = {
     nav: { signal: "Signal", incident: "Incident", verification: "Verify", report: "Report", faq: "FAQ" },
     controls: { language: "Switch language", theme: "Switch theme" },
     hero: {
-      title: "A calm MRV workspace for fast decisions.",
-      subtitle: "Minimal on the surface. Clear in every step.",
+      title: "A calm workspace for fast decisions.",
+      subtitle: "Simple on the surface. Clear in every step.",
     },
     status: {
       loading: "Loading",
@@ -24,13 +24,12 @@ export const copy = {
       apiNote: "The interface is reading the FastAPI backend.",
       fallbackNote: "The backend is unavailable. Local demo data is shown.",
     },
-    stats: { signal: "Selected signal", impact: "Potential impact", workflow: "Workflow" },
+    stats: { signal: "Selected signal", impact: "Potential impact", workflow: "Current step" },
     queue: {
       eyebrow: "Signals",
       title: "Choose one signal",
       subtitle: "Keep the list short.",
       top: "Top signal",
-      live: "live",
     },
     summary: {
       score: "Score",
@@ -76,8 +75,7 @@ export const copy = {
       saving: "Saving...",
     },
     footer: {
-      line: "Minimal MRV workflow for methane and flare anomaly review.",
-      status: "Backend status",
+      note: "Copyright 2026. All rights reserved.",
     },
     faq: {
       title: "FAQ",
@@ -87,8 +85,8 @@ export const copy = {
           id: "goal",
           question: "What is the goal of this site?",
           answer: [
-            "The goal is to move one methane or flare signal through a clean MRV workflow without overwhelming the user.",
-            "Instead of showing many dashboards at once, the site helps the team do four simple things in order: review a signal, create an incident, verify the work, and prepare a report.",
+            "The goal is to move one methane or flare signal through a clear sequence of actions without overwhelming the user.",
+            "Instead of showing many dashboards at once, the site helps the team do four simple things in order: review a signal, create an incident, check the work, and prepare a report.",
             "This keeps the product easy to understand for operators, ESG teams, and judges.",
           ],
         },
@@ -107,7 +105,16 @@ export const copy = {
           answer: [
             "The frontend is connected to a real local backend, so the buttons and API routes are live.",
             "The anomaly records themselves are still seeded demo data stored in the current backend service.",
-            "So the workflow is real, but the external satellite and weather feeds are not connected yet.",
+            "So the buttons and screens work for real, but the external satellite and weather feeds are not connected yet.",
+          ],
+        },
+        {
+          id: "incident-meaning",
+          question: "What is an incident?",
+          answer: [
+            "An incident is the operational case created from a signal that deserves action.",
+            "It gives the signal an owner, a priority, and a verification window so the team can stop observing and start responding.",
+            "In simple terms, the signal says something may be wrong, and the incident says someone is now responsible for checking it.",
           ],
         },
         {
@@ -123,16 +130,6 @@ export const copy = {
           question: "What is inside the report?",
           answer: [
             "The report summarizes what was measured, who owns the case, and how far verification has progressed.",
-            "It is meant to be simple enough for fast review and structured enough for ESG and compliance discussions.",
-          ],
-        },
-        {
-          id: "settings",
-          question: "Can I switch language and theme?",
-          answer: [
-            "Yes. The globe button switches the site between English and Russian.",
-            "The theme button uses sun and moon icons to switch between day and night mode.",
-            "The default state is English with day mode.",
           ],
         },
       ],
@@ -144,8 +141,8 @@ export const copy = {
     nav: { signal: "Сигнал", incident: "Инцидент", verification: "Проверка", report: "Отчёт", faq: "FAQ" },
     controls: { language: "Сменить язык", theme: "Сменить тему" },
     hero: {
-      title: "Спокойный MRV-интерфейс для быстрых решений.",
-      subtitle: "Минимализм снаружи. Ясность на каждом шаге.",
+      title: "Спокойный интерфейс для быстрых решений.",
+      subtitle: "Просто снаружи. Понятно на каждом шаге.",
     },
     status: {
       loading: "Загрузка",
@@ -154,13 +151,12 @@ export const copy = {
       apiNote: "Интерфейс читает FastAPI backend.",
       fallbackNote: "Backend недоступен. Показаны локальные демо-данные.",
     },
-    stats: { signal: "Выбранный сигнал", impact: "Потенциальный эффект", workflow: "Стадия" },
+    stats: { signal: "Выбранный сигнал", impact: "Потенциальный эффект", workflow: "Текущий шаг" },
     queue: {
       eyebrow: "Сигналы",
       title: "Выберите один сигнал",
       subtitle: "Список должен быть коротким.",
       top: "Главный сигнал",
-      live: "активно",
     },
     summary: {
       score: "Скор",
@@ -206,8 +202,7 @@ export const copy = {
       saving: "Сохраняем...",
     },
     footer: {
-      line: "Минималистичный MRV-поток для проверки выбросов метана и flare-сигналов.",
-      status: "Статус backend",
+      note: "Copyright 2026. Все права защищены.",
     },
     faq: {
       title: "FAQ",
@@ -217,8 +212,8 @@ export const copy = {
           id: "goal",
           question: "В чём цель этого сайта?",
           answer: [
-            "Цель сайта — провести один сигнал по метану или flare через понятный MRV-процесс без перегрузки пользователя.",
-            "Вместо множества dashboard-блоков на одном экране продукт помогает сделать четыре простых шага по порядку: посмотреть сигнал, создать инцидент, провести проверку и подготовить отчёт.",
+            "Цель сайта — провести один сигнал по метану или flare через понятную последовательность действий без перегрузки пользователя.",
+            "Вместо множества dashboard-блоков на одном экране продукт помогает сделать четыре простых шага по порядку: посмотреть сигнал, создать инцидент, проверить ситуацию и подготовить отчёт.",
             "Так интерфейс остаётся понятным для операторов, ESG-команд и жюри.",
           ],
         },
@@ -237,7 +232,16 @@ export const copy = {
           answer: [
             "Frontend подключён к настоящему локальному backend, поэтому кнопки и API-маршруты реально работают.",
             "Но сами записи аномалий пока остаются seeded demo-данными внутри текущего backend-сервиса.",
-            "То есть workflow уже живой, а внешние спутниковые и погодные API ещё не подключены.",
+            "То есть кнопки и экраны работают по-настоящему, а внешние спутниковые и погодные API ещё не подключены.",
+          ],
+        },
+        {
+          id: "incident-meaning",
+          question: "Что такое инцидент?",
+          answer: [
+            "Инцидент — это рабочий кейс, который создаётся из сигнала, если по нему уже нужно действие.",
+            "Он даёт сигналу владельца, приоритет и окно верификации, чтобы команда перестала просто наблюдать и начала реагировать.",
+            "Проще говоря, сигнал говорит, что что-то может быть не так, а инцидент говорит, кто теперь отвечает за проверку.",
           ],
         },
         {
@@ -245,7 +249,7 @@ export const copy = {
           question: "Что происходит, когда я повышаю сигнал до инцидента?",
           answer: [
             "Выбранная аномалия превращается в инцидент со своим идентификатором, владельцем, приоритетом и окном верификации.",
-            "Это переводит историю из пассивного наблюдения в рабочий процесс с конкретной ответственностью.",
+            "Это переводит историю из пассивного наблюдения в рабочую задачу с конкретной ответственностью.",
           ],
         },
         {
@@ -253,16 +257,6 @@ export const copy = {
           question: "Что находится внутри отчёта?",
           answer: [
             "Отчёт коротко показывает, что было измерено, кто отвечает за кейс и насколько продвинулась проверка.",
-            "Он должен быть простым для быстрого чтения и достаточно структурированным для ESG и compliance-команд.",
-          ],
-        },
-        {
-          id: "settings",
-          question: "Можно ли переключать язык и тему?",
-          answer: [
-            "Да. Кнопка с глобусом переключает весь сайт между английским и русским языком.",
-            "Кнопка темы использует иконки солнца и луны для day и night mode.",
-            "По умолчанию сайт открывается на английском языке и в day mode.",
           ],
         },
       ],
@@ -302,7 +296,7 @@ const ownerTranslations = {
   "Ops coordinator": { en: "Ops coordinator", ru: "Координатор эксплуатации" },
   "Reliability engineer": { en: "Reliability engineer", ru: "Инженер по надежности" },
   "ESG lead": { en: "ESG lead", ru: "Руководитель ESG" },
-  "MRV response lead": { en: "MRV response lead", ru: "Руководитель MRV-реагирования" },
+  "Response lead": { en: "Response lead", ru: "Ответственный за реагирование" },
   "Remote sensing analyst": { en: "Remote sensing analyst", ru: "Аналитик ДЗЗ" },
   "Area operations coordinator": { en: "Area operations coordinator", ru: "Координатор площадки" },
   "Compliance lead": { en: "Compliance lead", ru: "Руководитель compliance" },
@@ -311,7 +305,7 @@ const ownerTranslations = {
 const taskTitleTranslations = {
   "Dispatch LDAR walkdown request": { en: "Dispatch LDAR walkdown request", ru: "Отправить запрос на LDAR-обход" },
   "Cross-check flare line maintenance history": { en: "Cross-check flare line maintenance history", ru: "Проверить историю обслуживания flare-линии" },
-  "Draft regulator-facing MRV note": { en: "Draft regulator-facing MRV note", ru: "Подготовить MRV-заметку для регулятора" },
+  "Draft note for regulator": { en: "Draft note for regulator", ru: "Подготовить заметку для регулятора" },
   "Validate signal persistence against 12-week baseline": { en: "Validate signal persistence against 12-week baseline", ru: "Проверить устойчивость сигнала по 12-недельной базе" },
   "Assign field verification owner": { en: "Assign field verification owner", ru: "Назначить владельца полевой проверки" },
   "Assign field review owner": { en: "Assign field review owner", ru: "Назначить владельца полевого обзора" },
