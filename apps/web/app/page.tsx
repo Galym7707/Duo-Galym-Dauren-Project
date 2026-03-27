@@ -15,6 +15,7 @@ import { type Anomaly, type Incident, type IncidentTask, type ReportSection } fr
 import {
   buildLocalizedReportSections,
   copy,
+  formatHours,
   formatTaskProgress,
   formatTimestamp,
   incidentStatusLabel,
@@ -24,13 +25,25 @@ import {
   severityTone,
   type StepId,
   stepOrder,
+  translateAnomalySummary,
+  translateAssetName,
+  translateConfidence,
   translateFacility,
+  translateIncidentNarrative,
   translateOwner,
+  translateRecommendedAction,
   translateRegion,
   translateTaskTitle,
   translateWindow,
   type ThemeMode,
 } from "../lib/site-content";
+
+type HeroStat = {
+  label: string;
+  value: string;
+  detail: string;
+  hint?: string;
+};
 
 export default function Page() {
   const fallback = fallbackDashboardState();
@@ -113,22 +126,28 @@ export default function Page() {
     ? activeIncident.tasks.filter((task) => task.status === "done").length
     : 0;
 
+  const progressPercent = activeIncident
+    ? Math.round((completedTasks / Math.max(activeIncident.tasks.length, 1)) * 100)
+    : 0;
+
   const localizedReportSections =
     selectedAnomaly && activeIncident
       ? buildLocalizedReportSections(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
 
-  const heroStats = selectedAnomaly
+  const heroStats: HeroStat[] = selectedAnomaly
     ? [
         {
           label: t.stats.signal,
           value: `${selectedAnomaly.signalScore} / 100`,
-          detail: selectedAnomaly.assetName,
+          detail: translateAssetName(selectedAnomaly.assetName, locale),
+          hint: t.help.signal,
         },
         {
           label: t.stats.impact,
           value: `${selectedAnomaly.co2eTonnes} tCO2e`,
           detail: translateRegion(selectedAnomaly.region, locale),
+          hint: t.help.impact,
         },
         {
           label: t.stats.workflow,
@@ -138,6 +157,7 @@ export default function Page() {
           detail: activeIncident
             ? formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)
             : t.panels.noIncident,
+          hint: t.help.workflow,
         },
       ]
     : kpiCards.slice(0, 3).map((kpi) => ({
@@ -168,11 +188,7 @@ export default function Page() {
       if (dashboardSource === "api") setDashboardSource("fallback");
       applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
       setActiveStep("incident");
-      setRequestError(
-        locale === "en"
-          ? "Promotion failed. The screen stayed on local demo data."
-          : "Не удалось создать инцидент. Экран остался на локальных демо-данных.",
-      );
+      setRequestError(t.errors.promote);
     } finally {
       setBusyAction(null);
     }
@@ -196,11 +212,7 @@ export default function Page() {
     } catch {
       if (dashboardSource === "api") setDashboardSource("fallback");
       applyTaskCompletionFallback(activeIncident, taskId);
-      setRequestError(
-        locale === "en"
-          ? "Task update failed. The screen switched to local demo data."
-          : "Не удалось обновить задачу. Экран перешёл на локальные демо-данные.",
-      );
+      setRequestError(t.errors.task);
     } finally {
       setBusyAction(null);
     }
@@ -224,11 +236,7 @@ export default function Page() {
       if (dashboardSource === "api") setDashboardSource("fallback");
       applyReportFallback(activeIncident, selectedAnomaly);
       setActiveStep("report");
-      setRequestError(
-        locale === "en"
-          ? "Report generation failed. The local report preview stayed active."
-          : "Не удалось сформировать отчёт. Локальный предпросмотр остался активным.",
-      );
+      setRequestError(t.errors.report);
     } finally {
       setBusyAction(null);
     }
@@ -261,11 +269,7 @@ export default function Page() {
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setRequestError(
-        locale === "en"
-          ? "Report export failed. The preview is still available."
-          : "Не удалось экспортировать отчёт. Предпросмотр всё ещё доступен.",
-      );
+      setRequestError(t.errors.export);
     } finally {
       setBusyAction(null);
     }
@@ -366,7 +370,7 @@ export default function Page() {
     return (
       <main className="site-shell">
         <section className="empty-shell">
-          <p>{locale === "en" ? "No signal is available." : "Сигнал недоступен."}</p>
+          <p>{t.errors.noSignal}</p>
         </section>
       </main>
     );
@@ -378,7 +382,7 @@ export default function Page() {
         <div className="header-bar">
           <button
             className="brand-button"
-            onClick={() => workspaceRef.current?.scrollIntoView({ behavior: "smooth" })}
+            onClick={() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
             type="button"
           >
             <span className="brand-mark" />
@@ -439,13 +443,16 @@ export default function Page() {
           <section className="status-pill">
             <span className={`status-dot ${dashboardSource === "api" ? "status-dot-live" : ""}`} />
             <div>
-              <strong>
-                {loadingDashboard
-                  ? t.status.loading
-                  : dashboardSource === "api"
-                    ? t.status.api
-                    : t.status.fallback}
-              </strong>
+              <div className="status-title">
+                <strong>
+                  {loadingDashboard
+                    ? t.status.loading
+                    : dashboardSource === "api"
+                      ? t.status.api
+                      : t.status.fallback}
+                </strong>
+                <HelpHint text={t.help.demo} />
+              </div>
               <p>{dashboardSource === "api" ? t.status.apiNote : t.status.fallbackNote}</p>
             </div>
           </section>
@@ -453,7 +460,7 @@ export default function Page() {
           <div className="hero-stats">
             {heroStats.map((stat) => (
               <article key={stat.label} className="hero-stat">
-                <span>{stat.label}</span>
+                <FieldLabel hint={stat.hint} label={stat.label} />
                 <strong>{stat.value}</strong>
                 <p>{stat.detail}</p>
               </article>
@@ -488,7 +495,7 @@ export default function Page() {
                     </span>
                     <span>{formatTimestamp(anomaly.detectedAt, locale)}</span>
                   </div>
-                  <strong>{anomaly.assetName}</strong>
+                  <strong>{translateAssetName(anomaly.assetName, locale)}</strong>
                   <p>{translateRegion(anomaly.region, locale)}</p>
                   <div className="signal-card-bottom">
                     <span>
@@ -505,7 +512,9 @@ export default function Page() {
 
           <div className="rail-footer">
             <span>{t.queue.top}</span>
-            <strong>{strongestAnomaly?.assetName ?? selectedAnomaly.assetName}</strong>
+            <strong>
+              {translateAssetName(strongestAnomaly?.assetName ?? selectedAnomaly.assetName, locale)}
+            </strong>
             <small>{strongestAnomaly?.signalScore ?? selectedAnomaly.signalScore} / 100</small>
           </div>
         </aside>
@@ -518,32 +527,50 @@ export default function Page() {
               <p>{t.steps[activeStep].subtitle}</p>
             </div>
           </div>
+
           {activeStep === "signal" ? (
             <div className="panel-body">
               <section className="metric-grid">
-                <MetricCard label={t.summary.score} value={`${selectedAnomaly.signalScore} / 100`} />
-                <MetricCard label={t.stats.impact} value={`${selectedAnomaly.co2eTonnes} tCO2e`} />
-                <MetricCard label={t.summary.detected} value={formatTimestamp(selectedAnomaly.detectedAt, locale)} />
-                <MetricCard label={t.summary.confidence} value={selectedAnomaly.confidence} />
+                <MetricCard
+                  hint={t.help.score}
+                  label={t.summary.score}
+                  value={`${selectedAnomaly.signalScore} / 100`}
+                />
+                <MetricCard
+                  hint={t.help.impact}
+                  label={t.stats.impact}
+                  value={`${selectedAnomaly.co2eTonnes} tCO2e`}
+                />
+                <MetricCard
+                  hint={t.help.detected}
+                  label={t.summary.detected}
+                  value={formatTimestamp(selectedAnomaly.detectedAt, locale)}
+                />
+                <MetricCard
+                  hint={t.help.confidence}
+                  label={t.summary.confidence}
+                  value={translateConfidence(selectedAnomaly.confidence, locale)}
+                />
               </section>
 
               <section className="signal-focus">
                 <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
                 <InfoRow label={t.summary.facility} value={translateFacility(selectedAnomaly.facilityType, locale)} />
-                <InfoRow label={t.panels.assets} value={selectedAnomaly.assetName} />
+                <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
                 <InfoRow label="CO2e" value={`${selectedAnomaly.co2eTonnes} tCO2e`} />
               </section>
 
               <section className="map-card">
                 <div className="section-head">
-                  <span>{t.panels.map}</span>
+                  <FieldLabel hint={t.help.map} label={t.panels.map} />
                   <strong>{translateRegion(selectedAnomaly.region, locale)}</strong>
                 </div>
+                <p className="map-note">{t.panels.mapNote}</p>
                 <div className="map-board">
                   {anomalies.map((anomaly) => (
                     <button
                       key={anomaly.id}
-                      aria-label={anomaly.assetName}
+                      aria-label={translateAssetName(anomaly.assetName, locale)}
                       className={`map-dot ${anomaly.id === selectedAnomaly.id ? "map-dot-active" : ""}`}
                       onClick={() => changeSelectedAnomaly(anomaly.id)}
                       style={{ left: `${anomaly.sitePosition.x}%`, top: `${anomaly.sitePosition.y}%` }}
@@ -569,6 +596,118 @@ export default function Page() {
               </div>
             </div>
           ) : null}
+
+          {activeStep === "incident" ? (
+            activeIncident ? (
+              <div className="panel-body">
+                <section className="metric-grid">
+                  <MetricCard label={t.summary.owner} value={translateOwner(activeIncident.owner, locale)} />
+                  <MetricCard label={t.summary.priority} value={activeIncident.priority} />
+                  <MetricCard
+                    label={t.summary.window}
+                    value={translateWindow(activeIncident.verificationWindow, locale)}
+                  />
+                  <MetricCard
+                    label={t.summary.progress}
+                    value={formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)}
+                  />
+                </section>
+
+                <section className="incident-hero">
+                  <div className="incident-copy">
+                    <FieldLabel label={t.panels.incidentNarrative} />
+                    <strong>{translateAnomalySummary(selectedAnomaly.summary, locale)}</strong>
+                    <p>{translateIncidentNarrative(activeIncident.narrative, locale)}</p>
+                  </div>
+                </section>
+
+                <section className="signal-focus">
+                  <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
+                  <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
+                  <InfoRow label={t.summary.coordinates} value={selectedAnomaly.coordinates} />
+                  <InfoRow
+                    label={t.summary.recommendation}
+                    value={translateRecommendedAction(selectedAnomaly.recommendedAction, locale)}
+                  />
+                </section>
+
+                <div className="panel-actions panel-actions-wrap">
+                  <button className="primary-button" onClick={() => setActiveStep("verification")} type="button">
+                    {t.actions.openVerification}
+                  </button>
+                  <button className="secondary-button" onClick={() => setActiveStep("signal")} type="button">
+                    {t.actions.backToSignal}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <EmptyStage title={t.panels.noIncident} subtitle={t.panels.noIncidentHint} />
+            )
+          ) : null}
+
+          {activeStep === "verification" ? (
+            activeIncident ? (
+              <div className="panel-body">
+                <section className="progress-card">
+                  <div className="progress-head">
+                    <div>
+                      <FieldLabel label={t.summary.tasks} />
+                      <strong>{formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)}</strong>
+                    </div>
+                    <b>{incidentStatusLabel[locale][activeIncident.status]}</b>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-bar" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                </section>
+
+                <section className="task-list">
+                  {activeIncident.tasks.map((task) => (
+                    <TaskRow
+                      busy={busyAction === task.id}
+                      key={task.id}
+                      locale={locale}
+                      onComplete={() => void markTaskDone(task.id)}
+                      task={task}
+                    />
+                  ))}
+                </section>
+
+                <section className="signal-focus">
+                  <InfoRow label={t.summary.owner} value={translateOwner(activeIncident.owner, locale)} />
+                  <InfoRow
+                    label={t.summary.window}
+                    value={translateWindow(activeIncident.verificationWindow, locale)}
+                  />
+                  <InfoRow
+                    label={t.summary.confidence}
+                    value={translateConfidence(selectedAnomaly.confidence, locale)}
+                  />
+                  <InfoRow
+                    label={t.summary.recommendation}
+                    value={translateRecommendedAction(selectedAnomaly.recommendedAction, locale)}
+                  />
+                </section>
+
+                <div className="panel-actions panel-actions-wrap">
+                  <button
+                    className="primary-button"
+                    disabled={busyAction === `report-${activeIncident.id}`}
+                    onClick={() => void generateReport()}
+                    type="button"
+                  >
+                    {busyAction === `report-${activeIncident.id}` ? t.actions.generating : t.actions.generateReport}
+                  </button>
+                  <button className="secondary-button" onClick={() => setActiveStep("incident")} type="button">
+                    {t.actions.openIncident}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <EmptyStage title={t.panels.noIncident} subtitle={t.panels.noIncidentHint} />
+            )
+          ) : null}
+
           {activeStep === "report" ? (
             activeIncident ? (
               <div className="panel-body">
@@ -581,9 +720,15 @@ export default function Page() {
                         : t.summary.noReport
                     }
                   />
-                  <MetricCard label={t.summary.reportSections} value={String(localizedReportSections.length || 0)} />
+                  <MetricCard
+                    label={t.summary.reportSections}
+                    value={String(localizedReportSections.length || 0)}
+                  />
                   <MetricCard label={t.summary.owner} value={translateOwner(activeIncident.owner, locale)} />
-                  <MetricCard label={t.summary.progress} value={formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)} />
+                  <MetricCard
+                    label={t.summary.progress}
+                    value={formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)}
+                  />
                 </section>
 
                 {activeIncident.reportGeneratedAt ? (
@@ -662,21 +807,39 @@ export default function Page() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <article className="metric-card">
-      <span>{label}</span>
+      <FieldLabel hint={hint} label={label} />
       <strong>{value}</strong>
     </article>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <article className="info-row">
-      <span>{label}</span>
+      <FieldLabel hint={hint} label={label} />
       <strong>{value}</strong>
     </article>
+  );
+}
+
+function FieldLabel({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <span className="label-line">
+      <span>{label}</span>
+      {hint ? <HelpHint text={hint} /> : null}
+    </span>
+  );
+}
+
+function HelpHint({ text }: { text: string }) {
+  return (
+    <span aria-label={text} className="help-hint" role="note" tabIndex={0}>
+      <QuestionIcon />
+      <span className="help-popover">{text}</span>
+    </span>
   );
 }
 
@@ -700,7 +863,7 @@ function TaskRow({
         <strong>{translateTaskTitle(task.title, locale)}</strong>
       </div>
       <div className="task-row-side">
-        <small>{task.etaHours}h</small>
+        <small>{formatHours(task.etaHours, locale)}</small>
         <button
           className="secondary-button"
           disabled={task.status === "done" || busy}
@@ -803,7 +966,7 @@ function buildReportHtml(
   const taskItems = incident.tasks
     .map(
       (task) =>
-        `<li><strong>${escapeHtml(translateTaskTitle(task.title, locale))}</strong> - ${escapeHtml(translateOwner(task.owner, locale))} - ${task.etaHours}h</li>`,
+        `<li><strong>${escapeHtml(translateTaskTitle(task.title, locale))}</strong> - ${escapeHtml(translateOwner(task.owner, locale))} - ${escapeHtml(formatHours(task.etaHours, locale))}</li>`,
     )
     .join("");
 
@@ -818,7 +981,7 @@ function buildReportHtml(
     ? `<script>window.addEventListener("load",()=>{window.print();});</script>`
     : "";
 
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(labels.title)}</title><style>:root{color-scheme:light;}body{margin:0;padding:40px;font-family:Aptos,"Segoe UI",sans-serif;color:#1f2933;background:#f6f1e8;}main{max-width:860px;margin:0 auto;padding:36px;border:1px solid #d7d0c4;background:#fffdfa;}h1,h2,h3{margin:0;}h1{font-family:"Iowan Old Style",Georgia,serif;font-size:2.1rem;letter-spacing:-0.04em;}.meta{margin:24px 0;display:grid;gap:8px;color:#5a6671;}section{margin-top:22px;padding-top:18px;border-top:1px solid #e6dfd4;}p,li{color:#4b5762;line-height:1.7;}ul{padding-left:20px;}</style>${printScript}</head><body><main><h1>${escapeHtml(labels.title)}</h1><div class="meta"><span>${escapeHtml(labels.incident)}: ${escapeHtml(incident.id)}</span><span>${escapeHtml(labels.asset)}: ${escapeHtml(anomaly.assetName)}</span><span>${escapeHtml(labels.region)}: ${escapeHtml(translateRegion(anomaly.region, locale))}</span><span>${escapeHtml(labels.owner)}: ${escapeHtml(translateOwner(incident.owner, locale))}</span></div>${sectionMarkup}<section><h2>${escapeHtml(labels.tasks)}</h2><ul>${taskItems}</ul></section></main></body></html>`;
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(labels.title)}</title><style>:root{color-scheme:light;}body{margin:0;padding:40px;font-family:Aptos,"Segoe UI",sans-serif;color:#1f2933;background:#f6f1e8;}main{max-width:860px;margin:0 auto;padding:36px;border:1px solid #d7d0c4;background:#fffdfa;}h1,h2,h3{margin:0;}h1{font-family:"Iowan Old Style",Georgia,serif;font-size:2.1rem;letter-spacing:-0.04em;}.meta{margin:24px 0;display:grid;gap:8px;color:#5a6671;}section{margin-top:22px;padding-top:18px;border-top:1px solid #e6dfd4;}p,li{color:#4b5762;line-height:1.7;}ul{padding-left:20px;}</style>${printScript}</head><body><main><h1>${escapeHtml(labels.title)}</h1><div class="meta"><span>${escapeHtml(labels.incident)}: ${escapeHtml(incident.id)}</span><span>${escapeHtml(labels.asset)}: ${escapeHtml(translateAssetName(anomaly.assetName, locale))}</span><span>${escapeHtml(labels.region)}: ${escapeHtml(translateRegion(anomaly.region, locale))}</span><span>${escapeHtml(labels.owner)}: ${escapeHtml(translateOwner(incident.owner, locale))}</span></div>${sectionMarkup}<section><h2>${escapeHtml(labels.tasks)}</h2><ul>${taskItems}</ul></section></main></body></html>`;
 }
 
 function escapeHtml(value: string) {
@@ -868,6 +1031,17 @@ function ChevronIcon() {
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path
         d="M6.7 9.7a.75.75 0 0 1 1.06 0L12 13.94l4.24-4.24a.75.75 0 1 1 1.06 1.06l-4.77 4.77a.75.75 0 0 1-1.06 0L6.7 10.76a.75.75 0 0 1 0-1.06Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function QuestionIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M12 3.25a8.75 8.75 0 1 0 0 17.5a8.75 8.75 0 0 0 0-17.5Zm0 14.2a1.05 1.05 0 1 1 0 2.1a1.05 1.05 0 0 1 0-2.1Zm1.52-4.9-.5.34c-.72.49-.97.84-.97 1.61v.33h-1.6v-.43c0-1.25.43-1.93 1.46-2.64l.58-.39c.57-.39.83-.77.83-1.3c0-.87-.67-1.43-1.66-1.43c-1.05 0-1.72.6-1.8 1.63H8.22c.1-1.96 1.6-3.08 3.46-3.08c2 0 3.35 1.15 3.35 2.87c0 1.02-.47 1.82-1.51 2.54Z"
         fill="currentColor"
       />
     </svg>
