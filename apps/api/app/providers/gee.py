@@ -11,7 +11,11 @@ class GeeSyncSummary:
     status: str
     message: str
     latest_observation_at: str | None = None
+    observed_window: str | None = None
     mean_ch4_ppb: float | None = None
+    baseline_ch4_ppb: float | None = None
+    delta_abs_ppb: float | None = None
+    delta_pct: float | None = None
     scene_count: int | None = None
 
 
@@ -61,13 +65,31 @@ class GeeProvider:
                 )
 
             latest = collection.sort("system:time_start", False).first()
-            latest_millis = int(latest.get("system:time_start").getInfo())
+            latest_timestamp = latest.get("system:time_start")
+            latest_millis = int(latest_timestamp.getInfo())
             latest_observation_at = datetime.fromtimestamp(latest_millis / 1000, UTC).strftime(
                 "%Y-%m-%d %H:%M UTC"
             )
 
-            mean_value = (
+            current_value = (
                 latest.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=kazakhstan_bounds,
+                    scale=20000,
+                    bestEffort=True,
+                    maxPixels=10_000_000,
+                )
+                .get(self.BAND_NAME)
+                .getInfo()
+            )
+
+            historical_collection = collection.filter(
+                ee.Filter.lt("system:time_start", latest_timestamp)
+            )
+            historical_count = int(historical_collection.size().getInfo())
+            baseline_image = historical_collection.mean() if historical_count > 0 else collection.mean()
+            baseline_value = (
+                baseline_image.reduceRegion(
                     reducer=ee.Reducer.mean(),
                     geometry=kazakhstan_bounds,
                     scale=20000,
@@ -83,11 +105,29 @@ class GeeProvider:
                 status="error",
                 message=f"Earth Engine CH4 query failed: {error}",
             )
+
+        normalized_current = round(float(current_value), 2) if current_value is not None else None
+        normalized_baseline = round(float(baseline_value), 2) if baseline_value is not None else None
+        delta_abs = None
+        delta_pct = None
+        if normalized_current is not None and normalized_baseline is not None:
+            delta_abs = round(normalized_current - normalized_baseline, 2)
+            if normalized_baseline != 0:
+                delta_pct = round((delta_abs / normalized_baseline) * 100, 2)
+
         return GeeSyncSummary(
             project_id=self.project_id,
             status="ready",
             message="Earth Engine CH4 screening summary fetched successfully.",
             latest_observation_at=latest_observation_at,
-            mean_ch4_ppb=round(float(mean_value), 2) if mean_value is not None else None,
+            observed_window=(
+                "Latest TROPOMI scene compared with Kazakhstan historical mean."
+                if historical_count > 0
+                else "Latest TROPOMI scene only; historical comparison is limited."
+            ),
+            mean_ch4_ppb=normalized_current,
+            baseline_ch4_ppb=normalized_baseline,
+            delta_abs_ppb=delta_abs,
+            delta_pct=delta_pct,
             scene_count=scene_count,
         )

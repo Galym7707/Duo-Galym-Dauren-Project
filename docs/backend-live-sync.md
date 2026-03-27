@@ -72,7 +72,7 @@ py -m pytest
 What should pass:
 
 - seeded dashboard contract
-- pipeline sync typed responses
+- pipeline sync typed fresh / stale / unavailable responses
 - seeded reset after live evidence
 - incident -> task -> report audit continuity
 
@@ -104,6 +104,9 @@ What success looks like:
 - `state = ready` or at least `degraded`
 - `project_id = gen-lang-client-0372752376`
 - `latest_observation_at` is populated on success
+- `screening_snapshot` is present in the payload
+- `screening_snapshot.freshness` is `fresh`, `stale`, or `unavailable`
+- `screening_snapshot.recommended_action` stays screening-focused and does not auto-create an incident
 
 If `state = error`, the most likely causes are:
 
@@ -125,10 +128,10 @@ npm run dev --workspace=@duo/web
 Recommended live proof sequence:
 
 1. Open the app with API connected
-2. Show backend badge + pipeline cards
+2. Show backend badge + methane screening evidence block
 3. Click `Run GEE sync`
 4. Wait for `Google Earth Engine` status to settle
-5. Point to `latest observation` and project-backed ingest proof
+5. Point to current CH4 vs baseline, delta, freshness badge, and latest observation
 6. Continue into `anomaly -> incident -> task -> MRV report`
 
 This keeps the product honest:

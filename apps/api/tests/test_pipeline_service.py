@@ -6,23 +6,33 @@ from app.services.pipeline_service import PipelineService
 def test_sync_gee_ready_updates_pipeline_and_store() -> None:
     store = DemoStore()
     service = PipelineService(store)
+    seeded_anomaly = max(store.list_anomalies(), key=lambda anomaly: anomaly.signal_score)
     service.provider.sync_summary = lambda: GeeSyncSummary(
         project_id="demo-project",
         status="ready",
         message="Earth Engine CH4 screening summary fetched successfully.",
         latest_observation_at="2026-03-27 08:00 UTC",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
         mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
         scene_count=12,
     )
 
     status_model = service.sync_gee()
     strongest = max(store.list_anomalies(), key=lambda anomaly: anomaly.signal_score)
+    snapshot = status_model.screening_snapshot
 
     assert status_model.source == "gee"
     assert status_model.state == "ready"
     assert status_model.project_id == "demo-project"
-    assert strongest.detected_at == "2026-03-27 08:00 UTC"
-    assert "live GEE sync verified" in strongest.confidence
+    assert snapshot is not None
+    assert snapshot.freshness == "fresh"
+    assert snapshot.current_ch4_ppb == 1884.6
+    assert snapshot.baseline_ch4_ppb == 1822.4
+    assert strongest.detected_at == seeded_anomaly.detected_at
+    assert strongest.confidence == seeded_anomaly.confidence
 
 
 def test_sync_gee_error_keeps_demo_safe_state() -> None:
@@ -35,32 +45,38 @@ def test_sync_gee_error_keeps_demo_safe_state() -> None:
     )
 
     status_model = service.sync_gee()
-    dashboard = store.dashboard()
+    snapshot = status_model.screening_snapshot
 
     assert status_model.source == "gee"
     assert status_model.state == "error"
-    assert dashboard.kpis[3].value == "Pilot-safe"
-    assert all(event.source != "gee" for event in dashboard.activity_feed)
+    assert snapshot is not None
+    assert snapshot.freshness == "unavailable"
+    assert all(event.source != "gee" for event in store.dashboard().activity_feed)
 
 
 def test_sync_seeded_clears_live_evidence_and_restores_baseline() -> None:
     store = DemoStore()
     service = PipelineService(store)
-    seeded_dashboard = store.dashboard()
-    seeded_confidence = seeded_dashboard.anomalies[0].confidence
+    seeded_snapshot = store.screening_snapshot()
 
-    store.apply_gee_evidence(
+    store.apply_fresh_screening_evidence(
+        synced_at="2026-03-27 08:05 UTC",
         project_id="demo-project",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
         latest_observation_at="2026-03-27 08:00 UTC",
         mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
+        screening_level="medium",
         status_message="Earth Engine CH4 screening summary fetched successfully.",
     )
 
     status_model = service.sync_seeded()
-    restored_dashboard = store.dashboard()
+    restored_snapshot = store.screening_snapshot()
 
     assert status_model.source == "seeded"
     assert status_model.state == "ready"
-    assert restored_dashboard.kpis[3].value == "Pilot-safe"
-    assert restored_dashboard.anomalies[0].confidence == seeded_confidence
-    assert all(event.source != "gee" for event in restored_dashboard.activity_feed)
+    assert restored_snapshot.evidence_source == seeded_snapshot.evidence_source
+    assert restored_snapshot.freshness == seeded_snapshot.freshness
+    assert all(event.source != "gee" for event in store.dashboard().activity_feed)

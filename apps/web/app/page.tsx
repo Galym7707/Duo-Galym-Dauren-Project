@@ -6,10 +6,16 @@ import {
   type DashboardHydrationState,
   downloadReport,
   fallbackDashboardState,
+  fallbackPipelineStatus,
   generateReport as generateReportRequest,
+  hasApiBaseUrl,
   getReportViewUrl,
   loadDashboardState,
+  loadPipelineStatus,
   promoteAnomaly as promoteAnomalyRequest,
+  syncPipeline,
+  type PipelineStatus,
+  type ScreeningEvidenceSnapshot,
 } from "../lib/api";
 import { type Anomaly, type Incident, type IncidentTask, type ReportSection } from "../lib/demo-data";
 import {
@@ -45,6 +51,67 @@ type HeroStat = {
   hint?: string;
 };
 
+const screeningCopy = {
+  en: {
+    title: "Latest methane screening",
+    subtitle: "Use satellite evidence as a screening layer, then promote manually.",
+    current: "Current CH4",
+    baseline: "Baseline CH4",
+    delta: "Delta vs baseline",
+    level: "Screening level",
+    synced: "Last sync",
+    observed: "Observed window",
+    source: "Evidence source",
+    confidence: "Confidence note",
+    caveat: "Caveat",
+    recommendation: "Recommended next step",
+    sync: "Sync latest evidence",
+    syncing: "Syncing...",
+    reset: "Return to seeded mode",
+    resetting: "Resetting...",
+    noApi: "Live sync needs the FastAPI backend to be available.",
+    freshness: {
+      fresh: "Fresh evidence",
+      stale: "Stale evidence",
+      unavailable: "Unavailable",
+    },
+    levelLabel: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+    },
+  },
+  ru: {
+    title: "Latest methane screening",
+    subtitle: "Use satellite evidence as a screening layer, then promote manually.",
+    current: "Current CH4",
+    baseline: "Baseline CH4",
+    delta: "Delta vs baseline",
+    level: "Screening level",
+    synced: "Last sync",
+    observed: "Observed window",
+    source: "Evidence source",
+    confidence: "Confidence note",
+    caveat: "Caveat",
+    recommendation: "Recommended next step",
+    sync: "Sync latest evidence",
+    syncing: "Syncing...",
+    reset: "Return to seeded mode",
+    resetting: "Resetting...",
+    noApi: "Live sync needs the FastAPI backend to be available.",
+    freshness: {
+      fresh: "Fresh evidence",
+      stale: "Stale evidence",
+      unavailable: "Unavailable",
+    },
+    levelLabel: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+    },
+  },
+} as const;
+
 export default function Page() {
   const fallback = fallbackDashboardState();
   const faqRef = useRef<HTMLElement | null>(null);
@@ -57,6 +124,9 @@ export default function Page() {
   const [kpiCards, setKpiCards] = useState(fallback.kpis);
   const [anomalies, setAnomalies] = useState(fallback.anomalies);
   const [incidents, setIncidents] = useState(fallback.incidents);
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
+    fallbackPipelineStatus(fallback.anomalies.length),
+  );
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -86,6 +156,7 @@ export default function Page() {
 
     async function hydrateDashboard() {
       const state = await loadDashboardState();
+      const nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
       if (cancelled) return;
 
       startTransition(() => {
@@ -93,6 +164,7 @@ export default function Page() {
         setKpiCards(state.kpis);
         setAnomalies(state.anomalies);
         setIncidents(state.incidents);
+        setPipelineStatus(nextPipelineStatus);
         setSelectedAnomalyId((current) => {
           const exists = state.anomalies.some((item) => item.id === current);
           return exists ? current : state.anomalies[0]?.id ?? "";
@@ -134,6 +206,8 @@ export default function Page() {
     selectedAnomaly && activeIncident
       ? buildLocalizedReportSections(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
+  const screeningText = screeningCopy[locale];
+  const screeningSnapshot = pipelineStatus.screeningSnapshot;
 
   const heroStats: HeroStat[] = selectedAnomaly
     ? [
@@ -165,6 +239,43 @@ export default function Page() {
         value: kpi.value,
         detail: kpi.detail,
       }));
+
+  const runPipelineSync = async (source: "gee" | "seeded") => {
+    if (!hasApiBaseUrl || dashboardSource !== "api") {
+      setRequestError(screeningText.noApi);
+      return;
+    }
+
+    const actionId = source === "gee" ? "sync-gee" : "sync-seeded";
+    setBusyAction(actionId);
+    setRequestError(null);
+    setPipelineStatus((current) => ({
+      ...current,
+      state: "syncing",
+      statusMessage:
+        source === "gee"
+          ? "Refreshing satellite screening evidence..."
+          : "Returning to seeded screening playback...",
+    }));
+
+    try {
+      const nextStatus = await syncPipeline(source);
+      setPipelineStatus(nextStatus);
+      if (nextStatus.state !== "ready") {
+        setRequestError(nextStatus.statusMessage);
+      }
+    } catch {
+      setRequestError(
+        source === "gee"
+          ? "Live sync failed. The seeded workflow remains available."
+          : "Reset to seeded mode failed. The current workflow remains available.",
+      );
+      setPipelineStatus(fallbackPipelineStatus(anomalies.length));
+      setDashboardSource("fallback");
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
   const promoteToIncident = async () => {
     if (!selectedAnomaly) return;
@@ -457,6 +568,48 @@ export default function Page() {
             </div>
           </section>
 
+          {screeningSnapshot ? (
+            <section className="evidence-summary-card">
+              <div className="evidence-summary-head">
+                <div>
+                  <p className="eyebrow">{screeningText.title}</p>
+                  <strong>{screeningSnapshot.areaLabel}</strong>
+                </div>
+                <div className="evidence-badge-row">
+                  <span
+                    className={`evidence-badge evidence-badge-${screeningSnapshot.freshness}`}
+                  >
+                    {screeningText.freshness[screeningSnapshot.freshness]}
+                  </span>
+                  <span className="evidence-badge evidence-badge-level">
+                    {screeningText.levelLabel[screeningSnapshot.screeningLevel]}
+                  </span>
+                </div>
+              </div>
+
+              <div className="evidence-metric-grid">
+                <MetricCard
+                  label={screeningText.current}
+                  value={formatPpb(screeningSnapshot.currentCh4Ppb)}
+                />
+                <MetricCard
+                  label={screeningText.baseline}
+                  value={formatPpb(screeningSnapshot.baselineCh4Ppb)}
+                />
+                <MetricCard
+                  label={screeningText.delta}
+                  value={formatDelta(screeningSnapshot)}
+                />
+                <MetricCard
+                  label={screeningText.synced}
+                  value={screeningSnapshot.syncedAt ?? "Not available"}
+                />
+              </div>
+
+              <p className="evidence-summary-note">{screeningSnapshot.recommendedAction}</p>
+            </section>
+          ) : null}
+
           <div className="hero-stats">
             {heroStats.map((stat) => (
               <article key={stat.label} className="hero-stat">
@@ -553,6 +706,69 @@ export default function Page() {
                 />
               </section>
 
+              {screeningSnapshot ? (
+                <section className="evidence-detail-card">
+                  <div className="section-head">
+                    <FieldLabel label={screeningText.title} />
+                    <div className="evidence-badge-row">
+                      <span
+                        className={`evidence-badge evidence-badge-${screeningSnapshot.freshness}`}
+                      >
+                        {screeningText.freshness[screeningSnapshot.freshness]}
+                      </span>
+                      <span className="evidence-badge evidence-badge-level">
+                        {screeningText.levelLabel[screeningSnapshot.screeningLevel]}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="evidence-summary-note">{screeningText.subtitle}</p>
+
+                  <section className="metric-grid evidence-inner-grid">
+                    <MetricCard
+                      label={screeningText.current}
+                      value={formatPpb(screeningSnapshot.currentCh4Ppb)}
+                    />
+                    <MetricCard
+                      label={screeningText.baseline}
+                      value={formatPpb(screeningSnapshot.baselineCh4Ppb)}
+                    />
+                    <MetricCard
+                      label={screeningText.delta}
+                      value={formatDelta(screeningSnapshot)}
+                    />
+                    <MetricCard
+                      label={screeningText.level}
+                      value={screeningText.levelLabel[screeningSnapshot.screeningLevel]}
+                    />
+                  </section>
+
+                  <section className="signal-focus evidence-detail-grid">
+                    <InfoRow label={screeningText.source} value={screeningSnapshot.evidenceSource} />
+                    <InfoRow
+                      label={screeningText.synced}
+                      value={screeningSnapshot.syncedAt ?? "Not available"}
+                    />
+                    <InfoRow
+                      label={screeningText.observed}
+                      value={screeningSnapshot.observedWindow ?? "Not available"}
+                    />
+                    <InfoRow
+                      label={screeningText.confidence}
+                      value={screeningSnapshot.confidenceNote}
+                    />
+                    <InfoRow
+                      label={screeningText.caveat}
+                      value={screeningSnapshot.caveat ?? "No additional caveat."}
+                    />
+                    <InfoRow
+                      label={screeningText.recommendation}
+                      value={screeningSnapshot.recommendedAction}
+                    />
+                  </section>
+                </section>
+              ) : null}
+
               <section className="signal-focus">
                 <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
                 <InfoRow label={t.summary.facility} value={translateFacility(selectedAnomaly.facilityType, locale)} />
@@ -580,7 +796,23 @@ export default function Page() {
                 </div>
               </section>
 
-              <div className="panel-actions">
+              <div className="panel-actions panel-actions-wrap">
+                <button
+                  className="secondary-button"
+                  disabled={busyAction === "sync-gee" || dashboardSource !== "api"}
+                  onClick={() => void runPipelineSync("gee")}
+                  type="button"
+                >
+                  {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={busyAction === "sync-seeded" || dashboardSource !== "api"}
+                  onClick={() => void runPipelineSync("seeded")}
+                  type="button"
+                >
+                  {busyAction === "sync-seeded" ? screeningText.resetting : screeningText.reset}
+                </button>
                 <button
                   className="primary-button"
                   disabled={busyAction === "promote"}
@@ -805,6 +1037,26 @@ export default function Page() {
       </footer>
     </main>
   );
+}
+
+function formatPpb(value?: number) {
+  return value === undefined ? "Not available" : `${value.toFixed(2)} ppb`;
+}
+
+function formatDelta(snapshot: ScreeningEvidenceSnapshot) {
+  if (snapshot.deltaAbsPpb === undefined && snapshot.deltaPct === undefined) {
+    return "Not available";
+  }
+
+  const absPart =
+    snapshot.deltaAbsPpb === undefined ? "" : `${snapshot.deltaAbsPpb.toFixed(2)} ppb`;
+  const pctPart = snapshot.deltaPct === undefined ? "" : `${snapshot.deltaPct.toFixed(2)}%`;
+
+  if (absPart && pctPart) {
+    return `${absPart} / ${pctPart}`;
+  }
+
+  return absPart || pctPart;
 }
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {

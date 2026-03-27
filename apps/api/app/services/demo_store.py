@@ -15,6 +15,7 @@ from app.models import (
     KpiCard,
     PromoteAnomalyRequest,
     ReportSection,
+    ScreeningEvidenceSnapshot,
     SitePosition,
     TrendPoint,
 )
@@ -238,20 +239,27 @@ class DemoStore:
             for incident_id in self.incidents
         }
         self._activity_index = 1004
-        self._seeded_kpis = [kpi.model_copy(deep=True) for kpi in self.kpis]
-        self._seeded_demo_posture = self.kpis[3].model_copy(deep=True)
-        self._seeded_anomaly_context = {
-            anomaly.id: {
-                "summary": anomaly.summary,
-                "recommended_action": anomaly.recommended_action,
-                "confidence": anomaly.confidence,
-                "detected_at": anomaly.detected_at,
-            }
-            for anomaly in self.anomalies
-        }
-        self._seeded_incident_narratives = {
-            incident_id: incident.narrative for incident_id, incident in self.incidents.items()
-        }
+        self._seeded_screening_snapshot = ScreeningEvidenceSnapshot(
+            area_label="Kazakhstan pilot screening area",
+            evidence_source="Seeded demo baseline",
+            freshness="fresh",
+            screening_level="medium",
+            synced_at="2026-03-26 07:40",
+            last_successful_sync_at="2026-03-26 07:40",
+            observed_window="Seeded playback window for the Kazakhstan pilot assets.",
+            current_ch4_ppb=1888.6,
+            baseline_ch4_ppb=1817.9,
+            delta_abs_ppb=70.7,
+            delta_pct=3.89,
+            confidence_note="Seeded comparison used for contest-safe playback until a live sync is requested.",
+            caveat="This snapshot is demo data, not a live Earth Engine pull.",
+            recommended_action="Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
+        )
+        self._screening_snapshot = self._seeded_screening_snapshot.model_copy(deep=True)
+        self._last_live_screening_snapshot: ScreeningEvidenceSnapshot | None = None
+        self._screening_history: list[ScreeningEvidenceSnapshot] = [
+            self._screening_snapshot.model_copy(deep=True)
+        ]
 
     def dashboard(self) -> DashboardPayload:
         return DashboardPayload(
@@ -268,6 +276,9 @@ class DemoStore:
         if incident_id not in self.incidents:
             raise KeyError(incident_id)
         return self._incident_activity(incident_id)
+
+    def screening_snapshot(self) -> ScreeningEvidenceSnapshot:
+        return self._screening_snapshot.model_copy(deep=True)
 
     def list_anomalies(self) -> list[Anomaly]:
         return deepcopy(self.anomalies)
@@ -550,106 +561,116 @@ class DemoStore:
             "</body></html>"
         )
 
-    def apply_gee_evidence(
+    def apply_fresh_screening_evidence(
         self,
         *,
+        synced_at: str,
         project_id: str | None,
+        observed_window: str | None,
         latest_observation_at: str | None,
         mean_ch4_ppb: float | None,
+        baseline_ch4_ppb: float | None,
+        delta_abs_ppb: float | None,
+        delta_pct: float | None,
+        screening_level: str,
         status_message: str,
-    ) -> None:
-        mean_fragment = (
-            f"Mean CH4 over Kazakhstan: {mean_ch4_ppb} ppb."
-            if mean_ch4_ppb is not None
-            else "Mean CH4 summary is not available for this sync."
-        )
-        observation_fragment = (
-            f"Latest observation: {latest_observation_at}."
-            if latest_observation_at
-            else "Latest observation timestamp is not available."
-        )
-
-        self.kpis[3] = KpiCard(
-            label="Live ingest",
-            value="GEE verified",
-            detail=(
-                f"{observation_fragment} Project: {project_id or 'not reported'}"
+    ) -> ScreeningEvidenceSnapshot:
+        snapshot = ScreeningEvidenceSnapshot(
+            area_label="Kazakhstan methane screening window",
+            evidence_source="Google Earth Engine / Sentinel-5P",
+            freshness="fresh",
+            screening_level=screening_level,  # type: ignore[arg-type]
+            synced_at=synced_at,
+            last_successful_sync_at=synced_at,
+            observed_window=observed_window or latest_observation_at,
+            current_ch4_ppb=mean_ch4_ppb,
+            baseline_ch4_ppb=baseline_ch4_ppb,
+            delta_abs_ppb=delta_abs_ppb,
+            delta_pct=delta_pct,
+            confidence_note=(
+                "Live Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution."
+            ),
+            caveat=(
+                f"Latest observation at {latest_observation_at}. Project: {project_id or 'not reported'}."
+                if latest_observation_at
+                else f"Project: {project_id or 'not reported'}."
+            ),
+            recommended_action=(
+                "Review the refreshed satellite comparison, then promote manually if this area still deserves operational verification."
             ),
         )
-        self.kpis[0] = KpiCard(
-            label="Open anomalies",
-            value=str(len(self.anomalies)),
-            detail="Signal queue refreshed with live CH4 screening evidence from Earth Engine.",
-        )
-        self.kpis[1] = KpiCard(
-            label="Potential CO2e",
-            value=self._seeded_kpis[1].value,
-            detail="Queue remains demo-safe, but the lead signal now carries live CH4 screening proof.",
-        )
 
-        strongest_anomaly = self._strongest_anomaly()
-        seeded_context = self._seeded_anomaly_context[strongest_anomaly.id]
-        if latest_observation_at:
-            strongest_anomaly.detected_at = latest_observation_at
-        strongest_anomaly.summary = (
-            f"{seeded_context['summary']} "
-            f"Latest Earth Engine sync validated the Kazakhstan CH4 screening path. "
-            f"{observation_fragment} {mean_fragment}"
-        )
-        strongest_anomaly.recommended_action = (
-            "Use this signal as the screening priority for operator triage. "
-            "Earth Engine now proves the CH4 ingest path, while asset-level attribution still "
-            "depends on verification workflow."
-        )
-        strongest_anomaly.confidence = (
-            f"{seeded_context['confidence']} / live GEE sync verified"
-        )
-
-        linked_incident_id = strongest_anomaly.linked_incident_id
-        if linked_incident_id and linked_incident_id in self.incidents:
-            seeded_narrative = self._seeded_incident_narratives.get(
-                linked_incident_id, self.incidents[linked_incident_id].narrative
-            )
-            self.incidents[linked_incident_id].narrative = (
-                f"{seeded_narrative} "
-                f"Latest Earth Engine sync confirmed the screening layer is live for Kazakhstan. "
-                f"{status_message}"
-            )
-
+        self._screening_snapshot = snapshot.model_copy(deep=True)
+        self._last_live_screening_snapshot = snapshot.model_copy(deep=True)
+        self._push_screening_history(snapshot)
         self._record_activity(
             stage="ingest",
             source="gee",
             action="gee_sync_verified",
             title="Google Earth Engine sync verified",
-            detail=f"{observation_fragment} {mean_fragment}",
+            detail=status_message,
             actor="Earth Engine adapter",
-            incident_id=linked_incident_id,
             entity_type="pipeline",
             entity_id="gee-screening",
             metadata={
                 "project_id": project_id or "not reported",
                 "latest_observation_at": latest_observation_at or "not available",
                 "mean_ch4_ppb": mean_ch4_ppb if mean_ch4_ppb is not None else "not available",
+                "baseline_ch4_ppb": baseline_ch4_ppb
+                if baseline_ch4_ppb is not None
+                else "not available",
+                "delta_pct": delta_pct if delta_pct is not None else "not available",
             },
         )
+        return self.screening_snapshot()
+
+    def mark_screening_stale(self, *, synced_at: str, caveat: str) -> ScreeningEvidenceSnapshot:
+        base_snapshot = (
+            self._last_live_screening_snapshot
+            or self._screening_snapshot
+            or self._seeded_screening_snapshot
+        ).model_copy(deep=True)
+        base_snapshot.freshness = "stale"
+        base_snapshot.synced_at = synced_at
+        base_snapshot.last_successful_sync_at = (
+            self._last_live_screening_snapshot.synced_at
+            if self._last_live_screening_snapshot
+            else base_snapshot.last_successful_sync_at
+        )
+        base_snapshot.caveat = caveat
+        base_snapshot.recommended_action = (
+            "Use the last successful screening snapshot as context, then decide manually whether promotion still makes sense."
+        )
+        self._screening_snapshot = base_snapshot.model_copy(deep=True)
+        self._push_screening_history(base_snapshot)
+        return self.screening_snapshot()
+
+    def mark_screening_unavailable(
+        self, *, synced_at: str, caveat: str
+    ) -> ScreeningEvidenceSnapshot:
+        base_snapshot = (
+            self._last_live_screening_snapshot
+            or self._seeded_screening_snapshot
+        ).model_copy(deep=True)
+        base_snapshot.freshness = "unavailable"
+        base_snapshot.synced_at = synced_at
+        base_snapshot.last_successful_sync_at = (
+            self._last_live_screening_snapshot.synced_at
+            if self._last_live_screening_snapshot
+            else self._seeded_screening_snapshot.synced_at
+        )
+        base_snapshot.caveat = caveat
+        base_snapshot.recommended_action = (
+            "Keep the seeded operational workflow active and treat the last available screening snapshot as context only."
+        )
+        self._screening_snapshot = base_snapshot.model_copy(deep=True)
+        self._push_screening_history(base_snapshot)
+        return self.screening_snapshot()
 
     def clear_live_evidence(self) -> None:
-        self.kpis = [kpi.model_copy(deep=True) for kpi in self._seeded_kpis]
-
-        for anomaly in self.anomalies:
-            seeded_context = self._seeded_anomaly_context.get(anomaly.id)
-            if seeded_context is None:
-                continue
-
-            anomaly.detected_at = seeded_context["detected_at"]
-            anomaly.summary = seeded_context["summary"]
-            anomaly.recommended_action = seeded_context["recommended_action"]
-            anomaly.confidence = seeded_context["confidence"]
-
-        for incident_id, narrative in self._seeded_incident_narratives.items():
-            if incident_id in self.incidents:
-                self.incidents[incident_id].narrative = narrative
-
+        self._screening_snapshot = self._seeded_screening_snapshot.model_copy(deep=True)
+        self._last_live_screening_snapshot = None
+        self._screening_history = [self._screening_snapshot.model_copy(deep=True)]
         self.activity_feed = [
             event
             for event in self.activity_feed
@@ -663,6 +684,10 @@ class DemoStore:
             ]
             for incident_id, events in self.incident_activity_feed.items()
         }
+
+    def _push_screening_history(self, snapshot: ScreeningEvidenceSnapshot) -> None:
+        self._screening_history.insert(0, snapshot.model_copy(deep=True))
+        self._screening_history = self._screening_history[:5]
 
     def _record_activity(
         self,

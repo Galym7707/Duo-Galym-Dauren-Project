@@ -23,17 +23,18 @@ Point to:
 
 ### 0:15-0:30
 Screen:
-- In the pipeline card, click `Run GEE sync`.
-- Wait for the queue to show `GEE verified` on the lead signal.
+- In the screening evidence block, click `Sync latest evidence`.
+- Wait for the evidence card to refresh.
 
 Say:
-- "Here we prove the live CH4 ingest path through Google Earth Engine."
-- "We keep the workflow demo-safe, but now the lead signal carries live screening evidence."
+- "Here we prove the live CH4 screening path through Google Earth Engine."
+- "The product does not auto-create an incident. It refreshes screening evidence and lets a human decide when to promote."
 
 Point to:
-- pipeline provider badge
-- latest observation timestamp
-- `GEE verified` marker in the queue
+- evidence source
+- latest observation / sync timestamp
+- current CH4 vs baseline
+- delta badge
 
 ### 0:30-0:45
 Screen:
@@ -42,7 +43,7 @@ Screen:
 
 Say:
 - "This is where the product stops looking like a map and starts looking operational."
-- "The anomaly becomes an owned incident with a priority and a response window."
+- "A human promotion creates the incident after reviewing screening evidence."
 
 Point to:
 - owner
@@ -84,7 +85,7 @@ Screen:
 - Click `Return to seeded mode`.
 
 Say:
-- "We can return to seeded playback at any time, so the demo stays stable even after proving the live ingest path."
+- "We can return to seeded playback at any time, so the demo stays stable even after proving the live evidence layer."
 
 ## One-Line Story
 
@@ -111,12 +112,12 @@ Do not say:
 If live sync is slow or unavailable:
 - stay in seeded mode
 - keep the same anomaly-to-report path
-- say: `The workflow remains stable even when live ingest is unavailable. For the final pilot, the same loop will sit on top of real screening adapters.`
+- say: `The workflow remains stable even when live screening is unavailable. For the final pilot, the same loop will sit on top of real screening adapters.`
 
 ## Exact Click Path
 
 1. Open app on Signal.
-2. Click `Run GEE sync`.
+2. Click `Sync latest evidence`.
 3. Click `Open incident` or `Promote to incident`.
 4. Click `Go to verification`.
 5. Click `Generate MRV preview` if needed.

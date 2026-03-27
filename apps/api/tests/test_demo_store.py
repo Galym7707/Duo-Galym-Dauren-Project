@@ -28,22 +28,28 @@ def test_generate_report_and_export_html_include_audit_timeline() -> None:
 
 def test_clear_live_evidence_restores_seeded_state() -> None:
     store = DemoStore()
-    seeded_confidence = store.list_anomalies()[0].confidence
-    seeded_posture = store.dashboard().kpis[3].value
+    seeded_snapshot = store.screening_snapshot()
 
-    store.apply_gee_evidence(
+    store.apply_fresh_screening_evidence(
+        synced_at="2026-03-27 08:05 UTC",
         project_id="demo-project",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
         latest_observation_at="2026-03-27 08:00 UTC",
         mean_ch4_ppb=1892.4,
+        baseline_ch4_ppb=1831.1,
+        delta_abs_ppb=61.3,
+        delta_pct=3.35,
+        screening_level="medium",
         status_message="Earth Engine CH4 screening summary fetched successfully.",
     )
 
-    assert store.dashboard().kpis[3].value == "GEE verified"
+    assert store.screening_snapshot().freshness == "fresh"
     assert any(event.source == "gee" for event in store.list_activity())
 
     store.clear_live_evidence()
 
-    restored_dashboard = store.dashboard()
-    assert restored_dashboard.kpis[3].value == seeded_posture
-    assert restored_dashboard.anomalies[0].confidence == seeded_confidence
-    assert all(event.source != "gee" for event in restored_dashboard.activity_feed)
+    restored_snapshot = store.screening_snapshot()
+    assert restored_snapshot.freshness == seeded_snapshot.freshness
+    assert restored_snapshot.evidence_source == seeded_snapshot.evidence_source
+    assert restored_snapshot.current_ch4_ppb == seeded_snapshot.current_ch4_ppb
+    assert all(event.source != "gee" for event in store.dashboard().activity_feed)

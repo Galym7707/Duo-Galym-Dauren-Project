@@ -9,6 +9,8 @@ IncidentStatus = Literal["triage", "verification", "mitigation"]
 TaskStatus = Literal["open", "done"]
 PipelineSource = Literal["seeded", "gee"]
 PipelineState = Literal["ready", "degraded", "error", "syncing"]
+EvidenceFreshness = Literal["fresh", "stale", "unavailable"]
+ScreeningLevel = Literal["low", "medium", "high"]
 ActivityStage = Literal["ingest", "incident", "verification", "report"]
 ActivitySource = Literal["seeded", "gee", "workflow"]
 ActivityEntityType = Literal["pipeline", "anomaly", "incident", "task", "report"]
@@ -135,6 +137,23 @@ class PipelineStage(BaseModel):
     detail: str
 
 
+class ScreeningEvidenceSnapshot(BaseModel):
+    area_label: str
+    evidence_source: str
+    freshness: EvidenceFreshness
+    screening_level: ScreeningLevel
+    synced_at: str | None = None
+    last_successful_sync_at: str | None = None
+    observed_window: str | None = None
+    current_ch4_ppb: float | None = None
+    baseline_ch4_ppb: float | None = None
+    delta_abs_ppb: float | None = None
+    delta_pct: float | None = None
+    confidence_note: str
+    caveat: str | None = None
+    recommended_action: str
+
+
 class PipelineStatus(BaseModel):
     source: PipelineSource
     state: PipelineState
@@ -145,6 +164,7 @@ class PipelineStatus(BaseModel):
     anomaly_count: int
     status_message: str
     stages: list[PipelineStage]
+    screening_snapshot: ScreeningEvidenceSnapshot | None = None
 
 
 class PipelineSyncRequest(BaseModel):

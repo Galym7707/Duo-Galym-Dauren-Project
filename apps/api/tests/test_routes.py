@@ -46,6 +46,31 @@ def test_pipeline_sync_handles_provider_error_with_typed_response() -> None:
     assert payload["state"] == "error"
     assert payload["provider_label"] == "Google Earth Engine"
     assert payload["project_id"] == "demo-project"
+    assert payload["screening_snapshot"]["freshness"] == "unavailable"
+
+
+def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:
+    client = make_client()
+    routes.pipeline_service.provider.sync_summary = lambda: GeeSyncSummary(
+        project_id="demo-project",
+        status="ready",
+        message="Earth Engine CH4 screening summary fetched successfully.",
+        latest_observation_at="2026-03-27 08:00 UTC",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
+        mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
+        scene_count=12,
+    )
+
+    sync_response = client.post("/api/v1/pipeline/sync", json={"source": "gee"})
+    promote_response = client.post("/api/v1/anomalies/AN-117/promote", json={"owner": "ESG desk"})
+
+    assert sync_response.status_code == 200
+    assert sync_response.json()["status"]["screening_snapshot"]["freshness"] == "fresh"
+    assert promote_response.status_code == 201
+    assert promote_response.json()["anomaly_id"] == "AN-117"
 
 
 def test_incident_task_report_flow_preserves_audit_contract() -> None:

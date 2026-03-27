@@ -1226,6 +1226,77 @@ body {
   box-shadow: 0 0 0 6px var(--accent-tint);
 }
 
+.evidence-summary-card,
+.evidence-detail-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.evidence-summary-head,
+.evidence-badge-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evidence-summary-head strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.evidence-badge-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.evidence-badge-fresh {
+  color: var(--accent);
+}
+
+.evidence-badge-stale {
+  color: var(--medium);
+}
+
+.evidence-badge-unavailable {
+  color: var(--high);
+}
+
+.evidence-badge-level {
+  color: var(--accent-strong);
+}
+
+.evidence-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.evidence-summary-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.evidence-inner-grid,
+.evidence-detail-grid {
+  margin-top: 0;
+}
+
 .hero-stats,
 .metric-grid,
 .signal-focus {
@@ -1607,7 +1678,8 @@ body {
 
   .metric-grid,
   .signal-focus,
-  .hero-stats {
+  .hero-stats,
+  .evidence-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1633,7 +1705,8 @@ body {
 
   .metric-grid,
   .signal-focus,
-  .hero-stats {
+  .hero-stats,
+  .evidence-metric-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1649,6 +1722,11 @@ body {
   .task-row-side {
     justify-items: start;
     text-align: left;
+  }
+
+  .evidence-summary-head,
+  .evidence-badge-row {
+    justify-content: flex-start;
   }
 }
 
@@ -1702,7 +1780,8 @@ body {
 
 .hero-stats,
 .metric-grid,
-.signal-focus {
+.signal-focus,
+.evidence-metric-grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
@@ -1889,7 +1968,8 @@ body {
 @media (max-width: 560px) {
   .metric-grid,
   .signal-focus,
-  .hero-stats {
+  .hero-stats,
+  .evidence-metric-grid {
     grid-template-columns: 1fr;
   }
 

@@ -120,9 +120,10 @@ Live backend runbook:
 - FastAPI API contract под дальнейшую интеграцию реальных данных
 - frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
 - pipeline status and manual Earth Engine sync scaffold for CH4 screening
+- live screening evidence snapshot with `fresh / stale / unavailable` states, current vs baseline comparison, and manual promote path
 - MRV audit feed exposed as first-class API resources for global and incident-specific evidence views
 - audit events now carry source, actor, entity, and metadata so the timeline reads like evidence, not just UI copy
-- frontend now supports a stage-safe `Run GEE sync -> Return to seeded mode` loop with visible live screening markers in the signal queue
+- frontend now supports a stage-safe `Sync latest evidence -> Return to seeded mode` loop with visible screening evidence change before incident promotion
 
 ## Что дальше по приоритету
 

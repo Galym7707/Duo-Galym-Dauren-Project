@@ -19,10 +19,28 @@ export type DashboardSource = "api" | "fallback";
 export type DashboardHydrationState = DashboardState & { source: DashboardSource };
 export type PipelineSource = "seeded" | "gee";
 export type PipelineState = "ready" | "degraded" | "error" | "syncing";
+export type EvidenceFreshness = "fresh" | "stale" | "unavailable";
+export type ScreeningLevel = "low" | "medium" | "high";
 export type PipelineStageCard = {
   label: string;
   value: string;
   detail: string;
+};
+export type ScreeningEvidenceSnapshot = {
+  areaLabel: string;
+  evidenceSource: string;
+  freshness: EvidenceFreshness;
+  screeningLevel: ScreeningLevel;
+  syncedAt?: string;
+  lastSuccessfulSyncAt?: string;
+  observedWindow?: string;
+  currentCh4Ppb?: number;
+  baselineCh4Ppb?: number;
+  deltaAbsPpb?: number;
+  deltaPct?: number;
+  confidenceNote: string;
+  caveat?: string;
+  recommendedAction: string;
 };
 export type PipelineStatus = {
   source: PipelineSource;
@@ -34,6 +52,7 @@ export type PipelineStatus = {
   anomalyCount: number;
   statusMessage: string;
   stages: PipelineStageCard[];
+  screeningSnapshot?: ScreeningEvidenceSnapshot;
 };
 
 type ApiDashboardPayload = {
@@ -145,10 +164,28 @@ type ApiPipelineStatus = {
   anomaly_count: number;
   status_message: string;
   stages: ApiPipelineStage[];
+  screening_snapshot?: ApiScreeningEvidenceSnapshot | null;
 };
 
 type ApiPipelineSyncResponse = {
   status: ApiPipelineStatus;
+};
+
+type ApiScreeningEvidenceSnapshot = {
+  area_label: string;
+  evidence_source: string;
+  freshness: EvidenceFreshness;
+  screening_level: ScreeningLevel;
+  synced_at?: string | null;
+  last_successful_sync_at?: string | null;
+  observed_window?: string | null;
+  current_ch4_ppb?: number | null;
+  baseline_ch4_ppb?: number | null;
+  delta_abs_ppb?: number | null;
+  delta_pct?: number | null;
+  confidence_note: string;
+  caveat?: string | null;
+  recommended_action: string;
 };
 
 type CreateTaskPayload = {
@@ -195,6 +232,24 @@ export function fallbackPipelineStatus(anomalyCount: number): PipelineStatus {
         detail: "Incident, task, and MRV reporting are ready for the contest demo.",
       },
     ],
+    screeningSnapshot: {
+      areaLabel: "Kazakhstan pilot screening area",
+      evidenceSource: "Seeded demo baseline",
+      freshness: "fresh",
+      screeningLevel: "medium",
+      syncedAt: "2026-03-26 07:40",
+      lastSuccessfulSyncAt: "2026-03-26 07:40",
+      observedWindow: "Seeded playback window for the Kazakhstan pilot assets.",
+      currentCh4Ppb: 1888.6,
+      baselineCh4Ppb: 1817.9,
+      deltaAbsPpb: 70.7,
+      deltaPct: 3.89,
+      confidenceNote:
+        "Seeded comparison used for contest-safe playback until a live sync is requested.",
+      caveat: "This snapshot is demo data, not a live Earth Engine pull.",
+      recommendedAction:
+        "Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
+    },
   };
 }
 
@@ -485,6 +540,30 @@ function normalizePipelineStatus(status: ApiPipelineStatus): PipelineStatus {
       value: stage.value,
       detail: stage.detail,
     })),
+    screeningSnapshot: status.screening_snapshot
+      ? normalizeScreeningEvidenceSnapshot(status.screening_snapshot)
+      : undefined,
+  };
+}
+
+function normalizeScreeningEvidenceSnapshot(
+  snapshot: ApiScreeningEvidenceSnapshot,
+): ScreeningEvidenceSnapshot {
+  return {
+    areaLabel: snapshot.area_label,
+    evidenceSource: snapshot.evidence_source,
+    freshness: snapshot.freshness,
+    screeningLevel: snapshot.screening_level,
+    syncedAt: snapshot.synced_at ?? undefined,
+    lastSuccessfulSyncAt: snapshot.last_successful_sync_at ?? undefined,
+    observedWindow: snapshot.observed_window ?? undefined,
+    currentCh4Ppb: snapshot.current_ch4_ppb ?? undefined,
+    baselineCh4Ppb: snapshot.baseline_ch4_ppb ?? undefined,
+    deltaAbsPpb: snapshot.delta_abs_ppb ?? undefined,
+    deltaPct: snapshot.delta_pct ?? undefined,
+    confidenceNote: snapshot.confidence_note,
+    caveat: snapshot.caveat ?? undefined,
+    recommendedAction: snapshot.recommended_action,
   };
 }
 
