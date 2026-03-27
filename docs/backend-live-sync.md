@@ -18,15 +18,20 @@ From repo root:
 
 ```powershell
 cd apps\api
-py -m pip install -e .
+py -m pip install -e .[dev]
 ```
 
 If `py` is unavailable but `python` exists:
 
 ```powershell
 cd apps\api
-python -m pip install -e .
+python -m pip install -e .[dev]
 ```
+
+The `.[dev]` extra matters for smoke coverage:
+
+- `pytest` runs the backend contract checks
+- `httpx` supports the FastAPI route tests
 
 ## 2. Set the Earth Engine project
 
@@ -56,6 +61,20 @@ http://127.0.0.1:8000
 ```
 
 ## 4. Smoke check the API
+
+Before manual clicking, run the committed backend smoke suite:
+
+```powershell
+cd apps\api
+py -m pytest
+```
+
+What should pass:
+
+- seeded dashboard contract
+- pipeline sync typed responses
+- seeded reset after live evidence
+- incident -> task -> report audit continuity
 
 Health:
 
