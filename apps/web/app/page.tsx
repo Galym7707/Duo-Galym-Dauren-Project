@@ -70,6 +70,12 @@ const screeningCopy = {
     reset: "Return to seeded mode",
     resetting: "Resetting...",
     noApi: "Live sync needs the FastAPI backend to be available.",
+    syncingGee: "Refreshing satellite screening evidence...",
+    syncingSeeded: "Returning to seeded screening playback...",
+    syncFailedGee: "Live sync failed. The seeded workflow remains available.",
+    syncFailedSeeded: "Reset to seeded mode failed. The current workflow remains available.",
+    notAvailable: "Not available",
+    noCaveat: "No additional caveat.",
     freshness: {
       fresh: "Fresh evidence",
       stale: "Stale evidence",
@@ -82,32 +88,38 @@ const screeningCopy = {
     },
   },
   ru: {
-    title: "Latest methane screening",
-    subtitle: "Use satellite evidence as a screening layer, then promote manually.",
-    current: "Current CH4",
-    baseline: "Baseline CH4",
-    delta: "Delta vs baseline",
-    level: "Screening level",
-    synced: "Last sync",
-    observed: "Observed window",
-    source: "Evidence source",
-    confidence: "Confidence note",
-    caveat: "Caveat",
-    recommendation: "Recommended next step",
-    sync: "Sync latest evidence",
-    syncing: "Syncing...",
-    reset: "Return to seeded mode",
-    resetting: "Resetting...",
-    noApi: "Live sync needs the FastAPI backend to be available.",
+    title: "Последний скрининг метана",
+    subtitle: "Используйте спутниковые данные как screening layer, затем вручную переводите сигнал в инцидент.",
+    current: "Текущий CH4",
+    baseline: "Базовый CH4",
+    delta: "Отклонение от базового уровня",
+    level: "Уровень screening",
+    synced: "Последняя синхронизация",
+    observed: "Окно наблюдения",
+    source: "Источник данных",
+    confidence: "Комментарий по достоверности",
+    caveat: "Ограничение",
+    recommendation: "Рекомендуемое действие",
+    sync: "Обновить evidence",
+    syncing: "Обновляем...",
+    reset: "Вернуть seeded-режим",
+    resetting: "Возвращаем...",
+    noApi: "Для live sync нужен доступный FastAPI backend.",
+    syncingGee: "Обновляем спутниковый screening signal...",
+    syncingSeeded: "Возвращаем seeded playback...",
+    syncFailedGee: "Live sync не удался. Seeded workflow остается доступным.",
+    syncFailedSeeded: "Возврат в seeded-режим не удался. Текущий workflow остается доступным.",
+    notAvailable: "Недоступно",
+    noCaveat: "Дополнительных ограничений нет.",
     freshness: {
-      fresh: "Fresh evidence",
-      stale: "Stale evidence",
-      unavailable: "Unavailable",
+      fresh: "Свежий сигнал",
+      stale: "Последний доступный сигнал",
+      unavailable: "Недоступно",
     },
     levelLabel: {
-      low: "Low",
-      medium: "Medium",
-      high: "High",
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий",
     },
   },
 } as const;
@@ -133,6 +145,27 @@ export default function Page() {
   const [busyAction, setBusyAction] = useState<null | string>(null);
 
   const t = copy[locale];
+  const screeningText = screeningCopy[locale];
+
+  function applyDashboardHydration(
+    state: DashboardHydrationState,
+    nextPipelineStatus?: PipelineStatus,
+  ) {
+    startTransition(() => {
+      setDashboardSource(state.source);
+      setKpiCards(state.kpis);
+      setAnomalies(state.anomalies);
+      setIncidents(state.incidents);
+      if (nextPipelineStatus) {
+        setPipelineStatus(nextPipelineStatus);
+      }
+      setSelectedAnomalyId((current) => {
+        const exists = state.anomalies.some((item) => item.id === current);
+        return exists ? current : state.anomalies[0]?.id ?? "";
+      });
+      setLoadingDashboard(false);
+    });
+  }
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("saryna-theme");
@@ -158,19 +191,7 @@ export default function Page() {
       const state = await loadDashboardState();
       const nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
       if (cancelled) return;
-
-      startTransition(() => {
-        setDashboardSource(state.source);
-        setKpiCards(state.kpis);
-        setAnomalies(state.anomalies);
-        setIncidents(state.incidents);
-        setPipelineStatus(nextPipelineStatus);
-        setSelectedAnomalyId((current) => {
-          const exists = state.anomalies.some((item) => item.id === current);
-          return exists ? current : state.anomalies[0]?.id ?? "";
-        });
-        setLoadingDashboard(false);
-      });
+      applyDashboardHydration(state, nextPipelineStatus);
     }
 
     void hydrateDashboard();
@@ -206,7 +227,6 @@ export default function Page() {
     selectedAnomaly && activeIncident
       ? buildLocalizedReportSections(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
-  const screeningText = screeningCopy[locale];
   const screeningSnapshot = pipelineStatus.screeningSnapshot;
 
   const heroStats: HeroStat[] = selectedAnomaly
@@ -241,12 +261,13 @@ export default function Page() {
       }));
 
   const runPipelineSync = async (source: "gee" | "seeded") => {
-    if (!hasApiBaseUrl || dashboardSource !== "api") {
+    if (!hasApiBaseUrl) {
       setRequestError(screeningText.noApi);
       return;
     }
 
     const actionId = source === "gee" ? "sync-gee" : "sync-seeded";
+    const previousPipelineStatus = pipelineStatus;
     setBusyAction(actionId);
     setRequestError(null);
     setPipelineStatus((current) => ({
@@ -254,24 +275,31 @@ export default function Page() {
       state: "syncing",
       statusMessage:
         source === "gee"
-          ? "Refreshing satellite screening evidence..."
-          : "Returning to seeded screening playback...",
+          ? screeningText.syncingGee
+          : screeningText.syncingSeeded,
     }));
 
     try {
       const nextStatus = await syncPipeline(source);
-      setPipelineStatus(nextStatus);
+      const refreshedState = await loadDashboardState();
+      if (refreshedState.source === "api") {
+        applyDashboardHydration(refreshedState, nextStatus);
+      } else {
+        startTransition(() => {
+          setDashboardSource("api");
+          setPipelineStatus(nextStatus);
+        });
+      }
       if (nextStatus.state !== "ready") {
         setRequestError(nextStatus.statusMessage);
       }
     } catch {
       setRequestError(
         source === "gee"
-          ? "Live sync failed. The seeded workflow remains available."
-          : "Reset to seeded mode failed. The current workflow remains available.",
+          ? screeningText.syncFailedGee
+          : screeningText.syncFailedSeeded,
       );
-      setPipelineStatus(fallbackPipelineStatus(anomalies.length));
-      setDashboardSource("fallback");
+      setPipelineStatus(previousPipelineStatus);
     } finally {
       setBusyAction(null);
     }
@@ -590,19 +618,19 @@ export default function Page() {
               <div className="evidence-metric-grid">
                 <MetricCard
                   label={screeningText.current}
-                  value={formatPpb(screeningSnapshot.currentCh4Ppb)}
+                  value={formatPpb(screeningSnapshot.currentCh4Ppb, screeningText.notAvailable)}
                 />
                 <MetricCard
                   label={screeningText.baseline}
-                  value={formatPpb(screeningSnapshot.baselineCh4Ppb)}
+                  value={formatPpb(screeningSnapshot.baselineCh4Ppb, screeningText.notAvailable)}
                 />
                 <MetricCard
                   label={screeningText.delta}
-                  value={formatDelta(screeningSnapshot)}
+                  value={formatDelta(screeningSnapshot, screeningText.notAvailable)}
                 />
                 <MetricCard
                   label={screeningText.synced}
-                  value={screeningSnapshot.syncedAt ?? "Not available"}
+                  value={screeningSnapshot.syncedAt ?? screeningText.notAvailable}
                 />
               </div>
 
@@ -727,15 +755,15 @@ export default function Page() {
                   <section className="metric-grid evidence-inner-grid">
                     <MetricCard
                       label={screeningText.current}
-                      value={formatPpb(screeningSnapshot.currentCh4Ppb)}
+                      value={formatPpb(screeningSnapshot.currentCh4Ppb, screeningText.notAvailable)}
                     />
                     <MetricCard
                       label={screeningText.baseline}
-                      value={formatPpb(screeningSnapshot.baselineCh4Ppb)}
+                      value={formatPpb(screeningSnapshot.baselineCh4Ppb, screeningText.notAvailable)}
                     />
                     <MetricCard
                       label={screeningText.delta}
-                      value={formatDelta(screeningSnapshot)}
+                      value={formatDelta(screeningSnapshot, screeningText.notAvailable)}
                     />
                     <MetricCard
                       label={screeningText.level}
@@ -747,11 +775,11 @@ export default function Page() {
                     <InfoRow label={screeningText.source} value={screeningSnapshot.evidenceSource} />
                     <InfoRow
                       label={screeningText.synced}
-                      value={screeningSnapshot.syncedAt ?? "Not available"}
+                      value={screeningSnapshot.syncedAt ?? screeningText.notAvailable}
                     />
                     <InfoRow
                       label={screeningText.observed}
-                      value={screeningSnapshot.observedWindow ?? "Not available"}
+                      value={screeningSnapshot.observedWindow ?? screeningText.notAvailable}
                     />
                     <InfoRow
                       label={screeningText.confidence}
@@ -759,7 +787,7 @@ export default function Page() {
                     />
                     <InfoRow
                       label={screeningText.caveat}
-                      value={screeningSnapshot.caveat ?? "No additional caveat."}
+                      value={screeningSnapshot.caveat ?? screeningText.noCaveat}
                     />
                     <InfoRow
                       label={screeningText.recommendation}
@@ -799,7 +827,7 @@ export default function Page() {
               <div className="panel-actions panel-actions-wrap">
                 <button
                   className="secondary-button"
-                  disabled={busyAction === "sync-gee" || dashboardSource !== "api"}
+                  disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
                   onClick={() => void runPipelineSync("gee")}
                   type="button"
                 >
@@ -807,7 +835,7 @@ export default function Page() {
                 </button>
                 <button
                   className="secondary-button"
-                  disabled={busyAction === "sync-seeded" || dashboardSource !== "api"}
+                  disabled={busyAction === "sync-seeded" || !hasApiBaseUrl}
                   onClick={() => void runPipelineSync("seeded")}
                   type="button"
                 >
@@ -1039,13 +1067,13 @@ export default function Page() {
   );
 }
 
-function formatPpb(value?: number) {
-  return value === undefined ? "Not available" : `${value.toFixed(2)} ppb`;
+function formatPpb(value: number | undefined, emptyLabel: string) {
+  return value === undefined ? emptyLabel : `${value.toFixed(2)} ppb`;
 }
 
-function formatDelta(snapshot: ScreeningEvidenceSnapshot) {
+function formatDelta(snapshot: ScreeningEvidenceSnapshot, emptyLabel: string) {
   if (snapshot.deltaAbsPpb === undefined && snapshot.deltaPct === undefined) {
-    return "Not available";
+    return emptyLabel;
   }
 
   const absPart =

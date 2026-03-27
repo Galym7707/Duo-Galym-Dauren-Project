@@ -47,6 +47,9 @@ def test_pipeline_sync_handles_provider_error_with_typed_response() -> None:
     assert payload["provider_label"] == "Google Earth Engine"
     assert payload["project_id"] == "demo-project"
     assert payload["screening_snapshot"]["freshness"] == "unavailable"
+    assert payload["screening_snapshot"]["evidence_source"] == "Google Earth Engine / Sentinel-5P"
+    assert payload["screening_snapshot"]["current_ch4_ppb"] is None
+    assert payload["screening_snapshot"]["last_successful_sync_at"] is None
 
 
 def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:

@@ -110,6 +110,11 @@ class PipelineService:
             if summary.status == "degraded"
             else self.store.mark_screening_unavailable(synced_at=now, caveat=summary.message)
         )
+        normalization_detail = (
+            "The last verified live screening snapshot remains visible while seeded operational flow stays intact."
+            if snapshot.last_successful_sync_at
+            else "No verified live screening snapshot is stored yet, so the seeded operational workflow remains the fallback."
+        )
         self._status = PipelineStatus(
             source="gee",
             state=degraded_state,
@@ -127,8 +132,8 @@ class PipelineService:
                     ),
                     PipelineStage(
                         label="Normalization layer",
-                        value="Previous evidence retained",
-                        detail="The last available screening snapshot remains visible while seeded operational flow stays intact.",
+                        value="Screening evidence fallback active",
+                        detail=normalization_detail,
                     ),
                     PipelineStage(
                         label="Verification layer",

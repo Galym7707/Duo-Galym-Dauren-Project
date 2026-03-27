@@ -51,7 +51,42 @@ def test_sync_gee_error_keeps_demo_safe_state() -> None:
     assert status_model.state == "error"
     assert snapshot is not None
     assert snapshot.freshness == "unavailable"
+    assert snapshot.evidence_source == "Google Earth Engine / Sentinel-5P"
+    assert snapshot.current_ch4_ppb is None
+    assert snapshot.last_successful_sync_at is None
+    assert "No previous verified live screening snapshot is available yet." in (snapshot.caveat or "")
     assert all(event.source != "gee" for event in store.dashboard().activity_feed)
+
+
+def test_sync_gee_degraded_preserves_previous_live_snapshot_when_available() -> None:
+    store = DemoStore()
+    service = PipelineService(store)
+    store.apply_fresh_screening_evidence(
+        synced_at="2026-03-27 08:05 UTC",
+        project_id="demo-project",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
+        latest_observation_at="2026-03-27 08:00 UTC",
+        mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
+        screening_level="medium",
+        status_message="Earth Engine CH4 screening summary fetched successfully.",
+    )
+    service.provider.sync_summary = lambda: GeeSyncSummary(
+        project_id="demo-project",
+        status="degraded",
+        message="Earth Engine returned no fresh scene for the selected window.",
+    )
+
+    status_model = service.sync_gee()
+    snapshot = status_model.screening_snapshot
+
+    assert status_model.state == "degraded"
+    assert snapshot is not None
+    assert snapshot.freshness == "stale"
+    assert snapshot.current_ch4_ppb == 1884.6
+    assert snapshot.last_successful_sync_at == "2026-03-27 08:05 UTC"
 
 
 def test_sync_seeded_clears_live_evidence_and_restores_baseline() -> None:

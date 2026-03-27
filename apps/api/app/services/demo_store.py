@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import UTC, datetime
 from html import escape
+from typing import Literal
 
 from app.models import (
     ActivityEvent,
@@ -626,10 +627,15 @@ class DemoStore:
 
     def mark_screening_stale(self, *, synced_at: str, caveat: str) -> ScreeningEvidenceSnapshot:
         base_snapshot = (
-            self._last_live_screening_snapshot
-            or self._screening_snapshot
-            or self._seeded_screening_snapshot
-        ).model_copy(deep=True)
+            self._last_live_screening_snapshot.model_copy(deep=True)
+            if self._last_live_screening_snapshot
+            else self._build_live_placeholder_snapshot(
+                synced_at=synced_at,
+                freshness="stale",
+                caveat=caveat,
+                recommended_action="Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
+            )
+        )
         base_snapshot.freshness = "stale"
         base_snapshot.synced_at = synced_at
         base_snapshot.last_successful_sync_at = (
@@ -649,20 +655,27 @@ class DemoStore:
         self, *, synced_at: str, caveat: str
     ) -> ScreeningEvidenceSnapshot:
         base_snapshot = (
-            self._last_live_screening_snapshot
-            or self._seeded_screening_snapshot
-        ).model_copy(deep=True)
+            self._last_live_screening_snapshot.model_copy(deep=True)
+            if self._last_live_screening_snapshot
+            else self._build_live_placeholder_snapshot(
+                synced_at=synced_at,
+                freshness="unavailable",
+                caveat=caveat,
+                recommended_action="Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.",
+            )
+        )
         base_snapshot.freshness = "unavailable"
         base_snapshot.synced_at = synced_at
         base_snapshot.last_successful_sync_at = (
             self._last_live_screening_snapshot.synced_at
             if self._last_live_screening_snapshot
-            else self._seeded_screening_snapshot.synced_at
+            else None
         )
-        base_snapshot.caveat = caveat
-        base_snapshot.recommended_action = (
-            "Keep the seeded operational workflow active and treat the last available screening snapshot as context only."
-        )
+        if self._last_live_screening_snapshot:
+            base_snapshot.caveat = caveat
+            base_snapshot.recommended_action = (
+                "Keep the seeded operational workflow active and treat the last available screening snapshot as context only."
+            )
         self._screening_snapshot = base_snapshot.model_copy(deep=True)
         self._push_screening_history(base_snapshot)
         return self.screening_snapshot()
@@ -688,6 +701,31 @@ class DemoStore:
     def _push_screening_history(self, snapshot: ScreeningEvidenceSnapshot) -> None:
         self._screening_history.insert(0, snapshot.model_copy(deep=True))
         self._screening_history = self._screening_history[:5]
+
+    def _build_live_placeholder_snapshot(
+        self,
+        *,
+        synced_at: str,
+        freshness: Literal["stale", "unavailable"],
+        caveat: str,
+        recommended_action: str,
+    ) -> ScreeningEvidenceSnapshot:
+        return ScreeningEvidenceSnapshot(
+            area_label="Kazakhstan pilot screening area",
+            evidence_source="Google Earth Engine / Sentinel-5P",
+            freshness=freshness,
+            screening_level="low",
+            synced_at=synced_at,
+            last_successful_sync_at=None,
+            observed_window=None,
+            current_ch4_ppb=None,
+            baseline_ch4_ppb=None,
+            delta_abs_ppb=None,
+            delta_pct=None,
+            confidence_note="No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
+            caveat=f"{caveat} No previous verified live screening snapshot is available yet.",
+            recommended_action=recommended_action,
+        )
 
     def _record_activity(
         self,
