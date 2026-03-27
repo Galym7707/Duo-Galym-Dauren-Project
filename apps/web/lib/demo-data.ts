@@ -24,6 +24,8 @@ export type Anomaly = {
   signalScore: number;
   confidence: string;
   coordinates: string;
+  latitude: number;
+  longitude: number;
   summary: string;
   recommendedAction: string;
   sitePosition: SitePosition;
@@ -136,6 +138,8 @@ export const anomalyFeed: Anomaly[] = [
     signalScore: 91,
     confidence: "High confidence / persistent over 8 days",
     coordinates: "46.094 N, 53.452 E",
+    latitude: 46.094,
+    longitude: 53.452,
     summary:
       "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.",
     recommendedAction:
@@ -160,6 +164,8 @@ export const anomalyFeed: Anomaly[] = [
     signalScore: 73,
     confidence: "Medium confidence / single-week deviation",
     coordinates: "46.190 N, 51.858 E",
+    latitude: 46.19,
+    longitude: 51.858,
     summary:
       "Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.",
     recommendedAction:
@@ -183,6 +189,8 @@ export const anomalyFeed: Anomaly[] = [
     signalScore: 58,
     confidence: "Watchlist / flare-led signal",
     coordinates: "43.690 N, 51.167 E",
+    latitude: 43.69,
+    longitude: 51.167,
     summary:
       "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
     recommendedAction:

@@ -14,6 +14,17 @@ def test_promote_anomaly_records_measurement_and_incident_activity() -> None:
     assert incident_events[1].entity_type == "anomaly"
 
 
+def test_seeded_anomalies_expose_numeric_geolocation() -> None:
+    store = DemoStore()
+
+    anomalies = store.list_anomalies()
+
+    assert all(isinstance(anomaly.latitude, float) for anomaly in anomalies)
+    assert all(isinstance(anomaly.longitude, float) for anomaly in anomalies)
+    assert anomalies[0].latitude == 46.094
+    assert anomalies[0].longitude == 53.452
+
+
 def test_generate_report_and_export_html_include_audit_timeline() -> None:
     store = DemoStore()
 

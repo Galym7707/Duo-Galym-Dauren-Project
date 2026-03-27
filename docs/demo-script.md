@@ -24,7 +24,7 @@ Point to:
 ### 0:15-0:30
 Screen:
 - In the screening evidence block, click `Sync latest evidence`.
-- Wait for the evidence card to refresh.
+- Wait for the evidence card and real map marker state to refresh.
 
 Say:
 - "Here we prove the live CH4 screening path through Google Earth Engine."
@@ -35,6 +35,9 @@ Point to:
 - latest observation / sync timestamp
 - current CH4 vs baseline
 - delta badge
+- the map-card context badge / note
+- the live marker emphasis on the real map
+- the selected marker detail card
 
 ### 0:30-0:45
 Screen:

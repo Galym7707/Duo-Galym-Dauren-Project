@@ -86,6 +86,8 @@ type ApiAnomaly = {
   signal_score: number;
   confidence: string;
   coordinates: string;
+  latitude: number;
+  longitude: number;
   summary: string;
   recommended_action: string;
   site_position: {
@@ -463,6 +465,8 @@ function normalizeAnomaly(anomaly: ApiAnomaly): Anomaly {
     signalScore: anomaly.signal_score,
     confidence: anomaly.confidence,
     coordinates: anomaly.coordinates,
+    latitude: anomaly.latitude,
+    longitude: anomaly.longitude,
     summary: anomaly.summary,
     recommendedAction: anomaly.recommended_action,
     sitePosition: {

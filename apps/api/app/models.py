@@ -63,6 +63,8 @@ class Anomaly(BaseModel):
     signal_score: int = Field(ge=0, le=100)
     confidence: str
     coordinates: str
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
     summary: str
     recommended_action: str
     site_position: SitePosition

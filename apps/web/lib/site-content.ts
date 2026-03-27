@@ -87,6 +87,15 @@ export const copy = {
     panels: {
       map: "Location sketch",
       mapNote: "This is a simple position sketch, not a live satellite map.",
+      mapNoteLive:
+        "The sketch stays static. Screening evidence was refreshed live for the selected Kazakhstan window.",
+      mapNoteDegraded:
+        "The sketch stays static. The last verified screening snapshot is still shown while the live refresh is degraded.",
+      mapNoteUnavailable:
+        "The sketch stays static. Live screening is unavailable, so use the visible context and seeded workflow for decisions.",
+      mapContextSeeded: "Seeded context",
+      mapContextLive: "Live context",
+      mapContextFallback: "Fallback context",
       assets: "Selected asset",
       noIncident: "No incident yet",
       noIncidentHint: "Create an incident to unlock the next steps.",
@@ -295,6 +304,15 @@ export const copy = {
     panels: {
       map: "Схема расположения",
       mapNote: "Это условная схема позиций, а не живая спутниковая карта.",
+      mapNoteLive:
+        "Схема остается статичной. Screening evidence был обновлен live для выбранного окна по Казахстану.",
+      mapNoteDegraded:
+        "Схема остается статичной. Последний подтвержденный screening snapshot все еще показан, пока live refresh работает в degraded-режиме.",
+      mapNoteUnavailable:
+        "Схема остается статичной. Live screening сейчас недоступен, поэтому для решений используйте видимый контекст и seeded workflow.",
+      mapContextSeeded: "Seeded контекст",
+      mapContextLive: "Live контекст",
+      mapContextFallback: "Fallback контекст",
       assets: "Выбранный объект",
       noIncident: "Инцидент ещё не создан",
       noIncidentHint: "Создайте инцидент, чтобы открыть следующие шаги.",

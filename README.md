@@ -124,6 +124,7 @@ Live backend runbook:
 - MRV audit feed exposed as first-class API resources for global and incident-specific evidence views
 - audit events now carry source, actor, entity, and metadata so the timeline reads like evidence, not just UI copy
 - frontend now supports a stage-safe `Sync latest evidence -> Return to seeded mode` loop with visible screening evidence change before incident promotion
+- Signal step now uses a real MapLibre surface with anomaly markers, shared workflow selection, and an internal sketch fallback for demo safety
 
 ## Что дальше по приоритету
 

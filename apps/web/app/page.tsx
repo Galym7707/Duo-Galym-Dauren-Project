@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { startTransition, useEffect, useRef, useState } from "react";
 import {
@@ -17,6 +17,7 @@ import {
   type PipelineStatus,
   type ScreeningEvidenceSnapshot,
 } from "../lib/api";
+import { AnomalyMap } from "../components/anomaly-map";
 import { type Anomaly, type Incident, type IncidentTask, type ReportSection } from "../lib/demo-data";
 import {
   buildLocalizedReportSections,
@@ -51,6 +52,46 @@ type HeroStat = {
   hint?: string;
 };
 
+type MapCardTone = "seeded" | "live" | "fallback";
+
+const mapSyncLabelCopy = {
+  en: {
+    verified: "Last verified",
+    attempted: "Last attempt",
+  },
+  ru: {
+    verified: "Последнее подтверждение",
+    attempted: "Последняя попытка",
+  },
+} as const;
+
+const mapCardCopy = {
+  en: {
+    contextSeeded: "Seeded context",
+    contextLive: "Live context",
+    contextFallback: "Fallback context",
+    noteSeeded: "This is a simple position sketch, not a live satellite map.",
+    noteLive:
+      "The sketch stays static. Screening evidence was refreshed for the selected Kazakhstan window.",
+    noteDegraded:
+      "The sketch stays static. The last verified screening snapshot is still shown while the live refresh is degraded.",
+    noteUnavailable:
+      "The sketch stays static. Live screening is unavailable, so use the visible context and demo workflow for decisions.",
+  },
+  ru: {
+    contextSeeded: "Демо-контекст",
+    contextLive: "Live-контекст",
+    contextFallback: "Резервный контекст",
+    noteSeeded: "Это условная схема позиций, а не живая спутниковая карта.",
+    noteLive:
+      "Схема остается статичной. Данные скрининга обновлены для выбранного окна по Казахстану.",
+    noteDegraded:
+      "Схема остается статичной. Последний подтвержденный снимок скрининга все еще показан, пока live-обновление работает с ограничениями.",
+    noteUnavailable:
+      "Схема остается статичной. Live-скрининг сейчас недоступен, поэтому для решений используйте видимый контекст и демо-цепочку.",
+  },
+} as const;
+
 const screeningCopy = {
   en: {
     title: "Latest methane screening",
@@ -60,6 +101,8 @@ const screeningCopy = {
     delta: "Delta vs baseline",
     level: "Screening level",
     synced: "Last sync",
+    verified: "Last verified",
+    attempted: "Last attempt",
     observed: "Observed window",
     source: "Evidence source",
     confidence: "Confidence note",
@@ -95,6 +138,8 @@ const screeningCopy = {
     delta: "Отклонение от базового уровня",
     level: "Уровень screening",
     synced: "Последняя синхронизация",
+    verified: "Последнее подтверждение",
+    attempted: "Последняя попытка",
     observed: "Окно наблюдения",
     source: "Источник данных",
     confidence: "Комментарий по достоверности",
@@ -143,9 +188,13 @@ export default function Page() {
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | string>(null);
+  const [mapReactionToken, setMapReactionToken] = useState(0);
+  const [mapReactionActive, setMapReactionActive] = useState(false);
+  const [mapReactionDotId, setMapReactionDotId] = useState("");
 
   const t = copy[locale];
   const screeningText = screeningCopy[locale];
+  const mapCardText = mapCardCopy[locale];
 
   function applyDashboardHydration(
     state: DashboardHydrationState,
@@ -183,6 +232,17 @@ export default function Page() {
     document.documentElement.lang = locale;
     window.localStorage.setItem("saryna-locale", locale);
   }, [locale]);
+
+  useEffect(() => {
+    if (!mapReactionActive) return;
+
+    const timer = window.setTimeout(() => {
+      setMapReactionActive(false);
+      setMapReactionDotId("");
+    }, 2400);
+
+    return () => window.clearTimeout(timer);
+  }, [mapReactionActive, mapReactionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -228,6 +288,38 @@ export default function Page() {
       ? buildLocalizedReportSections(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
   const screeningSnapshot = pipelineStatus.screeningSnapshot;
+  const mapCardTone: MapCardTone =
+    pipelineStatus.source === "seeded"
+      ? "seeded"
+      : pipelineStatus.state === "ready" && screeningSnapshot?.freshness === "fresh"
+        ? "live"
+        : "fallback";
+  const mapContextLabel =
+    mapCardTone === "live"
+      ? mapCardText.contextLive
+      : mapCardTone === "fallback"
+        ? mapCardText.contextFallback
+        : mapCardText.contextSeeded;
+  const mapNote =
+    mapCardTone === "live"
+      ? mapCardText.noteLive
+      : mapCardTone === "fallback"
+        ? pipelineStatus.state === "error"
+          ? mapCardText.noteUnavailable
+          : mapCardText.noteDegraded
+        : mapCardText.noteSeeded;
+  const mapSyncLabel =
+    mapCardTone === "fallback"
+      ? screeningSnapshot?.lastSuccessfulSyncAt
+        ? mapSyncLabelCopy[locale].verified
+        : mapSyncLabelCopy[locale].attempted
+      : screeningText.synced;
+  const mapSyncValue =
+    mapCardTone === "fallback"
+      ? screeningSnapshot?.lastSuccessfulSyncAt ??
+        screeningSnapshot?.syncedAt ??
+        screeningText.notAvailable
+      : screeningSnapshot?.syncedAt ?? screeningText.notAvailable;
 
   const heroStats: HeroStat[] = selectedAnomaly
     ? [
@@ -291,9 +383,20 @@ export default function Page() {
         });
       }
       if (nextStatus.state !== "ready") {
+        setMapReactionActive(false);
+        setMapReactionDotId("");
         setRequestError(nextStatus.statusMessage);
+      } else if (source === "gee" && nextStatus.screeningSnapshot?.freshness === "fresh") {
+        setMapReactionDotId(selectedAnomaly?.id ?? strongestAnomaly?.id ?? "");
+        setMapReactionToken((current) => current + 1);
+        setMapReactionActive(true);
+      } else {
+        setMapReactionActive(false);
+        setMapReactionDotId("");
       }
     } catch {
+      setMapReactionActive(false);
+      setMapReactionDotId("");
       setRequestError(
         source === "gee"
           ? screeningText.syncFailedGee
@@ -806,22 +909,54 @@ export default function Page() {
 
               <section className="map-card">
                 <div className="section-head">
-                  <FieldLabel hint={t.help.map} label={t.panels.map} />
-                  <strong>{translateRegion(selectedAnomaly.region, locale)}</strong>
+                  <div>
+                    <FieldLabel hint={t.help.map} label={t.panels.map} />
+                    <strong>{translateRegion(selectedAnomaly.region, locale)}</strong>
+                  </div>
+                  <span className={`map-context-badge map-context-badge-${mapCardTone}`}>
+                    {mapContextLabel}
+                  </span>
                 </div>
-                <p className="map-note">{t.panels.mapNote}</p>
-                <div className="map-board">
-                  {anomalies.map((anomaly) => (
-                    <button
-                      key={anomaly.id}
-                      aria-label={translateAssetName(anomaly.assetName, locale)}
-                      className={`map-dot ${anomaly.id === selectedAnomaly.id ? "map-dot-active" : ""}`}
-                      onClick={() => changeSelectedAnomaly(anomaly.id)}
-                      style={{ left: `${anomaly.sitePosition.x}%`, top: `${anomaly.sitePosition.y}%` }}
-                      type="button"
-                    />
-                  ))}
+                <div className={`map-evidence-strip map-evidence-strip-${mapCardTone}`}>
+                  <article>
+                    <span>{screeningText.current}</span>
+                    <strong>{formatPpb(screeningSnapshot?.currentCh4Ppb, screeningText.notAvailable)}</strong>
+                  </article>
+                  <article>
+                    <span>{screeningText.baseline}</span>
+                    <strong>{formatPpb(screeningSnapshot?.baselineCh4Ppb, screeningText.notAvailable)}</strong>
+                  </article>
+                  <article>
+                    <span>{screeningText.delta}</span>
+                    <strong>
+                      {screeningSnapshot
+                        ? formatDelta(screeningSnapshot, screeningText.notAvailable)
+                        : screeningText.notAvailable}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>{mapSyncLabel}</span>
+                    <strong>{mapSyncValue}</strong>
+                  </article>
                 </div>
+                <p className="map-note">{mapNote}</p>
+                <AnomalyMap
+                  anomalies={anomalies}
+                  liveReactionAnomalyId={mapReactionActive ? mapReactionDotId : undefined}
+                  locale={locale}
+                  onPrimaryAction={() => void promoteToIncident()}
+                  onSelectAnomaly={changeSelectedAnomaly}
+                  primaryActionDisabled={busyAction === "promote"}
+                  primaryActionLabel={
+                    selectedAnomaly.linkedIncidentId
+                      ? t.actions.openIncident
+                      : busyAction === "promote"
+                        ? t.actions.promoting
+                        : t.actions.promote
+                  }
+                  selectedAnomalyId={selectedAnomaly.id}
+                  tone={mapCardTone}
+                />
               </section>
 
               <div className="panel-actions panel-actions-wrap">
