@@ -10,16 +10,17 @@ from app.models import (
     DashboardPayload,
     GenerateReportResponse,
     Incident,
+    PipelineHistoryPayload,
     PipelineStatus,
     PipelineSyncRequest,
     PipelineSyncResponse,
     PromoteAnomalyRequest,
 )
-from app.services.demo_store import DemoStore
+from app.services.workflow_store import WorkflowStore
 from app.services.pipeline_service import PipelineService
 
 router = APIRouter(prefix="/api/v1", tags=["mrv"])
-store = DemoStore()
+store = WorkflowStore()
 pipeline_service = PipelineService(store)
 
 
@@ -36,6 +37,11 @@ async def get_activity_feed() -> ActivityFeedPayload:
 @router.get("/pipeline/status", response_model=PipelineStatus)
 async def get_pipeline_status() -> PipelineStatus:
     return pipeline_service.get_status()
+
+
+@router.get("/pipeline/history", response_model=PipelineHistoryPayload)
+async def get_pipeline_history(limit: int = 10) -> PipelineHistoryPayload:
+    return store.list_pipeline_history(limit=limit)
 
 
 @router.post("/pipeline/sync", response_model=PipelineSyncResponse)

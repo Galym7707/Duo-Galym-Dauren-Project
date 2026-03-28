@@ -2,19 +2,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.models import PipelineStage, PipelineStatus, ScreeningEvidenceSnapshot
+from app.models import PipelineStage, PipelineStatus
 from app.providers.gee import GeeProvider
-from app.services.demo_store import DemoStore
+from app.services.workflow_store import WorkflowStore
 
 
 class PipelineService:
-    def __init__(self, store: DemoStore) -> None:
+    def __init__(self, store: WorkflowStore) -> None:
         self.store = store
         self.provider = GeeProvider()
-        self._status = self._initial_status()
 
     def get_status(self) -> PipelineStatus:
-        return self._status.model_copy(deep=True)
+        return self.store.get_pipeline_status(self.provider.project_id)
 
     def sync_gee(self) -> PipelineStatus:
         now = self._now()
@@ -42,14 +41,14 @@ class PipelineService:
                 if summary.mean_ch4_ppb is not None and summary.baseline_ch4_ppb is not None
                 else "Latest CH4 scene fetched successfully."
             )
-            self._status = PipelineStatus(
+            status_model = PipelineStatus(
                 source="gee",
                 state="ready",
                 provider_label="Google Earth Engine",
                 project_id=summary.project_id,
                 last_sync_at=now,
                 latest_observation_at=summary.latest_observation_at,
-                anomaly_count=len(self.store.anomalies),
+                anomaly_count=len(summary.candidates),
                 status_message=summary.message,
                 stages=[
                     PipelineStage(
@@ -72,7 +71,7 @@ class PipelineService:
                 ],
                 screening_snapshot=snapshot,
             )
-            return self.get_status()
+            return self.store.save_pipeline_status(status_model)
 
         degraded_state = "degraded" if summary.status == "degraded" else "error"
         snapshot = (
@@ -85,7 +84,7 @@ class PipelineService:
             if snapshot.last_successful_sync_at
             else "No verified live screening snapshot is stored yet, so the queue stays empty until a live sync succeeds."
         )
-        self._status = PipelineStatus(
+        status_model = PipelineStatus(
             source="gee",
             state=degraded_state,
             provider_label="Google Earth Engine",
@@ -113,38 +112,7 @@ class PipelineService:
                 ],
                 screening_snapshot=snapshot,
             )
-        return self.get_status()
-
-    def _initial_status(self) -> PipelineStatus:
-        initial_snapshot = self.store.screening_snapshot()
-        return PipelineStatus(
-            source="gee",
-            state="degraded",
-            provider_label="Google Earth Engine",
-            project_id=self.provider.project_id,
-            last_sync_at=None,
-            latest_observation_at=None,
-            anomaly_count=len(self.store.anomalies),
-            status_message="Run live sync to load the first Earth Engine screening snapshot.",
-            stages=[
-                PipelineStage(
-                    label="Ingest layer",
-                    value="Waiting for first sync",
-                    detail="No live CH4 scene has been loaded into the project yet.",
-                ),
-                PipelineStage(
-                    label="Normalization layer",
-                    value="No live queue yet",
-                    detail="Candidate ranking begins only after a successful Earth Engine refresh.",
-                ),
-                PipelineStage(
-                    label="Verification layer",
-                    value="Workflow ready",
-                    detail="Incidents, tasks, and MRV reports become actionable once a live candidate is promoted.",
-                ),
-            ],
-            screening_snapshot=initial_snapshot,
-        )
+        return self.store.save_pipeline_status(status_model)
 
     def _now(self) -> str:
         return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")

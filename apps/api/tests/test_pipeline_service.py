@@ -1,5 +1,5 @@
 from app.providers.gee import GeeCandidate, GeeSyncSummary
-from app.services.demo_store import DemoStore
+from app.services.workflow_store import WorkflowStore
 from app.services.pipeline_service import PipelineService
 
 
@@ -33,7 +33,7 @@ def make_live_candidate() -> GeeCandidate:
 
 
 def test_initial_status_waits_for_first_live_sync() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     service = PipelineService(store)
     status_model = service.get_status()
 
@@ -46,7 +46,7 @@ def test_initial_status_waits_for_first_live_sync() -> None:
 
 
 def test_sync_gee_ready_updates_pipeline_and_store() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     service = PipelineService(store)
     service.provider.sync_summary = lambda: GeeSyncSummary(
         project_id="demo-project",
@@ -83,7 +83,7 @@ def test_sync_gee_ready_updates_pipeline_and_store() -> None:
 
 
 def test_sync_gee_error_keeps_empty_state_before_first_success() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     service = PipelineService(store)
     service.provider.sync_summary = lambda: GeeSyncSummary(
         project_id="demo-project",
@@ -106,20 +106,22 @@ def test_sync_gee_error_keeps_empty_state_before_first_success() -> None:
 
 
 def test_sync_gee_degraded_preserves_previous_live_snapshot_when_available() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     service = PipelineService(store)
-    store.apply_fresh_screening_evidence(
-        synced_at="2026-03-27 08:05 UTC",
+    service.provider.sync_summary = lambda: GeeSyncSummary(
         project_id="demo-project",
-        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
+        status="ready",
+        message="Earth Engine CH4 screening summary fetched successfully.",
         latest_observation_at="2026-03-27 08:00 UTC",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
         mean_ch4_ppb=1884.6,
         baseline_ch4_ppb=1822.4,
         delta_abs_ppb=62.2,
         delta_pct=3.41,
-        screening_level="medium",
-        status_message="Earth Engine CH4 screening summary fetched successfully.",
+        scene_count=12,
+        candidates=[],
     )
+    first_status = service.sync_gee()
     service.provider.sync_summary = lambda: GeeSyncSummary(
         project_id="demo-project",
         status="degraded",
@@ -133,4 +135,4 @@ def test_sync_gee_degraded_preserves_previous_live_snapshot_when_available() -> 
     assert snapshot is not None
     assert snapshot.freshness == "stale"
     assert snapshot.current_ch4_ppb == 1884.6
-    assert snapshot.last_successful_sync_at == "2026-03-27 08:05 UTC"
+    assert snapshot.last_successful_sync_at == first_status.last_sync_at

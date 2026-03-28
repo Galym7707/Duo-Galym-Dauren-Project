@@ -7,8 +7,10 @@ dependencies = [
   "fastapi[standard]>=0.110,<1.0",
   "earthengine-api>=1.0.0",
   "pydantic>=2.0,<3.0",
+  "psycopg[binary]>=3.1,<4.0",
   "python-docx>=1.1,<2.0",
-  "reportlab>=4.0,<5.0"
+  "reportlab>=4.0,<5.0",
+  "sqlalchemy>=2.0,<3.0"
 ]
 
 [project.optional-dependencies]

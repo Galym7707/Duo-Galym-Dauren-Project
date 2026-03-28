@@ -1,6 +1,6 @@
-from app.models import PromoteAnomalyRequest
+from app.models import PipelineStage, PipelineStatus, PromoteAnomalyRequest
 from app.providers.gee import GeeCandidate
-from app.services.demo_store import DemoStore
+from app.services.workflow_store import WorkflowStore
 
 
 def make_live_candidate() -> GeeCandidate:
@@ -33,7 +33,7 @@ def make_live_candidate() -> GeeCandidate:
 
 
 def test_promote_anomaly_records_measurement_and_incident_activity() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     candidate = make_live_candidate()
     store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
 
@@ -48,7 +48,7 @@ def test_promote_anomaly_records_measurement_and_incident_activity() -> None:
 
 
 def test_live_candidates_expose_numeric_geolocation() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     candidate = make_live_candidate()
     store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
 
@@ -63,7 +63,7 @@ def test_live_candidates_expose_numeric_geolocation() -> None:
 
 
 def test_generate_report_and_export_html_include_audit_timeline() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
     candidate = make_live_candidate()
     store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
     incident = store.promote_anomaly(candidate.id, PromoteAnomalyRequest(owner="ESG desk"))
@@ -78,9 +78,9 @@ def test_generate_report_and_export_html_include_audit_timeline() -> None:
 
 
 def test_mark_screening_unavailable_preserves_last_verified_snapshot() -> None:
-    store = DemoStore()
+    store = WorkflowStore()
 
-    store.apply_fresh_screening_evidence(
+    snapshot = store.apply_fresh_screening_evidence(
         synced_at="2026-03-27 08:05 UTC",
         project_id="demo-project",
         observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
@@ -91,6 +91,24 @@ def test_mark_screening_unavailable_preserves_last_verified_snapshot() -> None:
         delta_pct=3.35,
         screening_level="medium",
         status_message="Earth Engine CH4 screening summary fetched successfully.",
+    )
+    store.save_pipeline_status(
+        PipelineStatus(
+            source="gee",
+            state="ready",
+            provider_label="Google Earth Engine",
+            project_id="demo-project",
+            last_sync_at="2026-03-27 08:05 UTC",
+            latest_observation_at="2026-03-27 08:00 UTC",
+            anomaly_count=0,
+            status_message="Earth Engine CH4 screening summary fetched successfully.",
+            stages=[
+                PipelineStage(label="Ingest layer", value="Earth Engine connected", detail="Latest CH4 scene fetched successfully."),
+                PipelineStage(label="Normalization layer", value="Live candidates refreshed", detail="0 live candidates were pushed into the operational queue."),
+                PipelineStage(label="Verification layer", value="Promotion remains manual", detail="Workflow remains ready."),
+            ],
+            screening_snapshot=snapshot,
+        )
     )
 
     stale_snapshot = store.mark_screening_unavailable(

@@ -179,6 +179,16 @@ class PipelineStatus(BaseModel):
     screening_snapshot: ScreeningEvidenceSnapshot | None = None
 
 
+class PipelineHistoryEntry(BaseModel):
+    id: int
+    created_at: str
+    status: PipelineStatus
+
+
+class PipelineHistoryPayload(BaseModel):
+    runs: list[PipelineHistoryEntry]
+
+
 class PipelineSyncRequest(BaseModel):
     source: PipelineSource = "gee"
 
