@@ -38,8 +38,15 @@ import {
   translateFacility,
   translateIncidentNarrative,
   translateOwner,
+  translatePipelineStatusMessage,
   translateRecommendedAction,
   translateRegion,
+  translateScreeningAreaLabel,
+  translateScreeningCaveat,
+  translateScreeningConfidenceNote,
+  translateScreeningEvidenceSource,
+  translateScreeningObservedWindow,
+  translateScreeningRecommendation,
   translateTaskTitle,
   translateWindow,
   type ThemeMode,
@@ -136,16 +143,16 @@ const mapCardCopy = {
   },
   ru: {
     contextSeeded: "Демо-покрытие по стране",
-    contextLive: "Live-скрининг",
+    contextLive: "Обновлённый скрининг",
     contextFallback: "Резервный режим",
     noteSeeded:
-      "Эта карта показывает seeded screening markers по Казахстану. Это навигационный слой, а не геометрия plume в реальном времени.",
+      "На карте показаны демонстрационные маркеры по Казахстану. Это навигационный слой, а не точная геометрия выброса в реальном времени.",
     noteLive:
-      "География карты остается стабильной. Данные скрининга обновлены для выбранного окна по Казахстану.",
+      "География карты остаётся стабильной. Данные скрининга обновлены для выбранной зоны Казахстана.",
     noteDegraded:
-      "Последний подтвержденный снимок скрининга все еще показан, пока live-обновление работает с ограничениями.",
+      "Последний подтверждённый снимок скрининга всё ещё показан, пока новое обновление работает с ограничениями.",
     noteUnavailable:
-      "Live-скрининг сейчас недоступен, поэтому для решений используйте видимый национальный контекст и демо-цепочку.",
+      "Спутниковый скрининг сейчас недоступен, поэтому для решений используйте видимый контекст по стране и демонстрационный сценарий.",
   },
 } as const;
 
@@ -188,34 +195,34 @@ const screeningCopy = {
     },
   },
   ru: {
-    title: "Последний скрининг метана",
-    subtitle: "Используйте спутниковые данные как screening layer, затем вручную переводите сигнал в инцидент.",
-    current: "Текущий CH4",
-    baseline: "Базовый CH4",
+    title: "Последняя спутниковая проверка метана",
+    subtitle: "Сначала посмотрите спутниковые данные, затем при необходимости вручную переведите сигнал в инцидент.",
+    current: "Текущий уровень CH4",
+    baseline: "Базовый уровень CH4",
     delta: "Отклонение от базового уровня",
-    level: "Уровень screening",
+    level: "Уровень сигнала",
     synced: "Последняя синхронизация",
     verified: "Последнее подтверждение",
     attempted: "Последняя попытка",
     observed: "Окно наблюдения",
-    source: "Источник данных",
-    confidence: "Комментарий по достоверности",
-    caveat: "Ограничение",
-    recommendation: "Рекомендуемое действие",
-    sync: "Обновить evidence",
+    source: "Источник",
+    confidence: "Насколько данные надёжны",
+    caveat: "Что важно учесть",
+    recommendation: "Что делать дальше",
+    sync: "Обновить данные",
     syncing: "Обновляем...",
-    reset: "Вернуть seeded-режим",
+    reset: "Вернуть демо-данные",
     resetting: "Возвращаем...",
-    noApi: "Для live sync нужен доступный FastAPI backend.",
-    syncingGee: "Обновляем спутниковый screening signal...",
-    syncingSeeded: "Возвращаем seeded playback...",
-    syncFailedGee: "Live sync не удался. Seeded workflow остается доступным.",
-    syncFailedSeeded: "Возврат в seeded-режим не удался. Текущий workflow остается доступным.",
+    noApi: "Для обновления нужен доступный сервер FastAPI.",
+    syncingGee: "Обновляем спутниковые данные по метану...",
+    syncingSeeded: "Возвращаем демонстрационные данные...",
+    syncFailedGee: "Не удалось обновить спутниковые данные. Демонстрационный сценарий остаётся доступным.",
+    syncFailedSeeded: "Не удалось вернуть демонстрационные данные. Текущий сценарий остаётся доступным.",
     notAvailable: "Недоступно",
     noCaveat: "Дополнительных ограничений нет.",
     freshness: {
-      fresh: "Свежий сигнал",
-      stale: "Последний доступный сигнал",
+      fresh: "Данные актуальны",
+      stale: "Последние доступные данные",
       unavailable: "Недоступно",
     },
     levelLabel: {
@@ -459,7 +466,7 @@ export default function Page() {
       if (nextStatus.state !== "ready") {
         setMapReactionActive(false);
         setMapReactionDotId("");
-        setRequestError(nextStatus.statusMessage);
+        setRequestError(translatePipelineStatusMessage(nextStatus.statusMessage, locale));
       } else if (source === "gee" && nextStatus.screeningSnapshot?.freshness === "fresh") {
         setMapReactionDotId(selectedAnomaly?.id ?? strongestAnomaly?.id ?? "");
         setMapReactionToken((current) => current + 1);
@@ -783,7 +790,7 @@ export default function Page() {
               <div className="evidence-summary-head">
                 <div>
                   <p className="eyebrow">{screeningText.title}</p>
-                  <strong>{screeningSnapshot.areaLabel}</strong>
+                  <strong>{translateScreeningAreaLabel(screeningSnapshot.areaLabel, locale)}</strong>
                 </div>
                 <div className="evidence-badge-row">
                   <span
@@ -816,7 +823,9 @@ export default function Page() {
                 />
               </div>
 
-              <p className="evidence-summary-note">{screeningSnapshot.recommendedAction}</p>
+              <p className="evidence-summary-note">
+                {translateScreeningRecommendation(screeningSnapshot.recommendedAction, locale)}
+              </p>
             </section>
           ) : null}
 
@@ -845,6 +854,12 @@ export default function Page() {
           <div className="signal-list">
             {scopedAnomalies.map((anomaly) => {
               const incident = anomaly.linkedIncidentId ? incidents[anomaly.linkedIncidentId] : undefined;
+              const severityHint =
+                anomaly.severity === "high"
+                  ? t.help.severityUrgent
+                  : anomaly.severity === "medium"
+                    ? t.help.severityCheck
+                    : t.help.severityWatch;
               return (
                 <button
                   key={anomaly.id}
@@ -853,9 +868,12 @@ export default function Page() {
                   type="button"
                 >
                   <div className="signal-card-top">
-                    <span className={`severity-badge ${severityTone[anomaly.severity]}`}>
-                      {severityLabel[locale][anomaly.severity]}
-                    </span>
+                    <div className="severity-badge-wrap">
+                      <span className={`severity-badge ${severityTone[anomaly.severity]}`}>
+                        {severityLabel[locale][anomaly.severity]}
+                      </span>
+                      <HelpHint text={severityHint} />
+                    </div>
                     <span>{formatTimestamp(anomaly.detectedAt, locale)}</span>
                   </div>
                   <strong>{translateAssetName(anomaly.assetName, locale)}</strong>
@@ -954,26 +972,37 @@ export default function Page() {
                   </section>
 
                   <section className="signal-focus evidence-detail-grid">
-                    <InfoRow label={screeningText.source} value={screeningSnapshot.evidenceSource} />
+                    <InfoRow
+                      label={screeningText.source}
+                      value={translateScreeningEvidenceSource(screeningSnapshot.evidenceSource, locale)}
+                    />
                     <InfoRow
                       label={screeningText.synced}
                       value={screeningSnapshot.syncedAt ?? screeningText.notAvailable}
                     />
                     <InfoRow
                       label={screeningText.observed}
-                      value={screeningSnapshot.observedWindow ?? screeningText.notAvailable}
+                      value={
+                        screeningSnapshot.observedWindow
+                          ? translateScreeningObservedWindow(screeningSnapshot.observedWindow, locale)
+                          : screeningText.notAvailable
+                      }
                     />
                     <InfoRow
                       label={screeningText.confidence}
-                      value={screeningSnapshot.confidenceNote}
+                      value={translateScreeningConfidenceNote(screeningSnapshot.confidenceNote, locale)}
                     />
                     <InfoRow
                       label={screeningText.caveat}
-                      value={screeningSnapshot.caveat ?? screeningText.noCaveat}
+                      value={
+                        screeningSnapshot.caveat
+                          ? translateScreeningCaveat(screeningSnapshot.caveat, locale)
+                          : screeningText.noCaveat
+                      }
                     />
                     <InfoRow
                       label={screeningText.recommendation}
-                      value={screeningSnapshot.recommendedAction}
+                      value={translateScreeningRecommendation(screeningSnapshot.recommendedAction, locale)}
                     />
                   </section>
                 </section>
@@ -1051,34 +1080,49 @@ export default function Page() {
               </section>
 
               <div className="panel-actions panel-actions-wrap">
-                <button
-                  className="secondary-button"
-                  disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
-                  onClick={() => void runPipelineSync("gee")}
-                  type="button"
-                >
-                  {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={busyAction === "sync-seeded" || !hasApiBaseUrl}
-                  onClick={() => void runPipelineSync("seeded")}
-                  type="button"
-                >
-                  {busyAction === "sync-seeded" ? screeningText.resetting : screeningText.reset}
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={busyAction === "promote"}
-                  onClick={() => void promoteToIncident()}
-                  type="button"
-                >
-                  {selectedAnomaly.linkedIncidentId
-                    ? t.actions.openIncident
-                    : busyAction === "promote"
-                      ? t.actions.promoting
-                      : t.actions.promote}
-                </button>
+                <div className="action-with-hint">
+                  <HelpHint text={t.help.syncEvidence} />
+                  <button
+                    className="secondary-button"
+                    disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
+                    onClick={() => void runPipelineSync("gee")}
+                    type="button"
+                  >
+                    {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
+                  </button>
+                </div>
+                <div className="action-with-hint">
+                  <HelpHint text={t.help.resetSeeded} />
+                  <button
+                    className="secondary-button"
+                    disabled={busyAction === "sync-seeded" || !hasApiBaseUrl}
+                    onClick={() => void runPipelineSync("seeded")}
+                    type="button"
+                  >
+                    {busyAction === "sync-seeded" ? screeningText.resetting : screeningText.reset}
+                  </button>
+                </div>
+                <div className="action-with-hint">
+                  <HelpHint
+                    text={
+                      selectedAnomaly.linkedIncidentId
+                        ? t.help.openIncidentAction
+                        : t.help.createIncidentAction
+                    }
+                  />
+                  <button
+                    className="primary-button"
+                    disabled={busyAction === "promote"}
+                    onClick={() => void promoteToIncident()}
+                    type="button"
+                  >
+                    {selectedAnomaly.linkedIncidentId
+                      ? t.actions.openIncident
+                      : busyAction === "promote"
+                        ? t.actions.promoting
+                        : t.actions.promote}
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1342,10 +1386,14 @@ function FieldLabel({ label, hint }: { label: string; hint?: string }) {
 
 function HelpHint({ text }: { text: string }) {
   return (
-    <span aria-label={text} className="help-hint" role="note" tabIndex={0}>
+    <button
+      aria-label={text}
+      className="help-hint"
+      type="button"
+    >
       <QuestionIcon />
       <span className="help-popover">{text}</span>
-    </span>
+    </button>
   );
 }
 

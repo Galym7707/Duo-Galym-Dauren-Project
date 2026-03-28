@@ -55,12 +55,12 @@ const mapCopy = {
     actionHint: "Screening marker only. Use manual promotion to open the operational incident.",
   },
   ru: {
-    fallback: "Карта недоступна. Показан безопасный резервный скетч.",
+    fallback: "Карта недоступна. Показан резервный вариант.",
     detailTitle: "Выбранный маркер",
     coordinates: "Координаты",
     facility: "Тип объекта",
     actionHint:
-      "Это только screening-маркер. Для перехода в операционный кейс используйте ручное повышение в инцидент.",
+      "Это только маркер предварительной проверки. Чтобы открыть рабочий кейс, вручную переведите сигнал в инцидент.",
   },
 } as const;
 

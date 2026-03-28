@@ -20,8 +20,8 @@ export const copy = {
     },
     controls: { language: "Switch language", theme: "Switch theme" },
     hero: {
-      title: "One clear screen for each decision.",
-      subtitle: "Less noise, better focus, faster action.",
+      title: "Turn methane and flare signals into cases, checks, and reports.",
+      subtitle: "See the signal, open the case, verify it, and export the result.",
     },
     status: {
       loading: "Loading",
@@ -59,7 +59,7 @@ export const copy = {
       recommendation: "Recommended action",
       incident: "Case summary",
       tasks: "Verification tasks",
-      mapStage: "Location sketch",
+      mapStage: "Map view",
       hoursShort: "h",
     },
     steps: {
@@ -85,14 +85,14 @@ export const copy = {
       },
     },
     panels: {
-      map: "Location sketch",
-      mapNote: "This is a simple position sketch, not a live satellite map.",
+      map: "Map view",
+      mapNote: "This is a real map of Kazakhstan with asset markers. It is not a live satellite plume layer.",
       mapNoteLive:
-        "The sketch stays static. Screening evidence was refreshed live for the selected Kazakhstan window.",
+        "The map stays fixed while the screening evidence is refreshed for the selected Kazakhstan window.",
       mapNoteDegraded:
-        "The sketch stays static. The last verified screening snapshot is still shown while the live refresh is degraded.",
+        "The map remains available. The last verified screening snapshot is still shown while the live refresh is degraded.",
       mapNoteUnavailable:
-        "The sketch stays static. Live screening is unavailable, so use the visible context and seeded workflow for decisions.",
+        "The map remains available. Live screening is unavailable, so use the visible context and the demo workflow for decisions.",
       mapContextSeeded: "Seeded context",
       mapContextLive: "Live context",
       mapContextFallback: "Fallback context",
@@ -132,8 +132,22 @@ export const copy = {
       workflow: "This shows where the case is right now: initial review, verification, or mitigation.",
       detected: "This is the timestamp of the latest observation used for the current signal.",
       confidence: "Confidence shows how stable and repeatable the signal looks across the available observations.",
-      map: "The dots show relative locations of demo assets inside a simple layout sketch. This is not a live GIS map.",
+      map: "The dots show asset positions on the Kazakhstan map. This is a real map layer with markers, but not a live satellite plume layer.",
       demo: "Demo mode means the workflow is live, but the current anomaly content still comes from seeded demo data.",
+      syncEvidence:
+        "This button requests the newest satellite data from the backend. Use it when you want to refresh the current picture before making a decision.",
+      resetSeeded:
+        "This button returns the screen to stable demo data. Use it if the live data failed, looks incomplete, or you want to show the fallback demo again.",
+      openIncidentAction:
+        "This button opens the existing working case for the selected signal so you can continue verification and reporting.",
+      createIncidentAction:
+        "This button creates a working case for the selected signal. It gives the case an owner and lets the team move to verification.",
+      severityUrgent:
+        "Urgent means this signal looks strong and should be checked first. It has the highest priority in the list.",
+      severityCheck:
+        "Check means this signal is important, but not the top emergency on the screen. It should be reviewed after urgent cases.",
+      severityWatch:
+        "Watch means this signal is weaker or less certain. Keep it visible and compare it with the next updates before escalating.",
     },
     footer: {
       note: "Copyright 2026. All rights reserved.",
@@ -189,11 +203,11 @@ export const copy = {
         },
         {
           id: "map",
-          question: "What do the dots in the map block mean?",
+          question: "What do the dots on the map mean?",
           answer: [
-            "The dots are markers inside a simple location sketch.",
-            "Right now this is not a live map of Kazakhstan and not a satellite layer.",
-            "It is a visual aid that helps compare relative asset positions until a real map layer is connected.",
+            "The dots are asset markers placed on the Kazakhstan map.",
+            "They help the user see where the selected case is located and compare it with signals in other regions.",
+            "This is a real map layer, but it is not a live satellite plume image.",
           ],
         },
         {
@@ -233,12 +247,12 @@ export const copy = {
       incident: "Инцидент",
       verification: "Проверка",
       report: "Отчёт",
-      faq: "Вопросы",
+      faq: "ЧАВО",
     },
     controls: { language: "Сменить язык", theme: "Сменить тему" },
     hero: {
-      title: "Один понятный экран для каждого решения.",
-      subtitle: "Меньше шума, больше ясности, быстрее действие.",
+      title: "Превращайте сигналы по метану и факелам в кейсы, проверки и отчёты.",
+      subtitle: "Посмотрите сигнал, откройте кейс, проведите проверку и выгрузите результат.",
     },
     status: {
       loading: "Загрузка",
@@ -276,7 +290,7 @@ export const copy = {
       recommendation: "Рекомендуемое действие",
       incident: "Кратко о кейсе",
       tasks: "Задачи проверки",
-      mapStage: "Схема расположения",
+      mapStage: "Карта объектов",
       hoursShort: "ч",
     },
     steps: {
@@ -302,17 +316,17 @@ export const copy = {
       },
     },
     panels: {
-      map: "Схема расположения",
-      mapNote: "Это условная схема позиций, а не живая спутниковая карта.",
+      map: "Карта объектов",
+      mapNote: "Это реальная карта Казахстана с маркерами объектов. Это не живой спутниковый слой выброса.",
       mapNoteLive:
-        "Схема остается статичной. Screening evidence был обновлен live для выбранного окна по Казахстану.",
+        "Карта остаётся на месте, а спутниковые данные по выбранной зоне Казахстана обновляются отдельно.",
       mapNoteDegraded:
-        "Схема остается статичной. Последний подтвержденный screening snapshot все еще показан, пока live refresh работает в degraded-режиме.",
+        "Карта остаётся доступной. Последний подтверждённый снимок сохраняется, пока новое обновление проходит с ограничениями.",
       mapNoteUnavailable:
-        "Схема остается статичной. Live screening сейчас недоступен, поэтому для решений используйте видимый контекст и seeded workflow.",
-      mapContextSeeded: "Seeded контекст",
-      mapContextLive: "Live контекст",
-      mapContextFallback: "Fallback контекст",
+        "Карта остаётся доступной. Спутниковый скрининг сейчас недоступен, поэтому ориентируйтесь на видимый контекст и демонстрационный сценарий.",
+      mapContextSeeded: "Демо-контекст",
+      mapContextLive: "Обновлённый контекст",
+      mapContextFallback: "Резервный контекст",
       assets: "Выбранный объект",
       noIncident: "Инцидент ещё не создан",
       noIncidentHint: "Создайте инцидент, чтобы открыть следующие шаги.",
@@ -349,14 +363,28 @@ export const copy = {
       workflow: "Здесь видно, на каком этапе находится кейс: первичный разбор, проверка или устранение.",
       detected: "Это время последнего наблюдения, на котором основан текущий сигнал.",
       confidence: "Уверенность показывает, насколько устойчиво и повторяемо выглядит сигнал по доступным наблюдениям.",
-      map: "Точки показывают относительное расположение объектов на условной схеме. Это не живая GIS-карта.",
+      map: "Точки показывают положение объектов на карте Казахстана. Это реальная карта с маркерами, но не живой спутниковый слой выброса.",
       demo: "Демо-режим означает, что сам интерфейс работает, но содержание сигналов пока берётся из демонстрационных данных.",
+      syncEvidence:
+        "Эта кнопка запрашивает с сервера самые свежие спутниковые данные. Используйте её, если хотите обновить картину перед принятием решения.",
+      resetSeeded:
+        "Эта кнопка возвращает экран к стабильным демонстрационным данным. Используйте её, если живые данные не загрузились, выглядят неполными или нужно снова показать демо-режим.",
+      openIncidentAction:
+        "Эта кнопка открывает уже созданный рабочий кейс по выбранному сигналу, чтобы вы могли продолжить проверку и подготовку отчёта.",
+      createIncidentAction:
+        "Эта кнопка создаёт рабочий кейс по выбранному сигналу. После этого у случая появляется ответственный и становится доступна проверка.",
+      severityUrgent:
+        "Urgent означает, что этот сигнал выглядит сильным и его нужно проверить в первую очередь. Это самый высокий приоритет в списке.",
+      severityCheck:
+        "Check означает, что сигнал важный, но не самый срочный на экране. Его стоит разобрать после urgent-случаев.",
+      severityWatch:
+        "Watch означает, что сигнал слабее или пока менее уверен. Его нужно держать в поле зрения и сравнивать со следующими обновлениями перед эскалацией.",
     },
     footer: {
       note: "Copyright 2026. Все права защищены.",
     },
     faq: {
-      title: "Частые вопросы",
+      title: "ЧАВО",
       intro: "Нажмите на вопрос, чтобы увидеть полный ответ.",
       items: [
         {
@@ -406,11 +434,11 @@ export const copy = {
         },
         {
           id: "map",
-          question: "Что означают точки на схеме?",
+          question: "Что означают точки на карте?",
           answer: [
-            "Точки — это маркеры объектов внутри простой схемы расположения.",
-            "Сейчас это не живая карта Казахстана и не спутниковый слой.",
-            "Схема нужна как временная визуальная подсказка, пока не подключён настоящий картографический слой.",
+            "Точки — это маркеры объектов на карте Казахстана.",
+            "Они помогают понять, где находится выбранный случай и какие сигналы есть в других регионах.",
+            "Это настоящий картографический слой, но не живое спутниковое изображение выброса.",
           ],
         },
         {
@@ -574,7 +602,7 @@ const incidentNarrativeTranslations = {
 const anomalySummaryTranslations = {
   "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.": {
     en: "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.",
-    ru: "Повышенная концентрация метана совпадает с повторяющейся Nightfire-активностью рядом с компрессорным коридором.",
+    ru: "Повышенная концентрация метана совпадает с повторяющимися признаками ночного горения по данным Nightfire рядом с компрессорным коридором.",
   },
   "Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.": {
     en: "Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.",
@@ -582,7 +610,7 @@ const anomalySummaryTranslations = {
   },
   "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.": {
     en: "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
-    ru: "Nightfire-сигнал сильный, но распространение метана остаётся низким. Этот случай больше подходит для наблюдения за динамикой, чем для срочного выезда.",
+    ru: "Сигнал ночного горения по данным Nightfire сильный, но распространение метана остаётся низким. Этот случай больше подходит для наблюдения за динамикой, чем для срочного выезда.",
   },
   "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.": {
     en: "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.",
@@ -594,7 +622,7 @@ const anomalySummaryTranslations = {
   },
   "A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.": {
     en: "A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.",
-    ru: "Над производственным коридором виден умеренный рост метана, но тренд остается слабее, чем у западного набора hotspot-сигналов.",
+    ru: "Над производственным коридором виден умеренный рост метана, но тренд остаётся слабее, чем у западной группы очагов.",
   },
   "The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.": {
     en: "The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.",
@@ -621,15 +649,120 @@ const recommendedActionTranslations = {
   },
   "Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.": {
     en: "Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.",
-    ru: "Оставить площадку в ежедневной очереди screening и подтвердить, повторится ли рост сигнала на следующем проходе.",
+    ru: "Оставить площадку в ежедневной очереди скрининга и подтвердить, повторится ли рост сигнала на следующем проходе.",
   },
   "Keep visible for the regional MRV call and compare with the next screening refresh before escalation.": {
     en: "Keep visible for the regional MRV call and compare with the next screening refresh before escalation.",
-    ru: "Оставить кейс видимым для регионального MRV-звонка и сравнить его со следующим обновлением screening перед эскалацией.",
+    ru: "Оставить кейс видимым для регионального MRV-звонка и сравнить его со следующим обновлением скрининга перед эскалацией.",
   },
   "Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.": {
     en: "Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.",
-    ru: "Использовать как низкоприоритетный национальный ориентир в screening review и сохранять фокус на более срочных западных регионах.",
+    ru: "Использовать как низкоприоритетный национальный ориентир при разборе скрининга и сохранять фокус на более срочных западных регионах.",
+  },
+} as const;
+
+const screeningAreaTranslations = {
+  "Kazakhstan screening coverage": {
+    en: "Kazakhstan screening coverage",
+    ru: "Покрытие по Казахстану",
+  },
+  "Kazakhstan methane screening window": {
+    en: "Kazakhstan methane screening window",
+    ru: "Зона спутниковой проверки метана по Казахстану",
+  },
+  "Kazakhstan pilot screening area": {
+    en: "Kazakhstan pilot screening area",
+    ru: "Пилотная зона проверки по Казахстану",
+  },
+} as const;
+
+const screeningEvidenceSourceTranslations = {
+  "Seeded demo baseline": {
+    en: "Seeded demo baseline",
+    ru: "Демонстрационная базовая выборка",
+  },
+  "Google Earth Engine / Sentinel-5P": {
+    en: "Google Earth Engine / Sentinel-5P",
+    ru: "Google Earth Engine / Sentinel-5P",
+  },
+} as const;
+
+const screeningObservedWindowTranslations = {
+  "Seeded playback window across multiple Kazakhstan oil and gas regions.": {
+    en: "Seeded playback window across multiple Kazakhstan oil and gas regions.",
+    ru: "Демонстрационное окно наблюдения по нескольким нефтегазовым регионам Казахстана.",
+  },
+  "Seeded playback window for the Kazakhstan pilot assets.": {
+    en: "Seeded playback window for the Kazakhstan pilot assets.",
+    ru: "Демонстрационное окно наблюдения по пилотным объектам Казахстана.",
+  },
+} as const;
+
+const screeningConfidenceTranslations = {
+  "Seeded comparison used for contest-safe playback until a live sync is requested.": {
+    en: "Seeded comparison used for contest-safe playback until a live sync is requested.",
+    ru: "Для демонстрации используется подготовленное сравнение, пока не запрошено живое обновление.",
+  },
+  "Live Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution.": {
+    en: "Live Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution.",
+    ru: "Данные из Earth Engine успешно обновлены. Это предварительный сигнал, а не точное указание источника.",
+  },
+  "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.": {
+    en: "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
+    ru: "Подтверждённый живой снимок пока не сохранён. В качестве резервного сценария используйте демонстрационный MRV-процесс.",
+  },
+} as const;
+
+const screeningCaveatTranslations = {
+  "This snapshot is demo data, not a live Earth Engine pull.": {
+    en: "This snapshot is demo data, not a live Earth Engine pull.",
+    ru: "Этот снимок основан на демонстрационных данных, а не на живой выгрузке из Earth Engine.",
+  },
+} as const;
+
+const screeningRecommendationTranslations = {
+  "Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.": {
+    en: "Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
+    ru: "Используйте демонстрационный блок данных, чтобы показать логику скрининга, а затем вручную переведите случай в рабочий кейс.",
+  },
+  "Review the refreshed satellite comparison, then promote manually if this area still deserves operational verification.": {
+    en: "Review the refreshed satellite comparison, then promote manually if this area still deserves operational verification.",
+    ru: "Посмотрите обновлённое спутниковое сравнение, затем вручную создайте инцидент, если эта зона всё ещё требует проверки.",
+  },
+  "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.": {
+    en: "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
+    ru: "Повторите живое обновление или используйте демонстрационный сценарий как резервный вариант, пока не появится подтверждённый снимок.",
+  },
+  "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.": {
+    en: "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.",
+    ru: "Оставьте демонстрационный сценарий активным и повторите живое обновление перед тем, как принимать решение о переводе в инцидент.",
+  },
+  "Use the last successful screening snapshot as context, then decide manually whether promotion still makes sense.": {
+    en: "Use the last successful screening snapshot as context, then decide manually whether promotion still makes sense.",
+    ru: "Используйте последний успешный снимок как контекст, а затем вручную решите, нужно ли переводить случай в инцидент.",
+  },
+  "Keep the seeded operational workflow active and treat the last available screening snapshot as context only.": {
+    en: "Keep the seeded operational workflow active and treat the last available screening snapshot as context only.",
+    ru: "Оставьте демонстрационный сценарий активным и используйте последний доступный снимок только как справочную информацию.",
+  },
+} as const;
+
+const pipelineStatusMessageTranslations = {
+  "Seeded anomaly set reloaded for demo-safe playback.": {
+    en: "Seeded anomaly set reloaded for demo-safe playback.",
+    ru: "Демонстрационный набор аномалий заново загружен для безопасного показа.",
+  },
+  "Seeded demo pipeline is active until a live sync is requested.": {
+    en: "Seeded demo pipeline is active until a live sync is requested.",
+    ru: "Демонстрационный сценарий активен, пока не запрошено живое обновление.",
+  },
+  "Earth Engine connected, but no Kazakhstan CH4 scenes were returned for the configured collection.": {
+    en: "Earth Engine connected, but no Kazakhstan CH4 scenes were returned for the configured collection.",
+    ru: "Earth Engine подключён, но для выбранной коллекции не вернул сцен CH4 по Казахстану.",
+  },
+  "Earth Engine CH4 screening summary fetched successfully.": {
+    en: "Earth Engine CH4 screening summary fetched successfully.",
+    ru: "Сводка по CH4 из Earth Engine успешно получена.",
   },
 } as const;
 
@@ -679,6 +812,70 @@ export function translateAnomalySummary(summary: string, locale: Locale) {
 
 export function translateRecommendedAction(action: string, locale: Locale) {
   return translateWithMap(action, locale, recommendedActionTranslations);
+}
+
+export function translateScreeningAreaLabel(label: string, locale: Locale) {
+  return translateWithMap(label, locale, screeningAreaTranslations);
+}
+
+export function translateScreeningEvidenceSource(source: string, locale: Locale) {
+  return translateWithMap(source, locale, screeningEvidenceSourceTranslations);
+}
+
+export function translateScreeningObservedWindow(windowLabel: string, locale: Locale) {
+  return translateWithMap(windowLabel, locale, screeningObservedWindowTranslations);
+}
+
+export function translateScreeningConfidenceNote(note: string, locale: Locale) {
+  return translateWithMap(note, locale, screeningConfidenceTranslations);
+}
+
+export function translateScreeningCaveat(caveat: string, locale: Locale) {
+  if (locale === "ru") {
+    if (caveat.startsWith("Latest observation at ")) {
+      return caveat
+        .replace("Latest observation at ", "Последнее наблюдение: ")
+        .replace(". Project: ", ". Проект: ")
+        .replace("not reported", "не указан")
+        .replace(
+          " No previous verified live screening snapshot is available yet.",
+          " Предыдущий подтверждённый живой снимок пока недоступен.",
+        );
+    }
+
+    if (caveat.startsWith("Project: ")) {
+      return caveat
+        .replace("Project: ", "Проект: ")
+        .replace("not reported", "не указан")
+        .replace(
+          " No previous verified live screening snapshot is available yet.",
+          " Предыдущий подтверждённый живой снимок пока недоступен.",
+        );
+    }
+  }
+
+  return translateWithMap(caveat, locale, screeningCaveatTranslations);
+}
+
+export function translateScreeningRecommendation(action: string, locale: Locale) {
+  return translateWithMap(action, locale, screeningRecommendationTranslations);
+}
+
+export function translatePipelineStatusMessage(message: string, locale: Locale) {
+  if (locale === "ru") {
+    if (message.startsWith("Earth Engine initialization failed:")) {
+      return message.replace(
+        "Earth Engine initialization failed:",
+        "Не удалось инициализировать Earth Engine:",
+      );
+    }
+
+    if (message.startsWith("Earth Engine CH4 query failed:")) {
+      return message.replace("Earth Engine CH4 query failed:", "Ошибка запроса CH4 в Earth Engine:");
+    }
+  }
+
+  return translateWithMap(message, locale, pipelineStatusMessageTranslations);
 }
 
 export function translateWindow(windowLabel: string, locale: Locale) {
