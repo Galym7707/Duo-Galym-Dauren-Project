@@ -1,6 +1,35 @@
-from app.providers.gee import GeeSyncSummary
+from app.providers.gee import GeeCandidate, GeeSyncSummary
 from app.services.demo_store import DemoStore
 from app.services.pipeline_service import PipelineService
+
+
+def make_live_candidate() -> GeeCandidate:
+    return GeeCandidate(
+        id="GEE-20260327-01",
+        asset_name="Atyrau Region CH4 hotspot 01",
+        region="Atyrau Region",
+        facility_type="Methane hotspot with night thermal context",
+        severity="high",
+        detected_at="2026-03-27 08:00",
+        methane_delta_pct=3.41,
+        methane_delta_ppb=62.2,
+        signal_score=82,
+        confidence="High screening confidence / methane uplift plus night thermal context",
+        coordinates="46.190 N, 51.858 E",
+        latitude=46.19,
+        longitude=51.858,
+        summary="Live candidate summary",
+        recommended_action="Promote this candidate into an incident and send it to field verification.",
+        current_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        thermal_hits_72h=12,
+        night_thermal_hits_72h=12,
+        evidence_source="Google Earth Engine / Sentinel-5P + VIIRS thermal context",
+        baseline_window="84-day Kazakhstan baseline before 2026-03-27 08:00 UTC",
+        verification_area="Makat District, Atyrau Region",
+        nearest_address="A27, Atyrau Region",
+        nearest_landmark="Tengiz Field",
+    )
 
 
 def test_sync_gee_ready_updates_pipeline_and_store() -> None:
@@ -18,6 +47,7 @@ def test_sync_gee_ready_updates_pipeline_and_store() -> None:
         delta_abs_ppb=62.2,
         delta_pct=3.41,
         scene_count=12,
+        candidates=[make_live_candidate()],
     )
 
     status_model = service.sync_gee()
@@ -31,8 +61,13 @@ def test_sync_gee_ready_updates_pipeline_and_store() -> None:
     assert snapshot.freshness == "fresh"
     assert snapshot.current_ch4_ppb == 1884.6
     assert snapshot.baseline_ch4_ppb == 1822.4
-    assert strongest.detected_at == seeded_anomaly.detected_at
-    assert strongest.confidence == seeded_anomaly.confidence
+    assert strongest.id == "GEE-20260327-01"
+    assert strongest.evidence_source == "Google Earth Engine / Sentinel-5P + VIIRS thermal context"
+    assert strongest.co2e_tonnes is None
+    assert strongest.night_thermal_hits_72h == 12
+    assert strongest.verification_area == "Makat District, Atyrau Region"
+    assert strongest.nearest_address == "A27, Atyrau Region"
+    assert strongest.nearest_landmark == "Tengiz Field"
 
 
 def test_sync_gee_error_keeps_demo_safe_state() -> None:

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.concurrency import run_in_threadpool
 
@@ -110,25 +112,44 @@ async def generate_report(incident_id: str) -> GenerateReportResponse:
 
 
 @router.get("/incidents/{incident_id}/report/export")
-async def export_report(incident_id: str) -> Response:
+async def export_report(
+    incident_id: str,
+    format: Literal["html", "pdf", "docx"] = "html",
+    locale: Literal["en", "ru"] = "en",
+) -> Response:
     try:
-        report_html = store.export_report_html(incident_id)
+        if format == "pdf":
+            content = store.export_report_pdf(incident_id, locale=locale)
+            media_type = "application/pdf"
+            extension = "pdf"
+        elif format == "docx":
+            content = store.export_report_docx(incident_id, locale=locale)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            extension = "docx"
+        else:
+            content = store.export_report_html(incident_id, locale=locale)
+            media_type = "text/html; charset=utf-8"
+            extension = "html"
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
 
     return Response(
-        content=report_html,
-        media_type="text/html; charset=utf-8",
+        content=content,
+        media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{incident_id.lower()}-mrv-report.html"',
+            "Content-Disposition": f'attachment; filename="{incident_id.lower()}-mrv-report.{extension}"',
         },
     )
 
 
 @router.get("/incidents/{incident_id}/report/view")
-async def view_report(incident_id: str, auto_print: bool = False) -> Response:
+async def view_report(
+    incident_id: str,
+    auto_print: bool = False,
+    locale: Literal["en", "ru"] = "en",
+) -> Response:
     try:
-        report_html = store.export_report_html(incident_id, auto_print=auto_print)
+        report_html = store.export_report_html(incident_id, locale=locale, auto_print=auto_print)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
 

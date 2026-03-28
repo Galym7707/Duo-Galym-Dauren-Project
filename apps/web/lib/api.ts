@@ -21,6 +21,7 @@ export type PipelineSource = "seeded" | "gee";
 export type PipelineState = "ready" | "degraded" | "error" | "syncing";
 export type EvidenceFreshness = "fresh" | "stale" | "unavailable";
 export type ScreeningLevel = "low" | "medium" | "high";
+export type ReportExportFormat = "html" | "pdf" | "docx";
 export type PipelineStageCard = {
   label: string;
   value: string;
@@ -81,13 +82,23 @@ type ApiAnomaly = {
   severity: Severity;
   detected_at: string;
   methane_delta_pct: number;
-  co2e_tonnes: number;
-  flare_hours: number;
+  methane_delta_ppb?: number | null;
+  co2e_tonnes?: number | null;
+  flare_hours?: number | null;
+  thermal_hits_72h?: number | null;
+  night_thermal_hits_72h?: number | null;
+  current_ch4_ppb?: number | null;
+  baseline_ch4_ppb?: number | null;
+  evidence_source?: string | null;
+  baseline_window?: string | null;
   signal_score: number;
   confidence: string;
   coordinates: string;
   latitude: number;
   longitude: number;
+  verification_area?: string | null;
+  nearest_address?: string | null;
+  nearest_landmark?: string | null;
   summary: string;
   recommended_action: string;
   site_position: {
@@ -198,7 +209,7 @@ type CreateTaskPayload = {
 };
 
 export type DownloadedReport = {
-  content: string;
+  blob: Blob;
   fileName: string;
   contentType: string;
 };
@@ -359,14 +370,22 @@ export async function generateReport(incidentId: string): Promise<Incident> {
   };
 }
 
-export async function downloadReport(incidentId: string): Promise<DownloadedReport> {
+export async function downloadReport(
+  incidentId: string,
+  format: ReportExportFormat = "html",
+  locale: "en" | "ru" = "en",
+): Promise<DownloadedReport> {
   if (!apiBaseUrl) {
     throw new Error("API base URL is not configured");
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/incidents/${incidentId}/report/export`, {
-    cache: "no-store",
-  });
+  const params = new URLSearchParams({ format, locale });
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/export?${params.toString()}`,
+    {
+      cache: "no-store",
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
@@ -376,19 +395,26 @@ export async function downloadReport(incidentId: string): Promise<DownloadedRepo
   const match = disposition?.match(/filename="([^"]+)"/);
 
   return {
-    content: await response.text(),
-    fileName: match?.[1] ?? `${incidentId.toLowerCase()}-mrv-report.html`,
+    blob: await response.blob(),
+    fileName: match?.[1] ?? `${incidentId.toLowerCase()}-mrv-report.${format}`,
     contentType: response.headers.get("content-type") ?? "text/html;charset=utf-8",
   };
 }
 
-export function getReportViewUrl(incidentId: string, autoPrint = false): string | null {
+export function getReportViewUrl(
+  incidentId: string,
+  autoPrint = false,
+  locale: "en" | "ru" = "en",
+): string | null {
   if (!apiBaseUrl) {
     return null;
   }
 
-  const suffix = autoPrint ? "?auto_print=true" : "";
-  return `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/view${suffix}`;
+  const params = new URLSearchParams({ locale });
+  if (autoPrint) {
+    params.set("auto_print", "true");
+  }
+  return `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/view?${params.toString()}`;
 }
 
 export async function loadPipelineStatus(anomalyCount: number): Promise<PipelineStatus> {
@@ -460,13 +486,23 @@ function normalizeAnomaly(anomaly: ApiAnomaly): Anomaly {
     severity: anomaly.severity,
     detectedAt: anomaly.detected_at,
     methaneDeltaPct: anomaly.methane_delta_pct,
-    co2eTonnes: anomaly.co2e_tonnes,
-    flareHours: anomaly.flare_hours,
+    methaneDeltaPpb: anomaly.methane_delta_ppb ?? undefined,
+    co2eTonnes: anomaly.co2e_tonnes ?? undefined,
+    flareHours: anomaly.flare_hours ?? undefined,
+    thermalHits72h: anomaly.thermal_hits_72h ?? undefined,
+    nightThermalHits72h: anomaly.night_thermal_hits_72h ?? undefined,
+    currentCh4Ppb: anomaly.current_ch4_ppb ?? undefined,
+    baselineCh4Ppb: anomaly.baseline_ch4_ppb ?? undefined,
+    evidenceSource: anomaly.evidence_source ?? undefined,
+    baselineWindow: anomaly.baseline_window ?? undefined,
     signalScore: anomaly.signal_score,
     confidence: anomaly.confidence,
     coordinates: anomaly.coordinates,
     latitude: anomaly.latitude,
     longitude: anomaly.longitude,
+    verificationArea: anomaly.verification_area ?? undefined,
+    nearestAddress: anomaly.nearest_address ?? undefined,
+    nearestLandmark: anomaly.nearest_landmark ?? undefined,
     summary: anomaly.summary,
     recommendedAction: anomaly.recommended_action,
     sitePosition: {

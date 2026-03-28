@@ -19,13 +19,23 @@ export type Anomaly = {
   severity: Severity;
   detectedAt: string;
   methaneDeltaPct: number;
-  co2eTonnes: number;
-  flareHours: number;
+  methaneDeltaPpb?: number;
+  co2eTonnes?: number;
+  flareHours?: number;
+  thermalHits72h?: number;
+  nightThermalHits72h?: number;
+  currentCh4Ppb?: number;
+  baselineCh4Ppb?: number;
+  evidenceSource?: string;
+  baselineWindow?: string;
   signalScore: number;
   confidence: string;
   coordinates: string;
   latitude: number;
   longitude: number;
+  verificationArea?: string;
+  nearestAddress?: string;
+  nearestLandmark?: string;
   summary: string;
   recommendedAction: string;
   sitePosition: SitePosition;
@@ -141,7 +151,7 @@ export const anomalyFeed: Anomaly[] = [
     latitude: 46.094,
     longitude: 53.452,
     summary:
-      "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.",
+      "Elevated methane column overlaps recurring night-burning context close to a compression corridor.",
     recommendedAction:
       "Escalate to field integrity desk and request same-day verification route.",
     sitePosition: {
@@ -192,7 +202,7 @@ export const anomalyFeed: Anomaly[] = [
     latitude: 43.69,
     longitude: 51.167,
     summary:
-      "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
+      "Night-burning context is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
     recommendedAction:
       "Keep visible in weekly MRV review and compare against operator maintenance schedule.",
     sitePosition: {

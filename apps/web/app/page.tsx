@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { startTransition, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   completeTask as completeTaskRequest,
   type DashboardHydrationState,
@@ -13,6 +14,7 @@ import {
   loadDashboardState,
   loadPipelineStatus,
   promoteAnomaly as promoteAnomalyRequest,
+  type ReportExportFormat,
   syncPipeline,
   type PipelineStatus,
   type ScreeningEvidenceSnapshot,
@@ -20,7 +22,6 @@ import {
 import { AnomalyMap } from "../components/anomaly-map";
 import { type Anomaly, type Incident, type IncidentTask, type ReportSection } from "../lib/demo-data";
 import {
-  buildLocalizedReportSections,
   copy,
   formatHours,
   formatTaskProgress,
@@ -33,15 +34,16 @@ import {
   type StepId,
   stepOrder,
   translateAnomalySummary,
+  translateAdministrativeLabel,
   translateAssetName,
   translateConfidence,
   translateFacility,
+  formatVerificationAreaLabel,
   translateIncidentNarrative,
   translateOwner,
   translatePipelineStatusMessage,
   translateRecommendedAction,
   translateRegion,
-  translateScreeningAreaLabel,
   translateScreeningCaveat,
   translateScreeningConfidenceNote,
   translateScreeningEvidenceSource,
@@ -51,13 +53,6 @@ import {
   translateWindow,
   type ThemeMode,
 } from "../lib/site-content";
-
-type HeroStat = {
-  label: string;
-  value: string;
-  detail: string;
-  hint?: string;
-};
 
 type MapCardTone = "seeded" | "live" | "fallback";
 type MapPresetId =
@@ -144,7 +139,7 @@ const mapCardCopy = {
   ru: {
     contextSeeded: "Демо-покрытие по стране",
     contextLive: "Обновлённый скрининг",
-    contextFallback: "Резервный режим",
+    contextFallback: "Живые данные недоступны",
     noteSeeded:
       "На карте показаны демонстрационные маркеры по Казахстану. Это навигационный слой, а не точная геометрия выброса в реальном времени.",
     noteLive:
@@ -159,11 +154,11 @@ const mapCardCopy = {
 const screeningCopy = {
   en: {
     title: "Latest methane screening",
-    subtitle: "Use satellite evidence as a screening layer, then promote manually.",
+    subtitle: "Use satellite evidence as a screening layer, then manually turn the suspected zone into an incident.",
     current: "Current CH4",
     baseline: "Baseline CH4",
     delta: "Delta vs baseline",
-    level: "Screening level",
+    level: "Priority level",
     synced: "Last sync",
     verified: "Last verified",
     attempted: "Last attempt",
@@ -171,7 +166,7 @@ const screeningCopy = {
     source: "Evidence source",
     confidence: "Confidence note",
     caveat: "Caveat",
-    recommendation: "Recommended next step",
+    recommendation: "Action plan",
     sync: "Sync latest evidence",
     syncing: "Syncing...",
     reset: "Return to seeded mode",
@@ -193,14 +188,24 @@ const screeningCopy = {
       medium: "Medium",
       high: "High",
     },
+    help: {
+      current:
+        "This is the latest methane reading for the current screening window. ppb means parts per billion, a concentration unit.",
+      baseline:
+        "This is the usual methane level for comparison. It helps show what is normal for this area and period.",
+      delta:
+        "This shows how far the latest reading is from the baseline. A higher positive difference means the current zone stands out more strongly.",
+      level:
+        "This is the simplified priority level for quick decisions. It combines the satellite comparison into a low, medium, or high screening priority.",
+    },
   },
   ru: {
     title: "Последняя спутниковая проверка метана",
-    subtitle: "Сначала посмотрите спутниковые данные, затем при необходимости вручную переведите сигнал в инцидент.",
+    subtitle: "Сначала посмотрите спутниковые данные, затем при необходимости вручную переведите подозрительную зону в инцидент.",
     current: "Текущий уровень CH4",
     baseline: "Базовый уровень CH4",
     delta: "Отклонение от базового уровня",
-    level: "Уровень сигнала",
+    level: "Уровень приоритета",
     synced: "Последняя синхронизация",
     verified: "Последнее подтверждение",
     attempted: "Последняя попытка",
@@ -208,7 +213,7 @@ const screeningCopy = {
     source: "Источник",
     confidence: "Насколько данные надёжны",
     caveat: "Что важно учесть",
-    recommendation: "Что делать дальше",
+    recommendation: "План действий",
     sync: "Обновить данные",
     syncing: "Обновляем...",
     reset: "Вернуть демо-данные",
@@ -230,6 +235,85 @@ const screeningCopy = {
       medium: "Средний",
       high: "Высокий",
     },
+    help: {
+      current:
+        "Это последнее значение метана для выбранной зоны проверки. ppb означает части метана на миллиард частей воздуха.",
+      baseline:
+        "Это обычный уровень метана для сравнения. Он тоже показан в ppb, то есть в частях метана на миллиард частей воздуха.",
+      delta:
+        "Это разница между текущим и базовым уровнем. Она показана в ppb и в процентах, чтобы было видно и абсолютное, и относительное отклонение.",
+      level:
+        "Это упрощённая оценка важности зоны для быстрого решения. Она показывает, насколько внимательно стоит отнестись к этому случаю.",
+    },
+  },
+} as const;
+
+const liveSignalCopy = {
+  en: {
+    methaneUplift: "Methane uplift",
+    thermalContext: "Night thermal context (72h)",
+    evidenceSource: "Evidence source",
+    baselineWindow: "Baseline window",
+    verificationArea: "Verification area",
+    nearestAddress: "Nearest address",
+    nearestLandmark: "Nearest landmark",
+    noThermalContext: "No recent night-time detections",
+    noImpact: "Not estimated in live screening",
+    notAvailable: "Not available",
+    notMappedNearby: "No mapped result nearby",
+    detections: "night detections",
+    hints: {
+      methaneUplift:
+        "This compares the current CH4 scene with the rolling baseline at the selected live candidate point.",
+      thermalContext:
+        "This counts night-time VIIRS thermal detections within 25 km over the last 72 hours. It is context, not proof of a flare source.",
+      evidenceSource:
+        "This shows which live data layers produced the current candidate on the page.",
+      baselineWindow:
+        "This shows the historical comparison window used to decide whether the current CH4 reading stands out.",
+      verificationArea:
+        "This narrows the live hotspot to the nearest mapped district or local area for field review.",
+      nearestAddress:
+        "This is the closest mapped address near the hotspot center. It is a route-planning hint, not proof of the exact source.",
+      nearestLandmark:
+        "This is the closest mapped landmark or place near the hotspot center. It is useful as a navigation anchor.",
+    },
+    statusNote: "Live Earth Engine candidates are active on the page.",
+    statusHelp:
+      "The interface is connected to the local backend and the current queue is built from live Earth Engine methane candidates.",
+  },
+  ru: {
+    methaneUplift: "Рост метана",
+    thermalContext: "Ночной термоконтекст (72 часа)",
+    evidenceSource: "Источник данных",
+    baselineWindow: "Базовое окно сравнения",
+    verificationArea: "Район проверки",
+    nearestAddress: "Ближайший адрес",
+    nearestLandmark: "Ближайший ориентир",
+    noThermalContext: "Свежих ночных срабатываний нет",
+    noImpact: "В живом скрининге не оценивается",
+    notAvailable: "Недоступно",
+    notMappedNearby: "Рядом нет подходящего адреса или объекта",
+    detections: "ночных срабатываний",
+    hints: {
+      methaneUplift:
+        "Это сравнение текущей сцены CH4 с базовым уровнем для выбранной живой точки наблюдения.",
+      thermalContext:
+        "Это число ночных VIIRS-срабатываний в радиусе 25 км за последние 72 часа. Это контекст, а не доказательство точного источника.",
+      evidenceSource:
+        "Здесь видно, из каких живых слоёв данных собран текущий кандидат на странице.",
+      baselineWindow:
+        "Здесь видно, какое историческое окно сравнения использовалось для оценки отклонения текущего CH4.",
+      verificationArea:
+        "Это ближайший район или локальная зона вокруг центра hotspot, чтобы команде было проще планировать выезд.",
+      nearestAddress:
+        "Это ближайший адрес рядом с центром hotspot. Это навигационная подсказка, а не доказательство точного источника.",
+      nearestLandmark:
+        "Это ближайший ориентир или отмеченный на карте объект рядом с центром hotspot. Его удобно использовать как точку привязки.",
+    },
+    statusNote: "На странице активна живая очередь Earth Engine-кандидатов.",
+    statusHelp:
+      "Интерфейс подключён к локальному backend, а текущая очередь построена из живых methane-кандидатов Earth Engine.",
   },
 } as const;
 
@@ -260,6 +344,7 @@ export default function Page() {
   const t = copy[locale];
   const screeningText = screeningCopy[locale];
   const mapCardText = mapCardCopy[locale];
+  const liveSignalText = liveSignalCopy[locale];
 
   function applyDashboardHydration(
     state: DashboardHydrationState,
@@ -349,6 +434,21 @@ export default function Page() {
     selectedAnomaly?.linkedIncidentId && incidents[selectedAnomaly.linkedIncidentId]
       ? incidents[selectedAnomaly.linkedIncidentId]
       : undefined;
+  const liveSignalSelected = Boolean(
+    selectedAnomaly?.evidenceSource && selectedAnomaly?.methaneDeltaPpb !== undefined,
+  );
+  const translatedVerificationArea =
+    liveSignalSelected && selectedAnomaly?.verificationArea
+      ? formatVerificationAreaLabel(selectedAnomaly.verificationArea, selectedAnomaly.region, locale)
+      : liveSignalText.notMappedNearby;
+  const translatedNearestAddress =
+    liveSignalSelected && selectedAnomaly?.nearestAddress
+      ? translateAdministrativeLabel(selectedAnomaly.nearestAddress, locale)
+      : liveSignalText.notMappedNearby;
+  const translatedNearestLandmark =
+    liveSignalSelected && selectedAnomaly?.nearestLandmark
+      ? translateAdministrativeLabel(selectedAnomaly.nearestLandmark, locale)
+      : liveSignalText.notMappedNearby;
 
   const completedTasks = activeIncident
     ? activeIncident.tasks.filter((task) => task.status === "done").length
@@ -360,8 +460,55 @@ export default function Page() {
 
   const localizedReportSections =
     selectedAnomaly && activeIncident
-      ? buildLocalizedReportSections(selectedAnomaly, activeIncident, completedTasks, locale)
+      ? buildReportSectionsForUi(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
+  const faqItems = t.faq.items.map((item) => {
+    if (item.id === "impact" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready") {
+      return locale === "ru"
+        ? {
+            ...item,
+            question: "Что теперь показывает второй ключевой показатель?",
+            answer: [
+              "В живом режиме экран больше не подставляет искусственный tCO2e для каждой подозрительной зоны.",
+              "Вместо этого сайт показывает реальные метрики из текущего ingest: рост метана относительно базового уровня и ночной термоконтекст VIIRS рядом с точкой наблюдения.",
+              "Так интерфейс остаётся честным: он показывает то, что реально измерено живым скринингом, а не расчёт, которого в текущем pipeline пока нет.",
+            ],
+          }
+        : {
+            ...item,
+            question: "What does the second key metric show now?",
+            answer: [
+              "In live mode the page no longer inserts a synthetic tCO2e value for every suspected zone.",
+              "Instead it shows real metrics from the current ingest: methane uplift versus baseline and the nearby VIIRS night-time thermal context.",
+              "This keeps the interface honest: it shows what the live screening layer actually measures instead of a number the current pipeline does not calculate yet.",
+            ],
+          };
+    }
+
+    if (item.id === "demo" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready") {
+      return locale === "ru"
+        ? {
+            ...item,
+            question: "Это уже живые данные или демо-режим?",
+            answer: [
+              "Если backend подключён и Earth Engine sync прошёл успешно, левая очередь строится из живых Earth Engine-кандидатов.",
+              "При этом workflow по инцидентам, задачам и отчетам по-прежнему остаётся управляемым вручную, чтобы demo loop был стабильным.",
+              "Если живое обновление недоступно, экран честно возвращается к демонстрационным данным.",
+            ],
+          }
+        : {
+            ...item,
+            question: "Is this live data or demo mode?",
+            answer: [
+              "When the backend is connected and Earth Engine sync succeeds, the left queue is built from live Earth Engine candidates.",
+              "The incident, task, and report workflow still stays manually controlled so the demo loop remains stable.",
+              "If live sync is unavailable, the page honestly falls back to seeded demo content.",
+            ],
+          };
+    }
+
+    return item;
+  });
   const screeningSnapshot = pipelineStatus.screeningSnapshot;
   const mapCardTone: MapCardTone =
     pipelineStatus.source === "seeded"
@@ -395,43 +542,22 @@ export default function Page() {
         screeningSnapshot?.syncedAt ??
         screeningText.notAvailable
       : screeningSnapshot?.syncedAt ?? screeningText.notAvailable;
+  const statusHelpText =
+    dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
+      ? liveSignalText.statusHelp
+      : t.help.demo;
+  const statusNote =
+    dashboardSource === "api"
+      ? pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
+        ? liveSignalText.statusNote
+        : t.status.apiNote
+      : t.status.fallbackNote;
 
   useEffect(() => {
     if (scopedAnomalies.length === 0) return;
     if (scopedAnomalies.some((anomaly) => anomaly.id === selectedAnomalyId)) return;
     setSelectedAnomalyId(strongestAnomaly?.id ?? scopedAnomalies[0]?.id ?? "");
   }, [scopedAnomalies, selectedAnomalyId, strongestAnomaly]);
-
-  const heroStats: HeroStat[] = selectedAnomaly
-    ? [
-        {
-          label: t.stats.signal,
-          value: `${selectedAnomaly.signalScore} / 100`,
-          detail: translateAssetName(selectedAnomaly.assetName, locale),
-          hint: t.help.signal,
-        },
-        {
-          label: t.stats.impact,
-          value: `${selectedAnomaly.co2eTonnes} tCO2e`,
-          detail: translateRegion(selectedAnomaly.region, locale),
-          hint: t.help.impact,
-        },
-        {
-          label: t.stats.workflow,
-          value: activeIncident
-            ? incidentStatusLabel[locale][activeIncident.status]
-            : t.summary.screening,
-          detail: activeIncident
-            ? formatTaskProgress(completedTasks, activeIncident.tasks.length, locale)
-            : t.panels.noIncident,
-          hint: t.help.workflow,
-        },
-      ]
-    : kpiCards.slice(0, 3).map((kpi) => ({
-        label: kpi.label,
-        value: kpi.value,
-        detail: kpi.detail,
-      }));
 
   const runPipelineSync = async (source: "gee" | "seeded") => {
     if (!hasApiBaseUrl) {
@@ -565,30 +691,36 @@ export default function Page() {
     }
   };
 
-  const exportReportArtifact = async () => {
+  const exportReportArtifact = async (format: ReportExportFormat) => {
     if (!activeIncident || !selectedAnomaly) return;
 
-    const actionId = `export-${activeIncident.id}`;
+    const actionId = `export-${activeIncident.id}-${format}`;
     setBusyAction(actionId);
     setRequestError(null);
 
     try {
-      let fileName = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
-      let content = buildReportHtml(selectedAnomaly, activeIncident, localizedReportSections, locale);
-      let contentType = "text/html;charset=utf-8";
+      if (dashboardSource !== "api" || !hasApiBaseUrl) {
+        if (format !== "html") {
+          throw new Error("Binary report export requires API mode");
+        }
 
-      if (dashboardSource === "api" && locale === "en") {
-        const downloaded = await downloadReport(activeIncident.id);
-        fileName = downloaded.fileName;
-        content = downloaded.content;
-        contentType = downloaded.contentType;
+        const html = buildReportHtml(selectedAnomaly, activeIncident, localizedReportSections, locale);
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
       }
 
-      const blob = new Blob([content], { type: contentType });
+      const downloaded = await downloadReport(activeIncident.id, format, locale);
+      const blob = downloaded.blob;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = fileName;
+      link.download = downloaded.fileName;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -600,8 +732,8 @@ export default function Page() {
 
   const openPrintView = () => {
     if (!activeIncident || !selectedAnomaly) return;
-    if (dashboardSource === "api" && locale === "en") {
-      const reportViewUrl = getReportViewUrl(activeIncident.id, true);
+    if (dashboardSource === "api") {
+      const reportViewUrl = getReportViewUrl(activeIncident.id, true, locale);
       if (reportViewUrl) {
         window.open(reportViewUrl, "_blank", "noopener,noreferrer");
         return;
@@ -687,7 +819,7 @@ export default function Page() {
             ...existing,
             reportGeneratedAt: "2026-03-27 09:00",
             status: doneCount === existing.tasks.length ? "mitigation" : "verification",
-            reportSections: buildLocalizedReportSections(anomaly, existing, doneCount, locale),
+            reportSections: buildReportSectionsForUi(anomaly, existing, doneCount, locale),
           },
         };
       });
@@ -779,65 +911,11 @@ export default function Page() {
                       ? t.status.api
                       : t.status.fallback}
                 </strong>
-                <HelpHint text={t.help.demo} />
+                <HelpHint text={statusHelpText} />
               </div>
-              <p>{dashboardSource === "api" ? t.status.apiNote : t.status.fallbackNote}</p>
+              <p>{statusNote}</p>
             </div>
           </section>
-
-          {screeningSnapshot ? (
-            <section className="evidence-summary-card">
-              <div className="evidence-summary-head">
-                <div>
-                  <p className="eyebrow">{screeningText.title}</p>
-                  <strong>{translateScreeningAreaLabel(screeningSnapshot.areaLabel, locale)}</strong>
-                </div>
-                <div className="evidence-badge-row">
-                  <span
-                    className={`evidence-badge evidence-badge-${screeningSnapshot.freshness}`}
-                  >
-                    {screeningText.freshness[screeningSnapshot.freshness]}
-                  </span>
-                  <span className="evidence-badge evidence-badge-level">
-                    {screeningText.levelLabel[screeningSnapshot.screeningLevel]}
-                  </span>
-                </div>
-              </div>
-
-              <div className="evidence-metric-grid">
-                <MetricCard
-                  label={screeningText.current}
-                  value={formatPpb(screeningSnapshot.currentCh4Ppb, screeningText.notAvailable)}
-                />
-                <MetricCard
-                  label={screeningText.baseline}
-                  value={formatPpb(screeningSnapshot.baselineCh4Ppb, screeningText.notAvailable)}
-                />
-                <MetricCard
-                  label={screeningText.delta}
-                  value={formatDelta(screeningSnapshot, screeningText.notAvailable)}
-                />
-                <MetricCard
-                  label={screeningText.synced}
-                  value={screeningSnapshot.syncedAt ?? screeningText.notAvailable}
-                />
-              </div>
-
-              <p className="evidence-summary-note">
-                {translateScreeningRecommendation(screeningSnapshot.recommendedAction, locale)}
-              </p>
-            </section>
-          ) : null}
-
-          <div className="hero-stats">
-            {heroStats.map((stat) => (
-              <article key={stat.label} className="hero-stat">
-                <FieldLabel hint={stat.hint} label={stat.label} />
-                <strong>{stat.value}</strong>
-                <p>{stat.detail}</p>
-              </article>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -861,11 +939,19 @@ export default function Page() {
                     ? t.help.severityCheck
                     : t.help.severityWatch;
               return (
-                <button
-                  key={anomaly.id}
+                <div
+                  aria-pressed={anomaly.id === selectedAnomaly.id}
                   className={`signal-card ${anomaly.id === selectedAnomaly.id ? "signal-card-active" : ""}`}
+                  key={anomaly.id}
                   onClick={() => changeSelectedAnomaly(anomaly.id)}
-                  type="button"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      changeSelectedAnomaly(anomaly.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
                   <div className="signal-card-top">
                     <div className="severity-badge-wrap">
@@ -886,7 +972,7 @@ export default function Page() {
                       {incident ? incidentStatusLabel[locale][incident.status] : t.summary.screening}
                     </span>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -918,9 +1004,13 @@ export default function Page() {
                   value={`${selectedAnomaly.signalScore} / 100`}
                 />
                 <MetricCard
-                  hint={t.help.impact}
-                  label={t.stats.impact}
-                  value={`${selectedAnomaly.co2eTonnes} tCO2e`}
+                  hint={liveSignalSelected ? liveSignalText.hints.thermalContext : t.help.impact}
+                  label={liveSignalSelected ? liveSignalText.thermalContext : t.stats.impact}
+                  value={
+                    liveSignalSelected
+                      ? formatThermalContext(selectedAnomaly, locale, liveSignalText)
+                      : formatPotentialImpact(selectedAnomaly, locale, liveSignalText.noImpact)
+                  }
                 />
                 <MetricCard
                   hint={t.help.detected}
@@ -955,18 +1045,22 @@ export default function Page() {
                   <section className="metric-grid evidence-inner-grid">
                     <MetricCard
                       label={screeningText.current}
-                      value={formatPpb(screeningSnapshot.currentCh4Ppb, screeningText.notAvailable)}
+                      hint={screeningText.help.current}
+                      value={formatPpb(screeningSnapshot.currentCh4Ppb, screeningText.notAvailable, locale)}
                     />
                     <MetricCard
                       label={screeningText.baseline}
-                      value={formatPpb(screeningSnapshot.baselineCh4Ppb, screeningText.notAvailable)}
+                      hint={screeningText.help.baseline}
+                      value={formatPpb(screeningSnapshot.baselineCh4Ppb, screeningText.notAvailable, locale)}
                     />
                     <MetricCard
                       label={screeningText.delta}
-                      value={formatDelta(screeningSnapshot, screeningText.notAvailable)}
+                      hint={screeningText.help.delta}
+                      value={formatDelta(screeningSnapshot, screeningText.notAvailable, locale)}
                     />
                     <MetricCard
                       label={screeningText.level}
+                      hint={screeningText.help.level}
                       value={screeningText.levelLabel[screeningSnapshot.screeningLevel]}
                     />
                   </section>
@@ -989,18 +1083,7 @@ export default function Page() {
                       }
                     />
                     <InfoRow
-                      label={screeningText.confidence}
-                      value={translateScreeningConfidenceNote(screeningSnapshot.confidenceNote, locale)}
-                    />
-                    <InfoRow
-                      label={screeningText.caveat}
-                      value={
-                        screeningSnapshot.caveat
-                          ? translateScreeningCaveat(screeningSnapshot.caveat, locale)
-                          : screeningText.noCaveat
-                      }
-                    />
-                    <InfoRow
+                      className="info-row-wide"
                       label={screeningText.recommendation}
                       value={translateScreeningRecommendation(screeningSnapshot.recommendedAction, locale)}
                     />
@@ -1010,9 +1093,39 @@ export default function Page() {
 
               <section className="signal-focus">
                 <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
-                <InfoRow label={t.summary.facility} value={translateFacility(selectedAnomaly.facilityType, locale)} />
+                <InfoRow
+                  hint={t.help.coordinates}
+                  label={t.summary.coordinates}
+                  value={selectedAnomaly.coordinates}
+                />
+                {liveSignalSelected ? (
+                  <InfoRow
+                    hint={t.help.verificationArea}
+                    label={t.summary.verificationArea}
+                    value={translatedVerificationArea}
+                  />
+                ) : null}
+                {liveSignalSelected ? (
+                  <InfoRow
+                    hint={t.help.nearestAddress}
+                    label={t.summary.nearestAddress}
+                    value={translatedNearestAddress}
+                  />
+                ) : null}
+                {liveSignalSelected ? (
+                  <InfoRow
+                    hint={t.help.nearestLandmark}
+                    label={t.summary.nearestLandmark}
+                    value={translatedNearestLandmark}
+                  />
+                ) : null}
                 <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
-                <InfoRow label="CO2e" value={`${selectedAnomaly.co2eTonnes} tCO2e`} />
+                {!liveSignalSelected ? (
+                  <InfoRow label={t.summary.facility} value={translateFacility(selectedAnomaly.facilityType, locale)} />
+                ) : null}
+                {!liveSignalSelected ? (
+                  <InfoRow label="CO2e" value={formatPotentialImpact(selectedAnomaly, locale, liveSignalText.noImpact)} />
+                ) : null}
               </section>
 
               <section className="map-card">
@@ -1040,17 +1153,17 @@ export default function Page() {
                 <div className={`map-evidence-strip map-evidence-strip-${mapCardTone}`}>
                   <article>
                     <span>{screeningText.current}</span>
-                    <strong>{formatPpb(screeningSnapshot?.currentCh4Ppb, screeningText.notAvailable)}</strong>
+                    <strong>{formatPpb(screeningSnapshot?.currentCh4Ppb, screeningText.notAvailable, locale)}</strong>
                   </article>
                   <article>
                     <span>{screeningText.baseline}</span>
-                    <strong>{formatPpb(screeningSnapshot?.baselineCh4Ppb, screeningText.notAvailable)}</strong>
+                    <strong>{formatPpb(screeningSnapshot?.baselineCh4Ppb, screeningText.notAvailable, locale)}</strong>
                   </article>
                   <article>
                     <span>{screeningText.delta}</span>
                     <strong>
                       {screeningSnapshot
-                        ? formatDelta(screeningSnapshot, screeningText.notAvailable)
+                        ? formatDelta(screeningSnapshot, screeningText.notAvailable, locale)
                         : screeningText.notAvailable}
                     </strong>
                   </article>
@@ -1154,7 +1267,32 @@ export default function Page() {
                 <section className="signal-focus">
                   <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
                   <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
-                  <InfoRow label={t.summary.coordinates} value={selectedAnomaly.coordinates} />
+                  <InfoRow
+                    hint={t.help.coordinates}
+                    label={t.summary.coordinates}
+                    value={selectedAnomaly.coordinates}
+                  />
+                  {liveSignalSelected ? (
+                    <InfoRow
+                      hint={t.help.verificationArea}
+                      label={t.summary.verificationArea}
+                      value={translatedVerificationArea}
+                    />
+                  ) : null}
+                  {liveSignalSelected ? (
+                    <InfoRow
+                      hint={t.help.nearestAddress}
+                      label={t.summary.nearestAddress}
+                      value={translatedNearestAddress}
+                    />
+                  ) : null}
+                  {liveSignalSelected ? (
+                    <InfoRow
+                      hint={t.help.nearestLandmark}
+                      label={t.summary.nearestLandmark}
+                      value={translatedNearestLandmark}
+                    />
+                  ) : null}
                   <InfoRow
                     label={t.summary.recommendation}
                     value={translateRecommendedAction(selectedAnomaly.recommendedAction, locale)}
@@ -1283,14 +1421,35 @@ export default function Page() {
                   >
                     {busyAction === `report-${activeIncident.id}` ? t.actions.generating : t.actions.generateReport}
                   </button>
-                  <button
-                    className="secondary-button"
-                    disabled={busyAction === `export-${activeIncident.id}`}
-                    onClick={() => void exportReportArtifact()}
-                    type="button"
-                  >
-                    {busyAction === `export-${activeIncident.id}` ? t.actions.exporting : t.actions.downloadHtml}
-                  </button>
+                  {dashboardSource === "api" ? (
+                    <>
+                      <button
+                        className="secondary-button"
+                        disabled={busyAction === `export-${activeIncident.id}-pdf`}
+                        onClick={() => void exportReportArtifact("pdf")}
+                        type="button"
+                      >
+                        {busyAction === `export-${activeIncident.id}-pdf` ? t.actions.exporting : t.actions.downloadPdf}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={busyAction === `export-${activeIncident.id}-docx`}
+                        onClick={() => void exportReportArtifact("docx")}
+                        type="button"
+                      >
+                        {busyAction === `export-${activeIncident.id}-docx` ? t.actions.exporting : t.actions.downloadWord}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="secondary-button"
+                      disabled={busyAction === `export-${activeIncident.id}-html`}
+                      onClick={() => void exportReportArtifact("html")}
+                      type="button"
+                    >
+                      {busyAction === `export-${activeIncident.id}-html` ? t.actions.exporting : t.actions.downloadHtml}
+                    </button>
+                  )}
                   <button className="secondary-button" onClick={openPrintView} type="button">
                     {t.actions.printView}
                   </button>
@@ -1314,7 +1473,7 @@ export default function Page() {
         </div>
 
         <div className="faq-list">
-          {t.faq.items.map((item) => (
+          {faqItems.map((item) => (
             <details key={item.id} className="faq-item">
               <summary>
                 <span>{item.question}</span>
@@ -1337,24 +1496,122 @@ export default function Page() {
   );
 }
 
-function formatPpb(value: number | undefined, emptyLabel: string) {
-  return value === undefined ? emptyLabel : `${value.toFixed(2)} ppb`;
+function buildReportSectionsForUi(
+  anomaly: Anomaly,
+  incident: Incident,
+  completedTasks: number,
+  locale: Locale,
+): ReportSection[] {
+  const liveSignal = anomaly.co2eTonnes === undefined;
+  const deltaPpb = anomaly.methaneDeltaPpb ?? 0;
+  const thermalHits = anomaly.nightThermalHits72h ?? anomaly.thermalHits72h ?? 0;
+
+  if (locale === "ru") {
+    return [
+      {
+        title: "Что увидели",
+        body: liveSignal
+          ? thermalHits > 0
+            ? `Живой спутниковый скрининг отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) и ${thermalHits} ночными VIIRS-срабатываниями в радиусе 25 км.`
+            : `Живой спутниковый скрининг отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) без недавних ночных VIIRS-срабатываний в радиусе 25 км.`
+          : `Спутниковый разбор отметил объект ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${anomaly.methaneDeltaPct}% и ${anomaly.flareHours ?? 0} часами факельной активности.`,
+      },
+      {
+        title: "Кто отвечает",
+        body: `${translateOwner(incident.owner, locale)} ведёт этот кейс с приоритетом ${incident.priority} и сроком реакции ${translateWindow(incident.verificationWindow, locale).toLowerCase()}.`,
+      },
+      {
+        title: "Как продвигается проверка",
+        body: liveSignal
+          ? `Выполнено ${completedTasks} из ${incident.tasks.length} задач. Живая очередь пока не переводит эту подозрительную зону в tCO2e: она честно ранжирует кейсы по росту метана и тепловому контексту рядом с точкой наблюдения.`
+          : `Выполнено ${completedTasks} из ${incident.tasks.length} задач. Текущая оценка возможного эффекта составляет ${anomaly.co2eTonnes ?? 0} tCO2e.`,
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "What was observed",
+      body: liveSignal
+        ? thermalHits > 0
+          ? `Live satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and ${thermalHits} night-time VIIRS detections inside the 25 km context window.`
+          : `Live satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and no recent night-time VIIRS detections inside the 25 km context window.`
+        : `Satellite review flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${anomaly.methaneDeltaPct}% methane uplift and ${anomaly.flareHours ?? 0} hours of flare activity.`,
+    },
+    {
+      title: "Who owns the case",
+      body: `${translateOwner(incident.owner, locale)} owns this case under ${incident.priority} priority with a ${translateWindow(incident.verificationWindow, locale).toLowerCase()} response window.`,
+    },
+    {
+      title: "How verification is progressing",
+      body: liveSignal
+        ? `${completedTasks} of ${incident.tasks.length} tasks are complete. This live queue does not estimate tCO2e yet; it ranks the case by methane uplift and nearby thermal context.`
+        : `${completedTasks} of ${incident.tasks.length} tasks are complete. The current estimated impact is ${anomaly.co2eTonnes ?? 0} tCO2e.`,
+    },
+  ];
 }
 
-function formatDelta(snapshot: ScreeningEvidenceSnapshot, emptyLabel: string) {
+function formatPotentialImpact(anomaly: Anomaly, locale: Locale, emptyLabel: string) {
+  if (anomaly.co2eTonnes === undefined) {
+    return emptyLabel;
+  }
+
+  return `${formatMetricNumber(anomaly.co2eTonnes, locale)} tCO2e`;
+}
+
+function formatMethaneUplift(anomaly: Anomaly, locale: Locale, emptyLabel: string) {
+  if (anomaly.methaneDeltaPpb === undefined) {
+    return emptyLabel;
+  }
+
+  return `${formatMetricNumber(anomaly.methaneDeltaPpb, locale)} ppb / ${formatMetricNumber(anomaly.methaneDeltaPct, locale)}%`;
+}
+
+function formatThermalContext(
+  anomaly: Anomaly,
+  locale: Locale,
+  labels: (typeof liveSignalCopy)[Locale],
+) {
+  const hits = anomaly.nightThermalHits72h ?? anomaly.thermalHits72h;
+  if (hits === undefined) {
+    return labels.notAvailable;
+  }
+  if (hits === 0) {
+    return labels.noThermalContext;
+  }
+  return `${hits} ${labels.detections}`;
+}
+
+function formatPpb(value: number | undefined, emptyLabel: string, locale: Locale) {
+  if (value === undefined) {
+    return emptyLabel;
+  }
+
+  return `${formatMetricNumber(value, locale)} ppb`;
+}
+
+function formatDelta(snapshot: ScreeningEvidenceSnapshot, emptyLabel: string, locale: Locale) {
   if (snapshot.deltaAbsPpb === undefined && snapshot.deltaPct === undefined) {
     return emptyLabel;
   }
 
+  const unit = "ppb";
   const absPart =
-    snapshot.deltaAbsPpb === undefined ? "" : `${snapshot.deltaAbsPpb.toFixed(2)} ppb`;
-  const pctPart = snapshot.deltaPct === undefined ? "" : `${snapshot.deltaPct.toFixed(2)}%`;
+    snapshot.deltaAbsPpb === undefined ? "" : `${formatMetricNumber(snapshot.deltaAbsPpb, locale)} ${unit}`;
+  const pctPart = snapshot.deltaPct === undefined ? "" : `${formatMetricNumber(snapshot.deltaPct, locale)}%`;
 
   if (absPart && pctPart) {
     return `${absPart} / ${pctPart}`;
   }
 
   return absPart || pctPart;
+}
+
+function formatMetricNumber(value: number, locale: Locale) {
+  return new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -1366,9 +1623,19 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
-function InfoRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function InfoRow({
+  label,
+  value,
+  hint,
+  className,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  className?: string;
+}) {
   return (
-    <article className="info-row">
+    <article className={className ? `info-row ${className}` : "info-row"}>
       <FieldLabel hint={hint} label={label} />
       <strong>{value}</strong>
     </article>
@@ -1385,15 +1652,104 @@ function FieldLabel({ label, hint }: { label: string; hint?: string }) {
 }
 
 function HelpHint({ text }: { text: string }) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [popoverLayout, setPopoverLayout] = useState({
+    left: 12,
+    top: 0,
+    width: 280,
+    placement: "bottom" as "top" | "bottom",
+  });
+
+  const isOpen = isHovered || isFocused || isPinned;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current || typeof window === "undefined") return;
+
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+
+      const rect = buttonRef.current.getBoundingClientRect();
+      const width = Math.min(280, Math.max(window.innerWidth - 24, 180));
+      const left = Math.min(
+        Math.max(rect.left + rect.width / 2 - width / 2, 12),
+        window.innerWidth - width - 12,
+      );
+      const placeAbove = rect.bottom + 170 > window.innerHeight && rect.top > 150;
+
+      setPopoverLayout({
+        left,
+        top: placeAbove ? rect.top : rect.bottom,
+        width,
+        placement: placeAbove ? "top" : "bottom",
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
   return (
-    <button
-      aria-label={text}
-      className="help-hint"
-      type="button"
-    >
-      <QuestionIcon />
-      <span className="help-popover">{text}</span>
-    </button>
+    <>
+      <button
+        aria-expanded={isOpen}
+        aria-label={text}
+        className="help-hint"
+        onBlur={() => {
+          setIsFocused(false);
+          setIsPinned(false);
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setIsPinned((current) => !current);
+        }}
+        onFocus={() => setIsFocused(true)}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            setIsPinned(false);
+            setIsFocused(false);
+            buttonRef.current?.blur();
+          }
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        ref={buttonRef}
+        type="button"
+      >
+        <QuestionIcon />
+      </button>
+      {isMounted && isOpen
+        ? createPortal(
+            <span
+              className={`help-popover help-popover-${popoverLayout.placement}`}
+              role="tooltip"
+              style={{
+                left: `${popoverLayout.left}px`,
+                top: `${popoverLayout.top}px`,
+                width: `${popoverLayout.width}px`,
+              }}
+            >
+              {text}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

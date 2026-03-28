@@ -36,7 +36,7 @@ def test_generate_report_and_export_html_include_audit_timeline() -> None:
 
     assert len(generated.report) == 3
     assert "Audit Timeline" in report_html
-    assert "MRV Incident Report: INC-204" in report_html
+    assert "Saryna MRV Report: INC-204" in report_html
     assert "MRV report generated" in report_html
 
 

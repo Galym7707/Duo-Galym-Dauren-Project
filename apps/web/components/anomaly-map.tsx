@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Anomaly } from "../lib/demo-data";
-import { copy, type Locale, translateAssetName, translateFacility, translateRegion } from "../lib/site-content";
+import {
+  copy,
+  formatVerificationAreaLabel,
+  type Locale,
+  translateAdministrativeLabel,
+  translateAssetName,
+  translateFacility,
+  translateRegion,
+} from "../lib/site-content";
 
 type MapTone = "seeded" | "live" | "fallback";
 
@@ -48,19 +56,27 @@ const KAZAKHSTAN_STYLE: StyleSpecification = {
 
 const mapCopy = {
   en: {
-    fallback: "Map unavailable. Showing the safe sketch fallback.",
+    fallback: "Map unavailable. Showing the simplified backup view.",
     detailTitle: "Selected marker",
     coordinates: "Coordinates",
     facility: "Facility",
+    verificationArea: "Verification area",
+    nearestAddress: "Nearest address",
+    nearestLandmark: "Nearest landmark",
+    notAvailable: "Not available nearby",
     actionHint: "Screening marker only. Use manual promotion to open the operational incident.",
   },
   ru: {
-    fallback: "Карта недоступна. Показан резервный вариант.",
+    fallback: "Карта временно недоступна. Показан упрощённый запасной вид.",
     detailTitle: "Выбранный маркер",
     coordinates: "Координаты",
     facility: "Тип объекта",
+    verificationArea: "Район проверки",
+    nearestAddress: "Ближайший адрес",
+    nearestLandmark: "Ближайший ориентир",
+    notAvailable: "Рядом нет подходящего адреса или объекта",
     actionHint:
-      "Это только маркер предварительной проверки. Чтобы открыть рабочий кейс, вручную переведите сигнал в инцидент.",
+      "Это только маркер предварительной проверки. Чтобы открыть рабочий кейс, вручную переведите подозрительную зону в инцидент.",
   },
 } as const;
 
@@ -214,6 +230,30 @@ export function AnomalyMap({
             <div>
               <dt>{mapText.coordinates}</dt>
               <dd>{selectedAnomaly.coordinates}</dd>
+            </div>
+            <div>
+              <dt>{mapText.verificationArea}</dt>
+              <dd>
+                {selectedAnomaly.verificationArea
+                  ? formatVerificationAreaLabel(selectedAnomaly.verificationArea, selectedAnomaly.region, locale)
+                  : mapText.notAvailable}
+              </dd>
+            </div>
+            <div>
+              <dt>{mapText.nearestAddress}</dt>
+              <dd>
+                {selectedAnomaly.nearestAddress
+                  ? translateAdministrativeLabel(selectedAnomaly.nearestAddress, locale)
+                  : mapText.notAvailable}
+              </dd>
+            </div>
+            <div>
+              <dt>{mapText.nearestLandmark}</dt>
+              <dd>
+                {selectedAnomaly.nearestLandmark
+                  ? translateAdministrativeLabel(selectedAnomaly.nearestLandmark, locale)
+                  : mapText.notAvailable}
+              </dd>
             </div>
           </dl>
           <p className="map-selection-hint">{mapText.actionHint}</p>

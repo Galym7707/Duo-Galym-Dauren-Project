@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
-from html import escape
 from typing import Literal
 
 from app.models import (
@@ -19,6 +18,15 @@ from app.models import (
     ScreeningEvidenceSnapshot,
     SitePosition,
     TrendPoint,
+)
+from app.providers.gee import GeeCandidate
+from app.services.report_exports import (
+    Locale,
+    PreparedReport,
+    prepare_report,
+    render_docx,
+    render_html,
+    render_pdf,
 )
 
 
@@ -66,7 +74,7 @@ class DemoStore:
                 coordinates="46.094 N, 53.452 E",
                 latitude=46.094,
                 longitude=53.452,
-                summary="Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.",
+                summary="Elevated methane column overlaps recurring night-burning context close to a compression corridor.",
                 recommended_action="Escalate to field integrity desk and request same-day verification route.",
                 site_position=SitePosition(x=62, y=44),
                 trend=self._trend([39, 42, 44, 57, 61, 79]),
@@ -107,7 +115,7 @@ class DemoStore:
                 coordinates="43.690 N, 51.167 E",
                 latitude=43.690,
                 longitude=51.167,
-                summary="Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
+                summary="Night-burning context is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
                 recommended_action="Keep visible in weekly MRV review and compare against operator maintenance schedule.",
                 site_position=SitePosition(x=25, y=72),
                 trend=self._trend([16, 17, 19, 23, 29, 34]),
@@ -193,6 +201,8 @@ class DemoStore:
                 trend=self._trend([10, 11, 12, 14, 16, 19]),
             ),
         ]
+        self._seeded_kpis = deepcopy(self.kpis)
+        self._seeded_anomalies = deepcopy(self.anomalies)
 
         self.incidents: dict[str, Incident] = {
             "INC-204": Incident(
@@ -384,7 +394,12 @@ class DemoStore:
         if anomaly.linked_incident_id:
             return self.get_incident(anomaly.linked_incident_id)
 
-        incident_id = f"INC-{anomaly.id[3:]}"
+        incident_suffix = anomaly.id
+        if incident_suffix.startswith("AN-"):
+            incident_suffix = incident_suffix[3:]
+        elif incident_suffix.startswith("GEE-"):
+            incident_suffix = incident_suffix[4:]
+        incident_id = f"INC-{incident_suffix}"
         incident = Incident(
             id=incident_id,
             anomaly_id=anomaly.id,
@@ -393,7 +408,12 @@ class DemoStore:
             owner=payload.owner,
             priority="P1" if anomaly.severity == "high" else "P2",
             verification_window="Next 12 hours" if anomaly.severity == "high" else "Next 24 hours",
-            narrative="This incident was promoted directly from the anomaly queue to prove the screening-to-action flow before live operator integrations are wired.",
+            narrative=(
+                "This incident was promoted from the live screening queue. The signal is operationally ranked, "
+                "but it still requires field verification before source attribution."
+                if anomaly.evidence_source
+                else "This incident was promoted directly from the anomaly queue to prove the screening-to-action flow before live operator integrations are wired."
+            ),
             tasks=[
                 IncidentTask(
                     id=f"{incident_id}-TASK-1",
@@ -430,7 +450,10 @@ class DemoStore:
             entity_id=anomaly.id,
             metadata={
                 "signal_score": anomaly.signal_score,
-                "co2e_tonnes": anomaly.co2e_tonnes,
+                "co2e_tonnes": anomaly.co2e_tonnes if anomaly.co2e_tonnes is not None else "not estimated",
+                "night_thermal_hits_72h": anomaly.night_thermal_hits_72h
+                if anomaly.night_thermal_hits_72h is not None
+                else "not available",
                 "severity": anomaly.severity,
             },
         )
@@ -546,106 +569,35 @@ class DemoStore:
         )
         return GenerateReportResponse(incident=deepcopy(incident), report=report)
 
-    def export_report_html(self, incident_id: str, auto_print: bool = False) -> str:
+    def export_report_html(
+        self,
+        incident_id: str,
+        locale: Locale = "en",
+        auto_print: bool = False,
+    ) -> str:
+        prepared = self._prepare_report_export(incident_id, locale)
+        return render_html(prepared, auto_print=auto_print)
+
+    def export_report_pdf(self, incident_id: str, locale: Locale = "en") -> bytes:
+        prepared = self._prepare_report_export(incident_id, locale)
+        return render_pdf(prepared)
+
+    def export_report_docx(self, incident_id: str, locale: Locale = "en") -> bytes:
+        prepared = self._prepare_report_export(incident_id, locale)
+        return render_docx(prepared)
+
+    def _prepare_report_export(self, incident_id: str, locale: Locale) -> PreparedReport:
         incident = self.incidents.get(incident_id)
         if incident is None:
             raise KeyError(incident_id)
 
         anomaly = self._find_anomaly(incident.anomaly_id)
-        report_sections = incident.report_sections or self._build_report_sections(anomaly, incident)
-        completed_tasks = self._completed_tasks(incident)
         audit_events = self._incident_activity(incident_id)
-
-        task_lines = "".join(
-            [
-                (
-                    "<li>"
-                    f"<strong>{escape(task.title)}</strong> - {escape(task.owner)} - ETA {task.eta_hours}h"
-                    f" - {'Done' if task.status == 'done' else 'Open'}"
-                    "</li>"
-                )
-                for task in incident.tasks
-            ]
-        )
-        section_lines = "".join(
-            [
-                (
-                    "<section>"
-                    f"<h2>{escape(section.title)}</h2>"
-                    f"<p>{escape(section.body)}</p>"
-                    "</section>"
-                )
-                for section in report_sections
-            ]
-        )
-        audit_lines = "".join(
-            [
-                (
-                    "<li>"
-                    f"<strong>{escape(event.title)}</strong> - {escape(event.detail)}"
-                    f" <span>({escape(event.occurred_at)})</span>"
-                    f"<br /><small>Source: {escape(event.source)} | Actor: {escape(event.actor)} | "
-                    f"Entity: {escape(event.entity_type)}"
-                    f"{f' {escape(event.entity_id)}' if event.entity_id else ''}</small>"
-                    "</li>"
-                )
-                for event in audit_events
-            ]
-        )
-        auto_print_script = (
-            "<script>"
-            "window.addEventListener('load', () => { setTimeout(() => window.print(), 120); });"
-            "</script>"
-            if auto_print
-            else ""
-        )
-
-        return (
-            "<!doctype html>"
-            "<html lang='en'>"
-            "<head>"
-            "<meta charset='utf-8' />"
-            f"<title>{escape(incident.id)} MRV Report</title>"
-            "<style>"
-            "body{font-family:Segoe UI,Arial,sans-serif;margin:40px;color:#10212b;line-height:1.55;}"
-            "h1{margin-bottom:8px;}h2{margin:24px 0 8px;}section{margin-top:20px;}"
-            ".meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:24px 0;}"
-            ".meta div{padding:12px 14px;border:1px solid #d3dde5;background:#f6fafc;}"
-            ".label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5c6f7b;}"
-            ".value{display:block;margin-top:6px;font-weight:600;}"
-            ".toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0 28px;}"
-            ".toolbar button{padding:10px 14px;border:1px solid #b9c9d4;background:#ffffff;cursor:pointer;font:inherit;}"
-            "ul{padding-left:20px;}"
-            "li{margin-bottom:8px;}"
-            "@media print{body{margin:22px;} .toolbar{display:none;} .meta{gap:8px 14px;}}"
-            "</style>"
-            "</head>"
-            "<body>"
-            f"<h1>MRV Incident Report: {escape(incident.id)}</h1>"
-            "<p>Measurement, reporting, and verification note for the current methane and flaring case.</p>"
-            "<div class='toolbar'>"
-            "<span>Print-ready MRV note for stakeholder review.</span>"
-            "<button onclick='window.print()'>Print / Save as PDF</button>"
-            "</div>"
-            "<div class='meta'>"
-            f"<div><span class='label'>Generated</span><span class='value'>{escape(incident.report_generated_at or 'On-demand export')}</span></div>"
-            f"<div><span class='label'>Asset</span><span class='value'>{escape(anomaly.asset_name)}</span></div>"
-            f"<div><span class='label'>Region</span><span class='value'>{escape(anomaly.region)}</span></div>"
-            f"<div><span class='label'>Coordinates</span><span class='value'>{escape(anomaly.coordinates)}</span></div>"
-            f"<div><span class='label'>Priority</span><span class='value'>{escape(incident.priority)}</span></div>"
-            f"<div><span class='label'>Verification window</span><span class='value'>{escape(incident.verification_window)}</span></div>"
-            f"<div><span class='label'>Potential impact</span><span class='value'>{anomaly.co2e_tonnes} tCO2e</span></div>"
-            f"<div><span class='label'>Task progress</span><span class='value'>{completed_tasks}/{len(incident.tasks)} completed</span></div>"
-            "</div>"
-            f"{section_lines}"
-            "<section><h2>Verification Tasks</h2><ul>"
-            f"{task_lines}"
-            "</ul></section>"
-            "<section><h2>Audit Timeline</h2><ul>"
-            f"{audit_lines}"
-            "</ul></section>"
-            f"{auto_print_script}"
-            "</body></html>"
+        return prepare_report(
+            anomaly=anomaly,
+            incident=incident,
+            audit_events=audit_events,
+            locale=locale,
         )
 
     def apply_fresh_screening_evidence(
@@ -711,6 +663,15 @@ class DemoStore:
         )
         return self.screening_snapshot()
 
+    def apply_live_candidates(
+        self,
+        *,
+        candidates: list[GeeCandidate],
+        latest_observation_at: str | None,
+    ) -> None:
+        self.anomalies = [self._candidate_to_anomaly(candidate) for candidate in candidates]
+        self.kpis = self._build_live_kpis(candidates, latest_observation_at)
+
     def mark_screening_stale(self, *, synced_at: str, caveat: str) -> ScreeningEvidenceSnapshot:
         base_snapshot = (
             self._last_live_screening_snapshot.model_copy(deep=True)
@@ -767,6 +728,8 @@ class DemoStore:
         return self.screening_snapshot()
 
     def clear_live_evidence(self) -> None:
+        self.kpis = deepcopy(self._seeded_kpis)
+        self.anomalies = deepcopy(self._seeded_anomalies)
         self._screening_snapshot = self._seeded_screening_snapshot.model_copy(deep=True)
         self._last_live_screening_snapshot = None
         self._screening_history = [self._screening_snapshot.model_copy(deep=True)]
@@ -853,20 +816,157 @@ class DemoStore:
     def _build_report_sections(
         self, anomaly: Anomaly, incident: Incident
     ) -> list[ReportSection]:
+        measurement_body = (
+            self._live_measurement_summary(anomaly)
+            if anomaly.co2e_tonnes is None
+            else (
+                f"Satellite screening flagged {anomaly.asset_name} in {anomaly.region} with "
+                f"+{anomaly.methane_delta_pct}% methane uplift and {anomaly.flare_hours} flare-observed hours."
+            )
+        )
+        reporting_body = (
+            self._live_progress_summary(anomaly, incident)
+            if anomaly.co2e_tonnes is None
+            else (
+                f"Current potential impact is estimated at {anomaly.co2e_tonnes} tCO2e. "
+                f"{self._completed_tasks(incident)}/{len(incident.tasks)} verification tasks are complete."
+            )
+        )
         return [
             ReportSection(
                 title="Measurement",
-                body=f"Satellite screening flagged {anomaly.asset_name} in {anomaly.region} with +{anomaly.methane_delta_pct}% methane uplift and {anomaly.flare_hours} flare-observed hours.",
+                body=measurement_body,
             ),
             ReportSection(
                 title="Reporting",
-                body=f"Current potential impact is estimated at {anomaly.co2e_tonnes} tCO2e. {self._completed_tasks(incident)}/{len(incident.tasks)} verification tasks are complete.",
+                body=reporting_body,
             ),
             ReportSection(
                 title="Verification",
                 body=f"{incident.owner} owns the case under {incident.priority} priority with a {incident.verification_window.lower()} window.",
             ),
         ]
+
+    def _build_live_kpis(
+        self,
+        candidates: list[GeeCandidate],
+        latest_observation_at: str | None,
+    ) -> list[KpiCard]:
+        if not candidates:
+            return [
+                KpiCard(
+                    label="Live candidates",
+                    value="0",
+                    detail="No live CH4 hotspot candidate passed the current threshold.",
+                ),
+                KpiCard(
+                    label="Strongest uplift",
+                    value="Not available",
+                    detail="Run another sync when a valid scene is available.",
+                ),
+                KpiCard(
+                    label="Night thermal context",
+                    value="0 detections",
+                    detail="No recent VIIRS night detections were linked to the current live queue.",
+                ),
+                KpiCard(
+                    label="Latest scene",
+                    value=latest_observation_at or "Not available",
+                    detail="Most recent valid TROPOMI observation used in the live queue.",
+                ),
+            ]
+
+        strongest = max(candidates, key=lambda candidate: candidate.signal_score)
+        unique_regions = sorted({candidate.region for candidate in candidates})
+        total_night_hits = sum(candidate.night_thermal_hits_72h for candidate in candidates)
+        return [
+            KpiCard(
+                label="Live candidates",
+                value=str(len(candidates)),
+                detail=f"{len(unique_regions)} Kazakhstan regions in the current live screening queue",
+            ),
+            KpiCard(
+                label="Strongest uplift",
+                value=f"{strongest.methane_delta_ppb:.2f} ppb / {strongest.methane_delta_pct:.2f}%",
+                detail=f"Top live hotspot: {strongest.asset_name}",
+            ),
+            KpiCard(
+                label="Night thermal context",
+                value=f"{total_night_hits} detections",
+                detail="VIIRS night-time thermal detections inside 25 km candidate buffers over the last 72 hours",
+            ),
+            KpiCard(
+                label="Latest scene",
+                value=latest_observation_at or "Not available",
+                detail="Most recent valid TROPOMI observation used in the live queue",
+            ),
+        ]
+
+    def _candidate_to_anomaly(self, candidate: GeeCandidate) -> Anomaly:
+        return Anomaly(
+            id=candidate.id,
+            asset_name=candidate.asset_name,
+            region=candidate.region,
+            facility_type=candidate.facility_type,
+            severity=candidate.severity,
+            detected_at=candidate.detected_at,
+            methane_delta_pct=round(candidate.methane_delta_pct, 2),
+            methane_delta_ppb=round(candidate.methane_delta_ppb, 2),
+            co2e_tonnes=None,
+            flare_hours=None,
+            thermal_hits_72h=candidate.thermal_hits_72h,
+            night_thermal_hits_72h=candidate.night_thermal_hits_72h,
+            current_ch4_ppb=round(candidate.current_ch4_ppb, 2),
+            baseline_ch4_ppb=round(candidate.baseline_ch4_ppb, 2),
+            evidence_source=candidate.evidence_source,
+            baseline_window=candidate.baseline_window,
+            signal_score=candidate.signal_score,
+            confidence=candidate.confidence,
+            coordinates=candidate.coordinates,
+            latitude=candidate.latitude,
+            longitude=candidate.longitude,
+            verification_area=candidate.verification_area,
+            nearest_address=candidate.nearest_address,
+            nearest_landmark=candidate.nearest_landmark,
+            summary=candidate.summary,
+            recommended_action=candidate.recommended_action,
+            site_position=self._candidate_site_position(candidate.latitude, candidate.longitude),
+            trend=[],
+        )
+
+    def _candidate_site_position(self, latitude: float, longitude: float) -> SitePosition:
+        west, south, east, north = 46.0, 40.0, 87.0, 56.0
+        normalized_x = round(((longitude - west) / (east - west)) * 100)
+        normalized_y = round((1 - ((latitude - south) / (north - south))) * 100)
+        return SitePosition(
+            x=max(0, min(100, normalized_x)),
+            y=max(0, min(100, normalized_y)),
+        )
+
+    def _live_measurement_summary(self, anomaly: Anomaly) -> str:
+        thermal_note = (
+            f"{anomaly.night_thermal_hits_72h} night-time VIIRS detections"
+            if anomaly.night_thermal_hits_72h
+            else "no night-time VIIRS detections"
+        )
+        location_tail = ""
+        if anomaly.verification_area:
+            location_tail = f" Verification area: {anomaly.verification_area}."
+        if anomaly.nearest_landmark:
+            location_tail += f" Nearest landmark: {anomaly.nearest_landmark}."
+        return (
+            f"Live screening flagged {anomaly.asset_name} in {anomaly.region} with "
+            f"+{anomaly.methane_delta_ppb:.2f} ppb ({anomaly.methane_delta_pct:.2f}%) methane uplift "
+            f"versus the rolling baseline and {thermal_note} inside the 25 km context window."
+            f"{location_tail}"
+        )
+
+    def _live_progress_summary(self, anomaly: Anomaly, incident: Incident) -> str:
+        return (
+            f"{self._completed_tasks(incident)}/{len(incident.tasks)} verification tasks are complete. "
+            f"This live screening queue does not estimate tCO2e yet; it keeps the candidate operationally ranked by "
+            f"methane uplift and nearby thermal context."
+        )
 
     def _find_anomaly(self, anomaly_id: str) -> Anomaly:
         for anomaly in self.anomalies:

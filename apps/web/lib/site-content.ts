@@ -7,7 +7,7 @@ export type NavTarget = StepId | "faq";
 
 export const stepOrder: StepId[] = ["signal", "incident", "verification", "report"];
 
-export const copy = {
+const baseCopy = {
   en: {
     brand: "Saryna MRV",
     tagline: "Find the signal. Open the case. Verify it. Export the report.",
@@ -55,7 +55,10 @@ export const copy = {
       reportSections: "Report sections",
       screening: "Initial review",
       noReport: "Not generated",
-      coordinates: "Coordinates",
+      coordinates: "Suspected zone coordinates",
+      verificationArea: "Verification area",
+      nearestAddress: "Nearest address",
+      nearestLandmark: "Nearest landmark",
       recommendation: "Recommended action",
       incident: "Case summary",
       tasks: "Verification tasks",
@@ -109,6 +112,8 @@ export const copy = {
       openVerification: "Open verification",
       generateReport: "Generate report",
       generating: "Generating...",
+      downloadPdf: "Download PDF",
+      downloadWord: "Download Word",
       downloadHtml: "Download HTML",
       exporting: "Exporting...",
       printView: "Open print view",
@@ -132,6 +137,14 @@ export const copy = {
       workflow: "This shows where the case is right now: initial review, verification, or mitigation.",
       detected: "This is the timestamp of the latest observation used for the current signal.",
       confidence: "Confidence shows how stable and repeatable the signal looks across the available observations.",
+      coordinates:
+        "These coordinates show the center of the suspected zone, not a proven leak point or exact source asset.",
+      verificationArea:
+        "This is the practical area for field review around the live hotspot, based on the nearest mapped district or local area.",
+      nearestAddress:
+        "This is the closest mapped address near the suspected zone center. It is a routing hint, not proof of the exact source.",
+      nearestLandmark:
+        "This is the closest mapped place or landmark near the suspected zone center. Use it as a navigation anchor in Google Maps or 2GIS.",
       map: "The dots show asset positions on the Kazakhstan map. This is a real map layer with markers, but not a live satellite plume layer.",
       demo: "Demo mode means the workflow is live, but the current anomaly content still comes from seeded demo data.",
       syncEvidence:
@@ -211,6 +224,15 @@ export const copy = {
           ],
         },
         {
+          id: "location",
+          question: "What do verification area, nearest address, and nearest landmark mean?",
+          answer: [
+            "These fields help the team navigate to the suspected zone without pretending that the system already knows the exact leaking valve or exact source point.",
+            "Verification area shows the nearest mapped district or local area around the center of the satellite hotspot.",
+            "Nearest address and nearest landmark come from reverse geocoding near that center point. They are route-planning hints for field review, not final proof of the source.",
+          ],
+        },
+        {
           id: "demo",
           question: "Why can demo mode appear?",
           answer: [
@@ -286,7 +308,10 @@ export const copy = {
       reportSections: "Разделы отчёта",
       screening: "Первичный разбор",
       noReport: "Ещё не сформирован",
-      coordinates: "Координаты",
+      coordinates: "Координаты предполагаемой зоны",
+      verificationArea: "Район проверки",
+      nearestAddress: "Ближайший адрес",
+      nearestLandmark: "Ближайший ориентир",
       recommendation: "Рекомендуемое действие",
       incident: "Кратко о кейсе",
       tasks: "Задачи проверки",
@@ -326,7 +351,7 @@ export const copy = {
         "Карта остаётся доступной. Спутниковый скрининг сейчас недоступен, поэтому ориентируйтесь на видимый контекст и демонстрационный сценарий.",
       mapContextSeeded: "Демо-контекст",
       mapContextLive: "Обновлённый контекст",
-      mapContextFallback: "Резервный контекст",
+      mapContextFallback: "Живые данные недоступны",
       assets: "Выбранный объект",
       noIncident: "Инцидент ещё не создан",
       noIncidentHint: "Создайте инцидент, чтобы открыть следующие шаги.",
@@ -340,6 +365,8 @@ export const copy = {
       openVerification: "Открыть проверку",
       generateReport: "Сформировать отчёт",
       generating: "Формируем...",
+      downloadPdf: "Скачать PDF",
+      downloadWord: "Скачать Word",
       downloadHtml: "Скачать HTML",
       exporting: "Выгружаем...",
       printView: "Версия для печати",
@@ -363,6 +390,14 @@ export const copy = {
       workflow: "Здесь видно, на каком этапе находится кейс: первичный разбор, проверка или устранение.",
       detected: "Это время последнего наблюдения, на котором основан текущий сигнал.",
       confidence: "Уверенность показывает, насколько устойчиво и повторяемо выглядит сигнал по доступным наблюдениям.",
+      coordinates:
+        "Эти координаты показывают центр предполагаемой зоны, а не доказанную точку утечки и не точный источник выброса.",
+      verificationArea:
+        "Это практический район для выездной проверки вокруг живого hotspot, определённый по ближайшему району или локальной зоне на карте.",
+      nearestAddress:
+        "Это ближайший адрес, найденный рядом с центром предполагаемой зоны. Это ориентир для маршрута, а не доказательство точного источника.",
+      nearestLandmark:
+        "Это ближайший отмеченный на карте объект или ориентир рядом с центром предполагаемой зоны. Его можно использовать как точку привязки в Google Maps или 2GIS.",
       map: "Точки показывают положение объектов на карте Казахстана. Это реальная карта с маркерами, но не живой спутниковый слой выброса.",
       demo: "Демо-режим означает, что сам интерфейс работает, но содержание сигналов пока берётся из демонстрационных данных.",
       syncEvidence:
@@ -374,11 +409,11 @@ export const copy = {
       createIncidentAction:
         "Эта кнопка создаёт рабочий кейс по выбранному сигналу. После этого у случая появляется ответственный и становится доступна проверка.",
       severityUrgent:
-        "Urgent означает, что этот сигнал выглядит сильным и его нужно проверить в первую очередь. Это самый высокий приоритет в списке.",
+        "Срочно означает, что этот сигнал выглядит сильным и его нужно проверить в первую очередь. Это самый высокий приоритет в списке.",
       severityCheck:
-        "Check означает, что сигнал важный, но не самый срочный на экране. Его стоит разобрать после urgent-случаев.",
+        "Проверить означает, что сигнал важный, но не самый срочный на экране. Его стоит разобрать после самых срочных случаев.",
       severityWatch:
-        "Watch означает, что сигнал слабее или пока менее уверен. Его нужно держать в поле зрения и сравнивать со следующими обновлениями перед эскалацией.",
+        "Наблюдать означает, что сигнал слабее или пока менее уверен. Его нужно держать в поле зрения и сравнивать со следующими обновлениями перед эскалацией.",
     },
     footer: {
       note: "Copyright 2026. Все права защищены.",
@@ -442,6 +477,15 @@ export const copy = {
           ],
         },
         {
+          id: "location",
+          question: "Что означают район проверки, ближайший адрес и ближайший ориентир?",
+          answer: [
+            "Эти поля помогают команде доехать до предполагаемой зоны и при этом не создают ложного впечатления, что система уже знает точный вентиль или точную точку выброса.",
+            "Район проверки показывает ближайший район или локальную зону вокруг центра спутникового hotspot.",
+            "Ближайший адрес и ближайший ориентир получаются через reverse geocoding рядом с этим центром. Это навигационные подсказки для выездной проверки, а не окончательное доказательство источника.",
+          ],
+        },
+        {
           id: "demo",
           question: "Почему может появляться демо-режим?",
           answer: [
@@ -498,9 +542,113 @@ const regionTranslations = {
   "Atyrau Region": { en: "Atyrau Region", ru: "Атырауская область" },
   "Mangystau Region": { en: "Mangystau Region", ru: "Мангистауская область" },
   "Aktobe Region": { en: "Aktobe Region", ru: "Актюбинская область" },
+  "Aqtöbe Region": { en: "Aqtöbe Region", ru: "Актюбинская область" },
   "West Kazakhstan Region": { en: "West Kazakhstan Region", ru: "Западно-Казахстанская область" },
   "Kyzylorda Region": { en: "Kyzylorda Region", ru: "Кызылординская область" },
   "Pavlodar Region": { en: "Pavlodar Region", ru: "Павлодарская область" },
+} as const;
+
+const uiTermReplacements: Record<Locale, ReadonlyArray<readonly [string | RegExp, string]>> = {
+  en: [
+    ["Find the signal.", "Find the suspected zone."],
+    ["Turn methane and flare signals into cases, checks, and reports.", "Turn methane and flare suspected zones into cases, checks, and reports."],
+    ["See the signal, open the case, verify it, and export the result.", "See the suspected zone, open the case, verify it, and export the result."],
+    ["Selected signal", "Selected suspected zone"],
+    ["Signals", "Suspected zones"],
+    ["Choose one signal", "Choose one suspected zone"],
+    ["Strongest signal", "Strongest suspected zone"],
+    ["Signal score", "Zone score"],
+    ["Review another signal", "Review another suspected zone"],
+    ["Back to signal", "Back to zone"],
+    ["No signal is available.", "No suspected zone is available."],
+    ["This is the strongest signal selected for the current review.", "This is the strongest suspected zone selected for the current review."],
+    ["The signal says something may be wrong. The incident says who is responsible for checking it.", "The suspected zone shows that something may be wrong. The incident says who is responsible for checking it."],
+    ["What does the signal score mean?", "What does the zone score mean?"],
+    [/\bsignals\b/g, "suspected zones"],
+    [/\bSignals\b/g, "Suspected zones"],
+    [/\bsignal\b/g, "suspected zone"],
+    [/\bSignal\b/g, "Suspected zone"],
+  ],
+  ru: [
+    ["Найдите сигнал.", "Найдите подозрительную зону."],
+    ["Превращайте сигналы по метану и факелам в кейсы, проверки и отчёты.", "Превращайте подозрительные зоны по метану и факелам в кейсы, проверки и отчёты."],
+    ["Посмотрите сигнал, откройте кейс, проведите проверку и выгрузите результат.", "Посмотрите подозрительную зону, откройте кейс, проведите проверку и выгрузите результат."],
+    ["Выбранный сигнал", "Выбранная подозрительная зона"],
+    ["Выберите один сигнал", "Выберите одну подозрительную зону"],
+    ["Самый сильный сигнал", "Самая сильная подозрительная зона"],
+    ["Оценка сигнала", "Оценка зоны"],
+    ["Вернуться к сигналу", "Вернуться к зоне"],
+    ["Сигнал сейчас недоступен.", "Подозрительная зона сейчас недоступна."],
+    ["Это самый важный сигнал, выбранный для текущего разбора.", "Это самая важная подозрительная зона, выбранная для текущего разбора."],
+    ["Это время последнего наблюдения, на котором основан текущий сигнал.", "Это время последнего наблюдения, на котором основана текущая подозрительная зона."],
+    ["Проще говоря, сигнал говорит, что может быть проблема, а инцидент показывает, кто теперь отвечает за разбор.", "Проще говоря, подозрительная зона показывает, что может быть проблема, а инцидент показывает, кто теперь отвечает за разбор."],
+    ["Инцидент — это рабочий кейс, который создаётся из сигнала, если по нему уже нужно действие.", "Инцидент — это рабочий кейс, который создаётся из подозрительной зоны, если по ней уже нужно действие."],
+    ["Он даёт сигналу ответственного, приоритет и срок для проверки.", "Он привязывает к подозрительной зоне ответственного, приоритет и срок для проверки."],
+    ["Отчёт коротко собирает сам сигнал, ответственного по кейсу, выполненные задачи и текущий статус проверки.", "Отчёт коротко собирает саму подозрительную зону, ответственного по кейсу, выполненные задачи и текущий статус проверки."],
+    ["Уверенность показывает, насколько стабильно сигнал выглядит по доступным наблюдениям.", "Уверенность показывает, насколько стабильно выглядит эта зона по доступным наблюдениям."],
+    ["Демо-режим означает, что сам интерфейс работает, но содержание сигналов пока берётся из демонстрационных данных.", "Демо-режим означает, что сам интерфейс работает, но содержание подозрительных зон пока берётся из демонстрационных данных."],
+    ["Эта кнопка открывает уже созданный рабочий кейс по выбранному сигналу, чтобы вы могли продолжить проверку и подготовку отчёта.", "Эта кнопка открывает уже созданный рабочий кейс по выбранной подозрительной зоне, чтобы вы могли продолжить проверку и подготовку отчёта."],
+    ["Эта кнопка создаёт рабочий кейс по выбранному сигналу. После этого у случая появляется ответственный и становится доступна проверка.", "Эта кнопка создаёт рабочий кейс по выбранной подозрительной зоне. После этого у случая появляется ответственный и становится доступна проверка."],
+    ["Срочно означает, что этот сигнал выглядит сильным и его нужно проверить в первую очередь. Это самый высокий приоритет в списке.", "Срочно означает, что эта подозрительная зона выглядит серьёзной и её нужно проверить в первую очередь. Это самый высокий приоритет в списке."],
+    ["Проверить означает, что сигнал важный, но не самый срочный на экране. Его стоит разобрать после самых срочных случаев.", "Проверить означает, что эта подозрительная зона важна, но не является самой срочной на экране. Её стоит разобрать после самых срочных случаев."],
+    ["Наблюдать означает, что сигнал слабее или пока менее уверен. Его нужно держать в поле зрения и сравнивать со следующими обновлениями перед эскалацией.", "Наблюдать означает, что эта подозрительная зона слабее или пока менее уверенно подтверждена. Её нужно держать в поле зрения и сравнивать со следующими обновлениями перед эскалацией."],
+    ["Сигналы", "Подозрительные зоны"],
+    ["сигналы", "подозрительные зоны"],
+    ["сигналов", "подозрительных зон"],
+    ["сигналу", "подозрительной зоне"],
+    ["сигнала", "подозрительной зоны"],
+    ["сигналом", "подозрительной зоной"],
+    ["сигнале", "подозрительной зоне"],
+    ["Сигнал", "Подозрительная зона"],
+    ["сигнал", "подозрительная зона"],
+  ],
+};
+
+function applyUiTermReplacements(value: string, locale: Locale) {
+  let nextValue = value;
+
+  for (const [pattern, replacement] of uiTermReplacements[locale]) {
+    nextValue =
+      typeof pattern === "string"
+        ? nextValue.replaceAll(pattern, replacement)
+        : nextValue.replace(pattern, replacement);
+  }
+
+  return nextValue;
+}
+
+function transformCopyTree<T>(value: T, locale: Locale): T {
+  if (typeof value === "string") {
+    return applyUiTermReplacements(value, locale) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => transformCopyTree(item, locale)) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        transformCopyTree(item, locale),
+      ]),
+    ) as T;
+  }
+
+  return value;
+}
+
+export const copy = {
+  en: transformCopyTree(baseCopy.en, "en"),
+  ru: transformCopyTree(baseCopy.ru, "ru"),
+} as typeof baseCopy;
+
+const districtTranslations = {
+  "Zhylyoi District": { en: "Zhylyoi District", ru: "Жылыойский район" },
+  "Isatay District": { en: "Isatay District", ru: "Исатайский район" },
+  "Shalqar District": { en: "Shalqar District", ru: "Шалкарский район" },
+  "Shalkar District": { en: "Shalkar District", ru: "Шалкарский район" },
+  "Zhanakala District": { en: "Zhanakala District", ru: "Жангалинский район" },
 } as const;
 
 const assetTranslations = {
@@ -522,13 +670,37 @@ const confidenceTranslations = {
     en: "High confidence / persistent over 8 days / live GEE sync verified",
     ru: "Высокая уверенность / сигнал держится 8 дней / синхронизация GEE подтверждена",
   },
+  "High screening confidence / methane uplift plus night thermal context": {
+    en: "High screening confidence / methane uplift plus night thermal context",
+    ru: "Высокая уверенность скрининга / рост метана подтверждён ночным тепловым контекстом",
+  },
+  "High screening confidence / methane uplift without thermal confirmation": {
+    en: "High screening confidence / methane uplift without thermal confirmation",
+    ru: "Высокая уверенность скрининга / рост метана без теплового подтверждения рядом",
+  },
   "Medium confidence / single-week deviation": {
     en: "Medium confidence / single-week deviation",
     ru: "Средняя уверенность / отклонение замечено за одну неделю",
   },
+  "Medium screening confidence / uplift confirmed by nearby thermal detections": {
+    en: "Medium screening confidence / uplift confirmed by nearby thermal detections",
+    ru: "Средняя уверенность скрининга / рост метана подтверждён ближайшими тепловыми детекциями",
+  },
+  "Medium screening confidence / uplift above rolling baseline": {
+    en: "Medium screening confidence / uplift above rolling baseline",
+    ru: "Средняя уверенность скрининга / рост метана выше скользящего базового уровня",
+  },
   "Watchlist / flare-led signal": {
     en: "Watchlist / flare-led signal",
     ru: "Наблюдение / сигнал в основном связан с факельной активностью",
+  },
+  "Watchlist / thermal context without strong methane contrast": {
+    en: "Watchlist / thermal context without strong methane contrast",
+    ru: "Наблюдение / есть тепловой контекст, но контраст по метану пока слабый",
+  },
+  "Watchlist / methane contrast remains modest in the latest valid scene": {
+    en: "Watchlist / methane contrast remains modest in the latest valid scene",
+    ru: "Наблюдение / в последней валидной сцене контраст по метану остаётся умеренным",
   },
 } as const;
 
@@ -595,22 +767,22 @@ const incidentNarrativeTranslations = {
   },
   "Fallback incident created in the frontend so the flow remains usable when the API is unavailable.": {
     en: "Fallback incident created in the frontend so the flow remains usable when the API is unavailable.",
-    ru: "Резервный инцидент создан на стороне интерфейса, чтобы сценарий оставался рабочим, даже когда API недоступен.",
+    ru: "Временный инцидент создан на стороне интерфейса, чтобы сценарий оставался рабочим, даже когда API недоступен.",
   },
 } as const;
 
 const anomalySummaryTranslations = {
-  "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.": {
-    en: "Elevated methane column overlaps recurring Nightfire activity close to a compression corridor.",
-    ru: "Повышенная концентрация метана совпадает с повторяющимися признаками ночного горения по данным Nightfire рядом с компрессорным коридором.",
+  "Elevated methane column overlaps recurring night-burning context close to a compression corridor.": {
+    en: "Elevated methane column overlaps recurring night-burning context close to a compression corridor.",
+    ru: "Повышенная концентрация метана совпадает с повторяющимися признаками ночного горения рядом с компрессорным коридором.",
   },
   "Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.": {
     en: "Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.",
     ru: "Аномалия по метану выше медианы за 12 недель, но факельная активность выглядит менее устойчивой, чем у главного случая.",
   },
-  "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.": {
-    en: "Nightfire signal is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
-    ru: "Сигнал ночного горения по данным Nightfire сильный, но распространение метана остаётся низким. Этот случай больше подходит для наблюдения за динамикой, чем для срочного выезда.",
+  "Night-burning context is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.": {
+    en: "Night-burning context is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
+    ru: "Признаки ночного горения заметны, но распространение метана остаётся низким. Этот случай больше подходит для наблюдения за динамикой, чем для срочного выезда.",
   },
   "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.": {
     en: "Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.",
@@ -709,7 +881,7 @@ const screeningConfidenceTranslations = {
   },
   "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.": {
     en: "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
-    ru: "Подтверждённый живой снимок пока не сохранён. В качестве резервного сценария используйте демонстрационный MRV-процесс.",
+    ru: "Подтверждённый живой снимок пока не сохранён. Пока используйте демонстрационный MRV-сценарий как временный рабочий вариант.",
   },
 } as const;
 
@@ -725,13 +897,17 @@ const screeningRecommendationTranslations = {
     en: "Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
     ru: "Используйте демонстрационный блок данных, чтобы показать логику скрининга, а затем вручную переведите случай в рабочий кейс.",
   },
+  "Use the seeded evidence block to explain nationwide screening coverage, then promote manually when you are ready to open an operational case.": {
+    en: "Use the seeded evidence block to explain nationwide screening coverage, then promote manually when you are ready to open an operational case.",
+    ru: "Используйте демонстрационный блок данных, чтобы показать покрытие скрининга по всему Казахстану, а затем вручную переведите случай в рабочий кейс.",
+  },
   "Review the refreshed satellite comparison, then promote manually if this area still deserves operational verification.": {
-    en: "Review the refreshed satellite comparison, then promote manually if this area still deserves operational verification.",
-    ru: "Посмотрите обновлённое спутниковое сравнение, затем вручную создайте инцидент, если эта зона всё ещё требует проверки.",
+    en: "Review the refreshed methane comparison first. If this suspected zone still looks important, open an incident and assign an owner. Use the zone coordinates, verification area, and nearest mapped landmark to plan the field check.",
+    ru: "Сначала посмотрите обновлённое сравнение по метану. Если эта подозрительная зона всё ещё выглядит важной, создайте инцидент и назначьте ответственного. Для выездной проверки используйте координаты зоны, район проверки и ближайший ориентир на карте.",
   },
   "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.": {
     en: "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
-    ru: "Повторите живое обновление или используйте демонстрационный сценарий как резервный вариант, пока не появится подтверждённый снимок.",
+    ru: "Повторите живое обновление или временно используйте демонстрационный сценарий, пока не появится подтверждённый снимок.",
   },
   "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.": {
     en: "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.",
@@ -771,7 +947,23 @@ function translateWithMap<T extends string>(
   locale: Locale,
   dictionary: Record<T, { en: string; ru: string }>,
 ) {
-  return dictionary[value as T]?.[locale] ?? value;
+  return applyUiTermReplacements(dictionary[value as T]?.[locale] ?? value, locale);
+}
+
+function translateAdministrativeFragments(value: string, locale: Locale) {
+  if (locale === "en") return value;
+
+  let translated = value;
+
+  for (const [source, localized] of Object.entries(districtTranslations)) {
+    translated = translated.replaceAll(source, localized.ru);
+  }
+
+  for (const [source, localized] of Object.entries(regionTranslations)) {
+    translated = translated.replaceAll(source, localized.ru);
+  }
+
+  return translated;
 }
 
 export function translateRegion(region: string, locale: Locale) {
@@ -815,7 +1007,7 @@ export function translateRecommendedAction(action: string, locale: Locale) {
 }
 
 export function translateScreeningAreaLabel(label: string, locale: Locale) {
-  return translateWithMap(label, locale, screeningAreaTranslations);
+  return translateAdministrativeFragments(translateWithMap(label, locale, screeningAreaTranslations), locale);
 }
 
 export function translateScreeningEvidenceSource(source: string, locale: Locale) {
@@ -823,7 +1015,46 @@ export function translateScreeningEvidenceSource(source: string, locale: Locale)
 }
 
 export function translateScreeningObservedWindow(windowLabel: string, locale: Locale) {
-  return translateWithMap(windowLabel, locale, screeningObservedWindowTranslations);
+  const directMatch = translateWithMap(windowLabel, locale, screeningObservedWindowTranslations);
+  if (locale === "en" || directMatch !== windowLabel) {
+    return directMatch;
+  }
+
+  const recentSceneMatch = windowLabel.match(
+    /^Most recent valid TROPOMI scene on (.+?) compared against the previous 84-day Kazakhstan baseline\.$/,
+  );
+  if (recentSceneMatch) {
+    return `Последняя валидная сцена TROPOMI от ${recentSceneMatch[1]} сопоставлена с предыдущим 84-дневным базовым уровнем по Казахстану.`;
+  }
+
+  const baselineWindowMatch = windowLabel.match(/^84-day Kazakhstan baseline before (.+?); (\d+) recent valid scenes checked\.$/);
+  if (baselineWindowMatch) {
+    return `84-дневный базовый уровень по Казахстану до ${baselineWindowMatch[1]}; проверено ${baselineWindowMatch[2]} недавних валидных сцен.`;
+  }
+
+  return translateAdministrativeFragments(windowLabel, locale);
+}
+
+export function translateAdministrativeLabel(label: string, locale: Locale) {
+  return translateAdministrativeFragments(label, locale);
+}
+
+export function formatVerificationAreaLabel(
+  label: string,
+  region: string | null | undefined,
+  locale: Locale,
+) {
+  const translatedArea = translateAdministrativeLabel(label, locale);
+  if (!region) return translatedArea;
+
+  const translatedRegion = translateRegion(region, locale);
+  const suffix = `, ${translatedRegion}`;
+
+  if (translatedArea.endsWith(suffix)) {
+    return translatedArea.slice(0, -suffix.length);
+  }
+
+  return translatedArea;
 }
 
 export function translateScreeningConfidenceNote(note: string, locale: Locale) {

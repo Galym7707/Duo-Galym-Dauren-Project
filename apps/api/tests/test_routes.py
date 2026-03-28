@@ -1,9 +1,12 @@
+from io import BytesIO
+
+from docx import Document
 from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.main import app
 from app.models import CreateTaskRequest
-from app.providers.gee import GeeSyncSummary
+from app.providers.gee import GeeCandidate, GeeSyncSummary
 from app.services.demo_store import DemoStore
 from app.services.pipeline_service import PipelineService
 
@@ -12,6 +15,35 @@ def make_client() -> TestClient:
     routes.store = DemoStore()
     routes.pipeline_service = PipelineService(routes.store)
     return TestClient(app)
+
+
+def make_live_candidate() -> GeeCandidate:
+    return GeeCandidate(
+        id="GEE-20260327-01",
+        asset_name="Atyrau Region CH4 hotspot 01",
+        region="Atyrau Region",
+        facility_type="Methane hotspot with night thermal context",
+        severity="high",
+        detected_at="2026-03-27 08:00",
+        methane_delta_pct=3.41,
+        methane_delta_ppb=62.2,
+        signal_score=82,
+        confidence="High screening confidence / methane uplift plus night thermal context",
+        coordinates="46.190 N, 51.858 E",
+        latitude=46.19,
+        longitude=51.858,
+        summary="Live candidate summary",
+        recommended_action="Promote this candidate into an incident and send it to field verification.",
+        current_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        thermal_hits_72h=12,
+        night_thermal_hits_72h=12,
+        evidence_source="Google Earth Engine / Sentinel-5P + VIIRS thermal context",
+        baseline_window="84-day Kazakhstan baseline before 2026-03-27 08:00 UTC",
+        verification_area="Makat District, Atyrau Region",
+        nearest_address="A27, Atyrau Region",
+        nearest_landmark="Tengiz Field",
+    )
 
 
 def test_health_and_dashboard_contract() -> None:
@@ -70,15 +102,24 @@ def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:
         delta_abs_ppb=62.2,
         delta_pct=3.41,
         scene_count=12,
+        candidates=[make_live_candidate()],
     )
 
     sync_response = client.post("/api/v1/pipeline/sync", json={"source": "gee"})
-    promote_response = client.post("/api/v1/anomalies/AN-117/promote", json={"owner": "ESG desk"})
+    dashboard_after_sync = client.get("/api/v1/dashboard")
+    live_anomaly_id = dashboard_after_sync.json()["anomalies"][0]["id"]
+    promote_response = client.post(f"/api/v1/anomalies/{live_anomaly_id}/promote", json={"owner": "ESG desk"})
 
     assert sync_response.status_code == 200
     assert sync_response.json()["status"]["screening_snapshot"]["freshness"] == "fresh"
+    assert sync_response.json()["status"]["anomaly_count"] == 1
+    live_anomaly = dashboard_after_sync.json()["anomalies"][0]
+    assert live_anomaly["verification_area"] == "Makat District, Atyrau Region"
+    assert live_anomaly["nearest_address"] == "A27, Atyrau Region"
+    assert live_anomaly["nearest_landmark"] == "Tengiz Field"
     assert promote_response.status_code == 201
-    assert promote_response.json()["anomaly_id"] == "AN-117"
+    assert promote_response.json()["anomaly_id"] == live_anomaly_id
+    assert promote_response.json()["id"] == "INC-20260327-01"
 
 
 def test_incident_task_report_flow_preserves_audit_contract() -> None:
@@ -115,3 +156,31 @@ def test_incident_task_report_flow_preserves_audit_contract() -> None:
     assert report.json()["incident"]["status"] == "mitigation"
     assert any(event["action"] == "report_generated" for event in audit.json()["events"])
     assert "Audit Timeline" in export.text
+
+
+def test_report_export_supports_html_pdf_and_docx() -> None:
+    client = make_client()
+
+    report = client.post("/api/v1/incidents/INC-204/report")
+    assert report.status_code == 200
+
+    html = client.get("/api/v1/incidents/INC-204/report/export?format=html&locale=ru")
+    pdf = client.get("/api/v1/incidents/INC-204/report/export?format=pdf&locale=ru")
+    docx = client.get("/api/v1/incidents/INC-204/report/export?format=docx&locale=ru")
+
+    assert html.status_code == 200
+    assert pdf.status_code == 200
+    assert docx.status_code == 200
+
+    assert "Отчет Saryna MRV" in html.text
+    assert "attachment; filename=\"inc-204-mrv-report.pdf\"" in pdf.headers["content-disposition"]
+    assert pdf.content.startswith(b"%PDF")
+    assert (
+        "attachment; filename=\"inc-204-mrv-report.docx\""
+        in docx.headers["content-disposition"]
+    )
+    assert docx.content.startswith(b"PK")
+
+    document = Document(BytesIO(docx.content))
+    full_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    assert "Отчет Saryna MRV" in full_text

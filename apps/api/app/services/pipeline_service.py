@@ -67,6 +67,10 @@ class PipelineService:
                 screening_level=self._screening_level(summary.delta_pct),
                 status_message=summary.message,
             )
+            self.store.apply_live_candidates(
+                candidates=summary.candidates,
+                latest_observation_at=summary.latest_observation_at,
+            )
             mean_fragment = (
                 f"Current CH4 {summary.mean_ch4_ppb} ppb vs baseline {summary.baseline_ch4_ppb} ppb."
                 if summary.mean_ch4_ppb is not None and summary.baseline_ch4_ppb is not None
@@ -91,13 +95,13 @@ class PipelineService:
                     ),
                     PipelineStage(
                         label="Normalization layer",
-                        value="Screening evidence refreshed",
-                        detail=mean_fragment,
+                        value="Live candidates refreshed",
+                        detail=f"{mean_fragment} {len(summary.candidates)} live candidates were pushed into the operational queue.",
                     ),
                     PipelineStage(
                         label="Verification layer",
                         value="Promotion remains manual",
-                        detail="The evidence layer is live, while incident, task, and MRV workflow stay demo-safe.",
+                        detail="Live screening candidates now feed the queue, while incident, task, and MRV workflow remain manually promoted and auditable.",
                     ),
                 ],
                 screening_snapshot=snapshot,

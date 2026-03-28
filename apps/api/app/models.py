@@ -57,18 +57,28 @@ class Anomaly(BaseModel):
     facility_type: str
     severity: Severity
     detected_at: str
-    methane_delta_pct: int
-    co2e_tonnes: int
-    flare_hours: int
+    methane_delta_pct: float
+    methane_delta_ppb: float | None = None
+    co2e_tonnes: float | None = None
+    flare_hours: float | None = None
+    thermal_hits_72h: int | None = None
+    night_thermal_hits_72h: int | None = None
+    current_ch4_ppb: float | None = None
+    baseline_ch4_ppb: float | None = None
+    evidence_source: str | None = None
+    baseline_window: str | None = None
     signal_score: int = Field(ge=0, le=100)
     confidence: str
     coordinates: str
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    verification_area: str | None = None
+    nearest_address: str | None = None
+    nearest_landmark: str | None = None
     summary: str
     recommended_action: str
     site_position: SitePosition
-    trend: list[TrendPoint]
+    trend: list[TrendPoint] = Field(default_factory=list)
     linked_incident_id: str | None = None
 
 
