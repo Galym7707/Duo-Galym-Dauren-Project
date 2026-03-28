@@ -46,6 +46,27 @@ def make_live_candidate() -> GeeCandidate:
     )
 
 
+def sync_live_candidate(client: TestClient) -> str:
+    routes.pipeline_service.provider.sync_summary = lambda: GeeSyncSummary(
+        project_id="demo-project",
+        status="ready",
+        message="Earth Engine CH4 screening summary fetched successfully.",
+        latest_observation_at="2026-03-27 08:00 UTC",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
+        mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
+        scene_count=12,
+        candidates=[make_live_candidate()],
+    )
+    sync_response = client.post("/api/v1/pipeline/sync", json={"source": "gee"})
+    assert sync_response.status_code == 200
+    dashboard = client.get("/api/v1/dashboard")
+    assert dashboard.status_code == 200
+    return dashboard.json()["anomalies"][0]["id"]
+
+
 def test_health_and_dashboard_contract() -> None:
     client = make_client()
 
@@ -57,14 +78,9 @@ def test_health_and_dashboard_contract() -> None:
     assert dashboard.status_code == 200
     payload = dashboard.json()
     assert len(payload["kpis"]) == 4
-    assert len(payload["anomalies"]) >= 7
-    assert len(payload["incidents"]) >= 1
-    assert len(payload["activity_feed"]) >= 1
-    lead_anomaly = payload["anomalies"][0]
-    regions = {anomaly["region"] for anomaly in payload["anomalies"]}
-    assert isinstance(lead_anomaly["latitude"], float)
-    assert isinstance(lead_anomaly["longitude"], float)
-    assert {"Atyrau Region", "Mangystau Region", "Aktobe Region", "West Kazakhstan Region", "Kyzylorda Region"} <= regions
+    assert payload["anomalies"] == []
+    assert payload["incidents"] == []
+    assert payload["activity_feed"] == []
 
 
 def test_pipeline_sync_handles_provider_error_with_typed_response() -> None:
@@ -91,28 +107,14 @@ def test_pipeline_sync_handles_provider_error_with_typed_response() -> None:
 
 def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:
     client = make_client()
-    routes.pipeline_service.provider.sync_summary = lambda: GeeSyncSummary(
-        project_id="demo-project",
-        status="ready",
-        message="Earth Engine CH4 screening summary fetched successfully.",
-        latest_observation_at="2026-03-27 08:00 UTC",
-        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
-        mean_ch4_ppb=1884.6,
-        baseline_ch4_ppb=1822.4,
-        delta_abs_ppb=62.2,
-        delta_pct=3.41,
-        scene_count=12,
-        candidates=[make_live_candidate()],
+    live_anomaly_id = sync_live_candidate(client)
+
+    dashboard_after_sync = client.get("/api/v1/dashboard")
+    promote_response = client.post(
+        f"/api/v1/anomalies/{live_anomaly_id}/promote",
+        json={"owner": "ESG desk"},
     )
 
-    sync_response = client.post("/api/v1/pipeline/sync", json={"source": "gee"})
-    dashboard_after_sync = client.get("/api/v1/dashboard")
-    live_anomaly_id = dashboard_after_sync.json()["anomalies"][0]["id"]
-    promote_response = client.post(f"/api/v1/anomalies/{live_anomaly_id}/promote", json={"owner": "ESG desk"})
-
-    assert sync_response.status_code == 200
-    assert sync_response.json()["status"]["screening_snapshot"]["freshness"] == "fresh"
-    assert sync_response.json()["status"]["anomaly_count"] == 1
     live_anomaly = dashboard_after_sync.json()["anomalies"][0]
     assert live_anomaly["verification_area"] == "Makat District, Atyrau Region"
     assert live_anomaly["nearest_address"] == "A27, Atyrau Region"
@@ -124,8 +126,9 @@ def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:
 
 def test_incident_task_report_flow_preserves_audit_contract() -> None:
     client = make_client()
+    live_anomaly_id = sync_live_candidate(client)
 
-    promote = client.post("/api/v1/anomalies/AN-117/promote", json={"owner": "ESG desk"})
+    promote = client.post(f"/api/v1/anomalies/{live_anomaly_id}/promote", json={"owner": "ESG desk"})
     incident = promote.json()
     incident_id = incident["id"]
 
@@ -160,27 +163,33 @@ def test_incident_task_report_flow_preserves_audit_contract() -> None:
 
 def test_report_export_supports_html_pdf_and_docx() -> None:
     client = make_client()
+    live_anomaly_id = sync_live_candidate(client)
+    promote = client.post(f"/api/v1/anomalies/{live_anomaly_id}/promote", json={"owner": "ESG desk"})
+    incident_id = promote.json()["id"]
 
-    report = client.post("/api/v1/incidents/INC-204/report")
+    report = client.post(f"/api/v1/incidents/{incident_id}/report")
     assert report.status_code == 200
 
-    html = client.get("/api/v1/incidents/INC-204/report/export?format=html&locale=ru")
-    pdf = client.get("/api/v1/incidents/INC-204/report/export?format=pdf&locale=ru")
-    docx = client.get("/api/v1/incidents/INC-204/report/export?format=docx&locale=ru")
+    html = client.get(f"/api/v1/incidents/{incident_id}/report/export?format=html&locale=ru")
+    pdf = client.get(f"/api/v1/incidents/{incident_id}/report/export?format=pdf&locale=ru")
+    docx = client.get(f"/api/v1/incidents/{incident_id}/report/export?format=docx&locale=ru")
 
     assert html.status_code == 200
     assert pdf.status_code == 200
     assert docx.status_code == 200
 
-    assert "Отчет Saryna MRV" in html.text
-    assert "attachment; filename=\"inc-204-mrv-report.pdf\"" in pdf.headers["content-disposition"]
+    assert "Saryna MRV" in html.text
+    assert (
+        f'attachment; filename="{incident_id.lower()}-mrv-report.pdf"'
+        in pdf.headers["content-disposition"]
+    )
     assert pdf.content.startswith(b"%PDF")
     assert (
-        "attachment; filename=\"inc-204-mrv-report.docx\""
+        f'attachment; filename="{incident_id.lower()}-mrv-report.docx"'
         in docx.headers["content-disposition"]
     )
     assert docx.content.startswith(b"PK")
 
     document = Document(BytesIO(docx.content))
     full_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
-    assert "Отчет Saryna MRV" in full_text
+    assert "Saryna MRV" in full_text

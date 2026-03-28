@@ -31,332 +31,31 @@ from app.services.report_exports import (
 
 
 class DemoStore:
-    # [temporary MVP shortcut]
-    # We keep state in memory first so the team can stabilize the
-    # contest demo loop before wiring real ingestion, PostGIS, and jobs.
     def __init__(self) -> None:
-        self.kpis = [
-            KpiCard(
-                label="Open anomalies",
-                value="7",
-                detail="4 methane signals, 3 lower-priority markers across 6 Kazakhstan regions",
-            ),
-            KpiCard(
-                label="Potential CO2e",
-                value="627 tCO2e",
-                detail="Current week across seeded Kazakhstan screening coverage",
-            ),
-            KpiCard(
-                label="Time to triage",
-                value="< 6 h",
-                detail="From satellite signal to incident owner assignment",
-            ),
-            KpiCard(
-                label="Demo posture",
-                value="Pilot-safe",
-                detail="Open data in, workflow out, no operator lock-in required",
-            ),
-        ]
-
-        self.anomalies: list[Anomaly] = [
-            Anomaly(
-                id="AN-104",
-                asset_name="Tengiz satellite cluster",
-                region="Atyrau Region",
-                facility_type="Gathering and compression",
-                severity="high",
-                detected_at="2026-03-26 08:20",
-                methane_delta_pct=34,
-                co2e_tonnes=182,
-                flare_hours=11,
-                signal_score=91,
-                confidence="High confidence / persistent over 8 days",
-                coordinates="46.094 N, 53.452 E",
-                latitude=46.094,
-                longitude=53.452,
-                summary="Elevated methane column overlaps recurring night-burning context close to a compression corridor.",
-                recommended_action="Escalate to field integrity desk and request same-day verification route.",
-                site_position=SitePosition(x=62, y=44),
-                trend=self._trend([39, 42, 44, 57, 61, 79]),
-                linked_incident_id="INC-204",
-            ),
-            Anomaly(
-                id="AN-117",
-                asset_name="Karabatan processing block",
-                region="Atyrau Region",
-                facility_type="Processing and storage",
-                severity="medium",
-                detected_at="2026-03-26 05:50",
-                methane_delta_pct=19,
-                co2e_tonnes=96,
-                flare_hours=6,
-                signal_score=73,
-                confidence="Medium confidence / single-week deviation",
-                coordinates="46.190 N, 51.858 E",
-                latitude=46.190,
-                longitude=51.858,
-                summary="Methane anomaly is above 12-week median, but flare persistence is less stable than the leading incident.",
-                recommended_action="Create watchlist incident only if another pass confirms persistence in the next 24 hours.",
-                site_position=SitePosition(x=48, y=63),
-                trend=self._trend([28, 31, 29, 41, 44, 58]),
-            ),
-            Anomaly(
-                id="AN-121",
-                asset_name="Mangystau export hub",
-                region="Mangystau Region",
-                facility_type="Terminal and flare line",
-                severity="watch",
-                detected_at="2026-03-25 23:10",
-                methane_delta_pct=11,
-                co2e_tonnes=41,
-                flare_hours=14,
-                signal_score=58,
-                confidence="Watchlist / flare-led signal",
-                coordinates="43.690 N, 51.167 E",
-                latitude=43.690,
-                longitude=51.167,
-                summary="Night-burning context is strong, methane spread remains low. Good candidate for trend monitoring rather than emergency dispatch.",
-                recommended_action="Keep visible in weekly MRV review and compare against operator maintenance schedule.",
-                site_position=SitePosition(x=25, y=72),
-                trend=self._trend([16, 17, 19, 23, 29, 34]),
-            ),
-            Anomaly(
-                id="AN-133",
-                asset_name="Aktobe compressor ring",
-                region="Aktobe Region",
-                facility_type="Gathering and compression",
-                severity="high",
-                detected_at="2026-03-25 21:35",
-                methane_delta_pct=26,
-                co2e_tonnes=134,
-                flare_hours=8,
-                signal_score=84,
-                confidence="High confidence / persistent over 8 days",
-                coordinates="49.029 N, 57.428 E",
-                latitude=49.029,
-                longitude=57.428,
-                summary="Methane uplift remains elevated around a compressor corridor with repeated nighttime combustion context.",
-                recommended_action="Escalate for operator review and validate whether compressor routing or purge activity changed this week.",
-                site_position=SitePosition(x=37, y=29),
-                trend=self._trend([34, 36, 41, 55, 63, 71]),
-            ),
-            Anomaly(
-                id="AN-141",
-                asset_name="Karachaganak gas train",
-                region="West Kazakhstan Region",
-                facility_type="Processing and storage",
-                severity="medium",
-                detected_at="2026-03-25 19:10",
-                methane_delta_pct=17,
-                co2e_tonnes=88,
-                flare_hours=5,
-                signal_score=67,
-                confidence="Medium confidence / single-week deviation",
-                coordinates="51.318 N, 53.266 E",
-                latitude=51.318,
-                longitude=53.266,
-                summary="The signal sits above the rolling baseline, but persistence is still below the strongest western Kazakhstan cluster.",
-                recommended_action="Keep the site in the daily screening queue and confirm whether another pass repeats the uplift.",
-                site_position=SitePosition(x=24, y=18),
-                trend=self._trend([22, 24, 26, 33, 38, 49]),
-            ),
-            Anomaly(
-                id="AN-149",
-                asset_name="Kumkol gathering node",
-                region="Kyzylorda Region",
-                facility_type="Gathering and compression",
-                severity="watch",
-                detected_at="2026-03-25 16:45",
-                methane_delta_pct=13,
-                co2e_tonnes=57,
-                flare_hours=4,
-                signal_score=52,
-                confidence="Medium confidence / single-week deviation",
-                coordinates="45.950 N, 65.480 E",
-                latitude=45.950,
-                longitude=65.480,
-                summary="A modest methane uplift is visible over the production corridor, but the trend remains weaker than the western hotspot set.",
-                recommended_action="Keep visible for the regional MRV call and compare with the next screening refresh before escalation.",
-                site_position=SitePosition(x=58, y=67),
-                trend=self._trend([14, 16, 18, 21, 27, 31]),
-            ),
-            Anomaly(
-                id="AN-156",
-                asset_name="Pavlodar refinery corridor",
-                region="Pavlodar Region",
-                facility_type="Processing and storage",
-                severity="watch",
-                detected_at="2026-03-25 14:05",
-                methane_delta_pct=7,
-                co2e_tonnes=29,
-                flare_hours=2,
-                signal_score=36,
-                confidence="Watchlist / flare-led signal",
-                coordinates="52.287 N, 76.973 E",
-                latitude=52.287,
-                longitude=76.973,
-                summary="The northern refinery corridor stays visible on the national map, but methane deviation remains limited versus the stronger western signals.",
-                recommended_action="Use as a low-priority national anchor in screening review and keep focus on the higher-urgency western regions.",
-                site_position=SitePosition(x=81, y=21),
-                trend=self._trend([10, 11, 12, 14, 16, 19]),
-            ),
-        ]
-        self._seeded_kpis = deepcopy(self.kpis)
-        self._seeded_anomalies = deepcopy(self.anomalies)
-
-        self.incidents: dict[str, Incident] = {
-            "INC-204": Incident(
-                id="INC-204",
-                anomaly_id="AN-104",
-                title="Persistent methane uplift near compression corridor",
-                status="verification",
-                owner="Field integrity desk",
-                priority="P1",
-                verification_window="Next 12 hours",
-                report_generated_at="2026-03-26 12:10",
-                narrative="Current workflow assumes a screening layer: we are not claiming pinpoint source identification, only a clear operational priority for field verification.",
-                report_sections=[
-                    ReportSection(
-                        title="Measurement",
-                        body="Satellite screening flagged Tengiz satellite cluster in Atyrau Region with +34% methane uplift and 11 flare-observed hours.",
-                    ),
-                    ReportSection(
-                        title="Reporting",
-                        body="Current potential impact is estimated at 182 tCO2e. 1/3 verification tasks are complete.",
-                    ),
-                    ReportSection(
-                        title="Verification",
-                        body="Field integrity desk owns the case under P1 priority with a next 12 hours window.",
-                    ),
-                ],
-                tasks=[
-                    IncidentTask(
-                        id="TASK-1",
-                        title="Dispatch LDAR walkdown request",
-                        owner="Ops coordinator",
-                        eta_hours=2,
-                        status="done",
-                        notes="Route aligned with maintenance shift in Atyrau.",
-                    ),
-                    IncidentTask(
-                        id="TASK-2",
-                        title="Cross-check flare line maintenance history",
-                        owner="Reliability engineer",
-                        eta_hours=6,
-                        status="open",
-                        notes="Look for compressor upset or flare purge event.",
-                    ),
-                    IncidentTask(
-                        id="TASK-3",
-                        title="Draft regulator-facing MRV note",
-                        owner="ESG lead",
-                        eta_hours=8,
-                        status="open",
-                        notes="Prepare incident context and verification plan.",
-                    ),
-                ],
-            )
-        }
-        self.activity_feed: list[ActivityEvent] = [
-            ActivityEvent(
-                id="ACT-1001",
-                occurred_at="2026-03-26 07:40",
-                stage="ingest",
-                source="seeded",
-                action="screening_loaded",
-                title="Seeded CH4 screening loaded",
-                detail="Kazakhstan-wide seeded anomaly set was loaded for contest-safe playback.",
-                actor="Demo pipeline",
-                incident_id="INC-204",
-                entity_type="pipeline",
-                entity_id="seeded-screening",
-                metadata={
-                    "provider": "Seeded contest dataset",
-                    "scope": "Kazakhstan screening coverage",
-                },
-            ),
-            ActivityEvent(
-                id="ACT-1002",
-                occurred_at="2026-03-26 08:20",
-                stage="incident",
-                source="workflow",
-                action="anomaly_promoted",
-                title="Tengiz anomaly promoted",
-                detail="AN-104 was escalated into incident INC-204 for verification ownership.",
-                actor="MRV response lead",
-                incident_id="INC-204",
-                entity_type="incident",
-                entity_id="INC-204",
-                metadata={
-                    "anomaly_id": "AN-104",
-                    "owner": "MRV response lead",
-                },
-            ),
-            ActivityEvent(
-                id="ACT-1003",
-                occurred_at="2026-03-26 10:10",
-                stage="verification",
-                source="workflow",
-                action="task_completed",
-                title="LDAR walkdown dispatched",
-                detail="Field verification route was aligned with the Atyrau maintenance shift.",
-                actor="Ops coordinator",
-                incident_id="INC-204",
-                entity_type="task",
-                entity_id="TASK-1",
-                metadata={
-                    "task_id": "TASK-1",
-                    "status": "done",
-                },
-            ),
-            ActivityEvent(
-                id="ACT-1004",
-                occurred_at="2026-03-26 12:10",
-                stage="report",
-                source="workflow",
-                action="report_generated",
-                title="MRV preview generated",
-                detail="Incident INC-204 now has a seeded MRV report preview for stakeholder review.",
-                actor="ESG lead",
-                incident_id="INC-204",
-                entity_type="report",
-                entity_id="INC-204-report",
-                metadata={
-                    "incident_id": "INC-204",
-                    "artifact": "seeded-preview",
-                },
-            ),
-        ]
-        self.incident_activity_feed: dict[str, list[ActivityEvent]] = {
-            incident_id: [
-                event.model_copy(deep=True)
-                for event in self.activity_feed
-                if event.incident_id == incident_id
-            ]
-            for incident_id in self.incidents
-        }
-        self._activity_index = 1004
-        self._seeded_screening_snapshot = ScreeningEvidenceSnapshot(
-            area_label="Kazakhstan screening coverage",
-            evidence_source="Seeded demo baseline",
-            freshness="fresh",
-            screening_level="medium",
-            synced_at="2026-03-26 07:40",
-            last_successful_sync_at="2026-03-26 07:40",
-            observed_window="Seeded playback window across multiple Kazakhstan oil and gas regions.",
-            current_ch4_ppb=1888.6,
-            baseline_ch4_ppb=1817.9,
-            delta_abs_ppb=70.7,
-            delta_pct=3.89,
-            confidence_note="Seeded comparison used for contest-safe playback until a live sync is requested.",
-            caveat="This snapshot is demo data, not a live Earth Engine pull.",
-            recommended_action="Use the seeded evidence block to explain the screening logic, then promote manually when you are ready to open an operational case.",
+        self.kpis = self._build_live_kpis([], None)
+        self.anomalies: list[Anomaly] = []
+        self.incidents: dict[str, Incident] = {}
+        self.activity_feed: list[ActivityEvent] = []
+        self.incident_activity_feed: dict[str, list[ActivityEvent]] = {}
+        self._activity_index = 1000
+        self._screening_snapshot = ScreeningEvidenceSnapshot(
+            area_label="Kazakhstan methane screening window",
+            evidence_source="Google Earth Engine / Sentinel-5P",
+            freshness="unavailable",
+            screening_level="low",
+            synced_at=None,
+            last_successful_sync_at=None,
+            observed_window=None,
+            current_ch4_ppb=None,
+            baseline_ch4_ppb=None,
+            delta_abs_ppb=None,
+            delta_pct=None,
+            confidence_note="No verified live screening snapshot is stored yet.",
+            caveat="Run the first live Earth Engine sync to load methane screening for Kazakhstan.",
+            recommended_action="Refresh the live methane screening before promoting any operational case.",
         )
-        self._screening_snapshot = self._seeded_screening_snapshot.model_copy(deep=True)
         self._last_live_screening_snapshot: ScreeningEvidenceSnapshot | None = None
-        self._screening_history: list[ScreeningEvidenceSnapshot] = [
-            self._screening_snapshot.model_copy(deep=True)
-        ]
+        self._screening_history: list[ScreeningEvidenceSnapshot] = []
 
     def dashboard(self) -> DashboardPayload:
         return DashboardPayload(
@@ -437,14 +136,14 @@ class DemoStore:
         self.incidents[incident_id] = incident
         self._record_activity(
             stage="ingest",
-            source="seeded",
+            source="gee" if anomaly.evidence_source else "workflow",
             action="screening_loaded",
             title="Measurement evidence linked to incident",
             detail=(
                 f"{anomaly.id} screening evidence for {anomaly.asset_name} "
                 f"was attached to {incident_id} before escalation."
             ),
-            actor="Demo pipeline",
+            actor="Earth Engine screening" if anomaly.evidence_source else "Workflow",
             incident_id=incident_id,
             entity_type="anomaly",
             entity_id=anomaly.id,
@@ -680,7 +379,7 @@ class DemoStore:
                 synced_at=synced_at,
                 freshness="stale",
                 caveat=caveat,
-                recommended_action="Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
+                recommended_action="Retry live sync before making an operational decision from this page.",
             )
         )
         base_snapshot.freshness = "stale"
@@ -708,7 +407,7 @@ class DemoStore:
                 synced_at=synced_at,
                 freshness="unavailable",
                 caveat=caveat,
-                recommended_action="Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.",
+                recommended_action="Live evidence is unavailable. Retry sync before promoting a new operational case.",
             )
         )
         base_snapshot.freshness = "unavailable"
@@ -721,31 +420,11 @@ class DemoStore:
         if self._last_live_screening_snapshot:
             base_snapshot.caveat = caveat
             base_snapshot.recommended_action = (
-                "Keep the seeded operational workflow active and treat the last available screening snapshot as context only."
+                "Treat the last verified screening snapshot as context only until live sync succeeds again."
             )
         self._screening_snapshot = base_snapshot.model_copy(deep=True)
         self._push_screening_history(base_snapshot)
         return self.screening_snapshot()
-
-    def clear_live_evidence(self) -> None:
-        self.kpis = deepcopy(self._seeded_kpis)
-        self.anomalies = deepcopy(self._seeded_anomalies)
-        self._screening_snapshot = self._seeded_screening_snapshot.model_copy(deep=True)
-        self._last_live_screening_snapshot = None
-        self._screening_history = [self._screening_snapshot.model_copy(deep=True)]
-        self.activity_feed = [
-            event
-            for event in self.activity_feed
-            if not (event.source == "gee" and event.action == "gee_sync_verified")
-        ]
-        self.incident_activity_feed = {
-            incident_id: [
-                event
-                for event in events
-                if not (event.source == "gee" and event.action == "gee_sync_verified")
-            ]
-            for incident_id, events in self.incident_activity_feed.items()
-        }
 
     def _push_screening_history(self, snapshot: ScreeningEvidenceSnapshot) -> None:
         self._screening_history.insert(0, snapshot.model_copy(deep=True))
@@ -760,7 +439,7 @@ class DemoStore:
         recommended_action: str,
     ) -> ScreeningEvidenceSnapshot:
         return ScreeningEvidenceSnapshot(
-            area_label="Kazakhstan screening coverage",
+            area_label="Kazakhstan methane screening window",
             evidence_source="Google Earth Engine / Sentinel-5P",
             freshness=freshness,
             screening_level="low",
@@ -771,7 +450,7 @@ class DemoStore:
             baseline_ch4_ppb=None,
             delta_abs_ppb=None,
             delta_pct=None,
-            confidence_note="No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
+            confidence_note="No verified live screening snapshot is stored yet.",
             caveat=f"{caveat} No previous verified live screening snapshot is available yet.",
             recommended_action=recommended_action,
         )

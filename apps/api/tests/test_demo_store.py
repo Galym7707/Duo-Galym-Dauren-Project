@@ -1,48 +1,84 @@
 from app.models import PromoteAnomalyRequest
+from app.providers.gee import GeeCandidate
 from app.services.demo_store import DemoStore
+
+
+def make_live_candidate() -> GeeCandidate:
+    return GeeCandidate(
+        id="GEE-20260327-01",
+        asset_name="Atyrau Region CH4 hotspot 01",
+        region="Atyrau Region",
+        facility_type="Methane hotspot with night thermal context",
+        severity="high",
+        detected_at="2026-03-27 08:00",
+        methane_delta_pct=3.41,
+        methane_delta_ppb=62.2,
+        signal_score=82,
+        confidence="High screening confidence / methane uplift plus night thermal context",
+        coordinates="46.190 N, 51.858 E",
+        latitude=46.19,
+        longitude=51.858,
+        summary="Live candidate summary",
+        recommended_action="Promote this candidate into an incident and send it to field verification.",
+        current_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        thermal_hits_72h=12,
+        night_thermal_hits_72h=12,
+        evidence_source="Google Earth Engine / Sentinel-5P + VIIRS thermal context",
+        baseline_window="84-day Kazakhstan baseline before 2026-03-27 08:00 UTC",
+        verification_area="Makat District, Atyrau Region",
+        nearest_address="A27, Atyrau Region",
+        nearest_landmark="Tengiz Field",
+    )
 
 
 def test_promote_anomaly_records_measurement_and_incident_activity() -> None:
     store = DemoStore()
+    candidate = make_live_candidate()
+    store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
 
-    incident = store.promote_anomaly("AN-117", PromoteAnomalyRequest(owner="ESG desk"))
+    incident = store.promote_anomaly(candidate.id, PromoteAnomalyRequest(owner="ESG desk"))
     incident_events = store.list_incident_activity(incident.id)
 
-    assert incident.id == "INC-117"
+    assert incident.id == "INC-20260327-01"
     assert incident_events[0].action == "anomaly_promoted"
     assert incident_events[1].action == "screening_loaded"
+    assert incident_events[1].source == "gee"
     assert incident_events[1].entity_type == "anomaly"
 
 
-def test_seeded_anomalies_expose_numeric_geolocation() -> None:
+def test_live_candidates_expose_numeric_geolocation() -> None:
     store = DemoStore()
+    candidate = make_live_candidate()
+    store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
 
     anomalies = store.list_anomalies()
-    regions = {anomaly.region for anomaly in anomalies}
 
-    assert all(isinstance(anomaly.latitude, float) for anomaly in anomalies)
-    assert all(isinstance(anomaly.longitude, float) for anomaly in anomalies)
-    assert len(anomalies) >= 7
-    assert {"Atyrau Region", "Mangystau Region", "Aktobe Region", "West Kazakhstan Region", "Kyzylorda Region"} <= regions
-    assert anomalies[0].latitude == 46.094
-    assert anomalies[0].longitude == 53.452
+    assert len(anomalies) == 1
+    assert isinstance(anomalies[0].latitude, float)
+    assert isinstance(anomalies[0].longitude, float)
+    assert anomalies[0].region == "Atyrau Region"
+    assert anomalies[0].latitude == 46.19
+    assert anomalies[0].longitude == 51.858
 
 
 def test_generate_report_and_export_html_include_audit_timeline() -> None:
     store = DemoStore()
+    candidate = make_live_candidate()
+    store.apply_live_candidates(candidates=[candidate], latest_observation_at=candidate.detected_at)
+    incident = store.promote_anomaly(candidate.id, PromoteAnomalyRequest(owner="ESG desk"))
 
-    generated = store.generate_report("INC-204")
-    report_html = store.export_report_html("INC-204")
+    generated = store.generate_report(incident.id)
+    report_html = store.export_report_html(incident.id)
 
     assert len(generated.report) == 3
     assert "Audit Timeline" in report_html
-    assert "Saryna MRV Report: INC-204" in report_html
+    assert f"Saryna MRV Report: {incident.id}" in report_html
     assert "MRV report generated" in report_html
 
 
-def test_clear_live_evidence_restores_seeded_state() -> None:
+def test_mark_screening_unavailable_preserves_last_verified_snapshot() -> None:
     store = DemoStore()
-    seeded_snapshot = store.screening_snapshot()
 
     store.apply_fresh_screening_evidence(
         synced_at="2026-03-27 08:05 UTC",
@@ -57,13 +93,12 @@ def test_clear_live_evidence_restores_seeded_state() -> None:
         status_message="Earth Engine CH4 screening summary fetched successfully.",
     )
 
-    assert store.screening_snapshot().freshness == "fresh"
-    assert any(event.source == "gee" for event in store.list_activity())
+    stale_snapshot = store.mark_screening_unavailable(
+        synced_at="2026-03-27 08:40 UTC",
+        caveat="Earth Engine query failed.",
+    )
 
-    store.clear_live_evidence()
-
-    restored_snapshot = store.screening_snapshot()
-    assert restored_snapshot.freshness == seeded_snapshot.freshness
-    assert restored_snapshot.evidence_source == seeded_snapshot.evidence_source
-    assert restored_snapshot.current_ch4_ppb == seeded_snapshot.current_ch4_ppb
-    assert all(event.source != "gee" for event in store.dashboard().activity_feed)
+    assert stale_snapshot.freshness == "unavailable"
+    assert stale_snapshot.evidence_source == "Google Earth Engine / Sentinel-5P"
+    assert stale_snapshot.last_successful_sync_at == "2026-03-27 08:05 UTC"
+    assert any(event.source == "gee" for event in store.dashboard().activity_feed)

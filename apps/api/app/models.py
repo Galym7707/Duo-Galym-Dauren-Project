@@ -7,12 +7,12 @@ from pydantic import BaseModel, Field
 Severity = Literal["high", "medium", "watch"]
 IncidentStatus = Literal["triage", "verification", "mitigation"]
 TaskStatus = Literal["open", "done"]
-PipelineSource = Literal["seeded", "gee"]
+PipelineSource = Literal["gee"]
 PipelineState = Literal["ready", "degraded", "error", "syncing"]
 EvidenceFreshness = Literal["fresh", "stale", "unavailable"]
 ScreeningLevel = Literal["low", "medium", "high"]
 ActivityStage = Literal["ingest", "incident", "verification", "report"]
-ActivitySource = Literal["seeded", "gee", "workflow"]
+ActivitySource = Literal["gee", "workflow"]
 ActivityEntityType = Literal["pipeline", "anomaly", "incident", "task", "report"]
 ActivityAction = Literal[
     "screening_loaded",

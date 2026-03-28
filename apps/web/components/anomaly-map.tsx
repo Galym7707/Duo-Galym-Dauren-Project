@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type Anomaly } from "../lib/demo-data";
+import { type Anomaly } from "../lib/dashboard-types";
 import {
   copy,
   formatVerificationAreaLabel,
@@ -12,7 +12,7 @@ import {
   translateRegion,
 } from "../lib/site-content";
 
-type MapTone = "seeded" | "live" | "fallback";
+type MapTone = "live" | "fallback";
 
 type AnomalyMapProps = {
   anomalies: Anomaly[];
@@ -56,7 +56,7 @@ const KAZAKHSTAN_STYLE: StyleSpecification = {
 
 const mapCopy = {
   en: {
-    fallback: "Map unavailable. Showing the simplified backup view.",
+    fallback: "Map unavailable. Showing the simplified live-screening backup view.",
     detailTitle: "Selected marker",
     coordinates: "Coordinates",
     facility: "Facility",

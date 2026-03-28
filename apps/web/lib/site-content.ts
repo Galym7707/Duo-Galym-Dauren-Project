@@ -1,4 +1,4 @@
-import { type Anomaly, type Incident, type ReportSection } from "./demo-data";
+import { type Anomaly, type Incident, type ReportSection } from "./dashboard-types";
 
 export type StepId = "signal" | "incident" | "verification" | "report";
 export type ThemeMode = "day" | "night";

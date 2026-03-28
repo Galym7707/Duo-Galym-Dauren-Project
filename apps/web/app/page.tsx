@@ -4,10 +4,10 @@ import { startTransition, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   completeTask as completeTaskRequest,
+  createInitialPipelineStatus,
+  createUnavailableDashboardState,
   type DashboardHydrationState,
   downloadReport,
-  fallbackDashboardState,
-  fallbackPipelineStatus,
   generateReport as generateReportRequest,
   hasApiBaseUrl,
   getReportViewUrl,
@@ -20,7 +20,12 @@ import {
   type ScreeningEvidenceSnapshot,
 } from "../lib/api";
 import { AnomalyMap } from "../components/anomaly-map";
-import { type Anomaly, type Incident, type IncidentTask, type ReportSection } from "../lib/demo-data";
+import {
+  type Anomaly,
+  type Incident,
+  type IncidentTask,
+  type ReportSection,
+} from "../lib/dashboard-types";
 import {
   copy,
   formatHours,
@@ -54,7 +59,7 @@ import {
   type ThemeMode,
 } from "../lib/site-content";
 
-type MapCardTone = "seeded" | "live" | "fallback";
+type MapCardTone = "live" | "fallback";
 type MapPresetId =
   | "all-kazakhstan"
   | "atyrau"
@@ -124,30 +129,24 @@ const mapSyncLabelCopy = {
 
 const mapCardCopy = {
   en: {
-    contextSeeded: "Nationwide seeded view",
     contextLive: "Live screening view",
-    contextFallback: "Fallback view",
-    noteSeeded:
-      "This map shows seeded screening markers across Kazakhstan. It is a navigation surface, not live plume geometry.",
+    contextFallback: "Live sync required",
     noteLive:
       "The map stays geographically stable. Screening evidence was refreshed for the selected Kazakhstan window.",
     noteDegraded:
       "The last verified screening snapshot is still shown while the live refresh is degraded.",
     noteUnavailable:
-      "Live screening is unavailable, so use the visible national context and demo workflow for decisions.",
+      "Live screening is unavailable. Refresh Earth Engine data before using this page for decisions.",
   },
   ru: {
-    contextSeeded: "Демо-покрытие по стране",
     contextLive: "Обновлённый скрининг",
-    contextFallback: "Живые данные недоступны",
-    noteSeeded:
-      "На карте показаны демонстрационные маркеры по Казахстану. Это навигационный слой, а не точная геометрия выброса в реальном времени.",
+    contextFallback: "Нужна живая синхронизация",
     noteLive:
       "География карты остаётся стабильной. Данные скрининга обновлены для выбранной зоны Казахстана.",
     noteDegraded:
       "Последний подтверждённый снимок скрининга всё ещё показан, пока новое обновление работает с ограничениями.",
     noteUnavailable:
-      "Спутниковый скрининг сейчас недоступен, поэтому для решений используйте видимый контекст по стране и демонстрационный сценарий.",
+      "Спутниковый скрининг сейчас недоступен. Перед принятием решений обновите живые данные Earth Engine.",
   },
 } as const;
 
@@ -169,13 +168,10 @@ const screeningCopy = {
     recommendation: "Action plan",
     sync: "Sync latest evidence",
     syncing: "Syncing...",
-    reset: "Return to seeded mode",
-    resetting: "Resetting...",
     noApi: "Live sync needs the FastAPI backend to be available.",
     syncingGee: "Refreshing satellite screening evidence...",
-    syncingSeeded: "Returning to seeded screening playback...",
-    syncFailedGee: "Live sync failed. The seeded workflow remains available.",
-    syncFailedSeeded: "Reset to seeded mode failed. The current workflow remains available.",
+    syncFailedGee:
+      "Live sync failed. If a verified screening snapshot already exists, the page keeps the last successful version.",
     notAvailable: "Not available",
     noCaveat: "No additional caveat.",
     freshness: {
@@ -216,13 +212,10 @@ const screeningCopy = {
     recommendation: "План действий",
     sync: "Обновить данные",
     syncing: "Обновляем...",
-    reset: "Вернуть демо-данные",
-    resetting: "Возвращаем...",
     noApi: "Для обновления нужен доступный сервер FastAPI.",
     syncingGee: "Обновляем спутниковые данные по метану...",
-    syncingSeeded: "Возвращаем демонстрационные данные...",
-    syncFailedGee: "Не удалось обновить спутниковые данные. Демонстрационный сценарий остаётся доступным.",
-    syncFailedSeeded: "Не удалось вернуть демонстрационные данные. Текущий сценарий остаётся доступным.",
+    syncFailedGee:
+      "Не удалось обновить спутниковые данные. Если подтверждённый снимок уже был, на странице останется последняя успешная версия.",
     notAvailable: "Недоступно",
     noCaveat: "Дополнительных ограничений нет.",
     freshness: {
@@ -318,21 +311,21 @@ const liveSignalCopy = {
 } as const;
 
 export default function Page() {
-  const fallback = fallbackDashboardState();
+  const initialDashboard = createUnavailableDashboardState();
   const faqRef = useRef<HTMLElement | null>(null);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("day");
   const [locale, setLocale] = useState<Locale>("en");
   const [activeStep, setActiveStep] = useState<StepId>("signal");
   const [dashboardSource, setDashboardSource] =
-    useState<DashboardHydrationState["source"]>(fallback.source);
-  const [kpiCards, setKpiCards] = useState(fallback.kpis);
-  const [anomalies, setAnomalies] = useState(fallback.anomalies);
-  const [incidents, setIncidents] = useState(fallback.incidents);
+    useState<DashboardHydrationState["source"]>(initialDashboard.source);
+  const [kpiCards, setKpiCards] = useState(initialDashboard.kpis);
+  const [anomalies, setAnomalies] = useState(initialDashboard.anomalies);
+  const [incidents, setIncidents] = useState(initialDashboard.incidents);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
-    fallbackPipelineStatus(fallback.anomalies.length),
+    createInitialPipelineStatus(initialDashboard.anomalies.length),
   );
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState(fallback.anomalies[0]?.id ?? "");
+  const [selectedAnomalyId, setSelectedAnomalyId] = useState(initialDashboard.anomalies[0]?.id ?? "");
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | string>(null);
@@ -398,8 +391,24 @@ export default function Page() {
     let cancelled = false;
 
     async function hydrateDashboard() {
-      const state = await loadDashboardState();
-      const nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
+      let state = await loadDashboardState();
+      let nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
+
+      if (
+        !cancelled &&
+        hasApiBaseUrl &&
+        state.source === "api" &&
+        state.anomalies.length === 0 &&
+        nextPipelineStatus.state !== "syncing"
+      ) {
+        try {
+          nextPipelineStatus = await syncPipeline("gee");
+          state = await loadDashboardState();
+        } catch {
+          nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
+        }
+      }
+
       if (cancelled) return;
       applyDashboardHydration(state, nextPipelineStatus);
     }
@@ -462,7 +471,9 @@ export default function Page() {
     selectedAnomaly && activeIncident
       ? buildReportSectionsForUi(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
-  const faqItems = t.faq.items.map((item) => {
+  const faqItems = t.faq.items
+    .filter((item) => item.id !== "demo")
+    .map((item) => {
     if (item.id === "impact" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready") {
       return locale === "ru"
         ? {
@@ -485,51 +496,23 @@ export default function Page() {
           };
     }
 
-    if (item.id === "demo" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready") {
-      return locale === "ru"
-        ? {
-            ...item,
-            question: "Это уже живые данные или демо-режим?",
-            answer: [
-              "Если backend подключён и Earth Engine sync прошёл успешно, левая очередь строится из живых Earth Engine-кандидатов.",
-              "При этом workflow по инцидентам, задачам и отчетам по-прежнему остаётся управляемым вручную, чтобы demo loop был стабильным.",
-              "Если живое обновление недоступно, экран честно возвращается к демонстрационным данным.",
-            ],
-          }
-        : {
-            ...item,
-            question: "Is this live data or demo mode?",
-            answer: [
-              "When the backend is connected and Earth Engine sync succeeds, the left queue is built from live Earth Engine candidates.",
-              "The incident, task, and report workflow still stays manually controlled so the demo loop remains stable.",
-              "If live sync is unavailable, the page honestly falls back to seeded demo content.",
-            ],
-          };
-    }
-
     return item;
   });
   const screeningSnapshot = pipelineStatus.screeningSnapshot;
   const mapCardTone: MapCardTone =
-    pipelineStatus.source === "seeded"
-      ? "seeded"
-      : pipelineStatus.state === "ready" && screeningSnapshot?.freshness === "fresh"
-        ? "live"
-        : "fallback";
+    pipelineStatus.state === "ready" && screeningSnapshot?.freshness === "fresh"
+      ? "live"
+      : "fallback";
   const mapContextLabel =
     mapCardTone === "live"
       ? mapCardText.contextLive
-      : mapCardTone === "fallback"
-        ? mapCardText.contextFallback
-        : mapCardText.contextSeeded;
+      : mapCardText.contextFallback;
   const mapNote =
     mapCardTone === "live"
       ? mapCardText.noteLive
-      : mapCardTone === "fallback"
-        ? pipelineStatus.state === "error"
-          ? mapCardText.noteUnavailable
-          : mapCardText.noteDegraded
-        : mapCardText.noteSeeded;
+      : pipelineStatus.state === "error"
+        ? mapCardText.noteUnavailable
+        : mapCardText.noteDegraded;
   const mapSyncLabel =
     mapCardTone === "fallback"
       ? screeningSnapshot?.lastSuccessfulSyncAt
@@ -545,13 +528,19 @@ export default function Page() {
   const statusHelpText =
     dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
       ? liveSignalText.statusHelp
-      : t.help.demo;
+      : locale === "ru"
+        ? "Страница подключена к backend, но без успешной живой синхронизации очередь подозрительных зон не будет заполнена."
+        : "The page is connected to the backend, but the suspected-zone queue stays empty until a live sync succeeds.";
   const statusNote =
     dashboardSource === "api"
       ? pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
         ? liveSignalText.statusNote
-        : t.status.apiNote
-      : t.status.fallbackNote;
+        : locale === "ru"
+          ? "Локальный сервер доступен. Запустите живую синхронизацию, чтобы получить новые подозрительные зоны."
+          : "The local server is available. Run live sync to load fresh suspected zones."
+      : locale === "ru"
+        ? "Сервер недоступен. Без backend сайт не покажет живые подозрительные зоны и не выполнит workflow."
+        : "The backend is unavailable. Without it the site cannot load live suspected zones or run the workflow.";
 
   useEffect(() => {
     if (scopedAnomalies.length === 0) return;
@@ -559,33 +548,29 @@ export default function Page() {
     setSelectedAnomalyId(strongestAnomaly?.id ?? scopedAnomalies[0]?.id ?? "");
   }, [scopedAnomalies, selectedAnomalyId, strongestAnomaly]);
 
-  const runPipelineSync = async (source: "gee" | "seeded") => {
+  const runPipelineSync = async () => {
     if (!hasApiBaseUrl) {
       setRequestError(screeningText.noApi);
       return;
     }
 
-    const actionId = source === "gee" ? "sync-gee" : "sync-seeded";
     const previousPipelineStatus = pipelineStatus;
-    setBusyAction(actionId);
+    setBusyAction("sync-gee");
     setRequestError(null);
     setPipelineStatus((current) => ({
       ...current,
       state: "syncing",
-      statusMessage:
-        source === "gee"
-          ? screeningText.syncingGee
-          : screeningText.syncingSeeded,
+      statusMessage: screeningText.syncingGee,
     }));
 
     try {
-      const nextStatus = await syncPipeline(source);
+      const nextStatus = await syncPipeline("gee");
       const refreshedState = await loadDashboardState();
       if (refreshedState.source === "api") {
         applyDashboardHydration(refreshedState, nextStatus);
       } else {
         startTransition(() => {
-          setDashboardSource("api");
+          setDashboardSource(refreshedState.source);
           setPipelineStatus(nextStatus);
         });
       }
@@ -593,7 +578,7 @@ export default function Page() {
         setMapReactionActive(false);
         setMapReactionDotId("");
         setRequestError(translatePipelineStatusMessage(nextStatus.statusMessage, locale));
-      } else if (source === "gee" && nextStatus.screeningSnapshot?.freshness === "fresh") {
+      } else if (nextStatus.screeningSnapshot?.freshness === "fresh") {
         setMapReactionDotId(selectedAnomaly?.id ?? strongestAnomaly?.id ?? "");
         setMapReactionToken((current) => current + 1);
         setMapReactionActive(true);
@@ -604,11 +589,7 @@ export default function Page() {
     } catch {
       setMapReactionActive(false);
       setMapReactionDotId("");
-      setRequestError(
-        source === "gee"
-          ? screeningText.syncFailedGee
-          : screeningText.syncFailedSeeded,
-      );
+      setRequestError(screeningText.syncFailedGee);
       setPipelineStatus(previousPipelineStatus);
     } finally {
       setBusyAction(null);
@@ -625,19 +606,26 @@ export default function Page() {
     setBusyAction("promote");
     setRequestError(null);
 
+    if (dashboardSource !== "api") {
+      setBusyAction(null);
+      setRequestError(
+        locale === "ru"
+          ? "Сначала нужен доступный backend и живая синхронизация. Без этого инцидент создать нельзя."
+          : "A working backend and live sync are required before an incident can be created.",
+      );
+      return;
+    }
+
     try {
-      if (dashboardSource === "api") {
-        const incident = await promoteAnomalyRequest(selectedAnomaly.id);
-        applyIncidentUpdate(incident, selectedAnomaly.id);
-      } else {
-        applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
-      }
+      const incident = await promoteAnomalyRequest(selectedAnomaly.id);
+      applyIncidentUpdate(incident, selectedAnomaly.id);
       setActiveStep("incident");
     } catch {
-      if (dashboardSource === "api") setDashboardSource("fallback");
-      applyIncidentUpdate(createFallbackIncident(selectedAnomaly), selectedAnomaly.id);
-      setActiveStep("incident");
-      setRequestError(t.errors.promote);
+      setRequestError(
+        locale === "ru"
+          ? "Не удалось создать инцидент через backend. Проверьте состояние сервера и повторите попытку."
+          : "Incident creation failed in the backend. Check the server state and try again.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -651,17 +639,25 @@ export default function Page() {
     setBusyAction(taskId);
     setRequestError(null);
 
+    if (dashboardSource !== "api") {
+      setBusyAction(null);
+      setRequestError(
+        locale === "ru"
+          ? "Обновление задач требует доступного backend."
+          : "Task updates require the backend to be available.",
+      );
+      return;
+    }
+
     try {
-      if (dashboardSource === "api") {
-        const incident = await completeTaskRequest(activeIncident.id, taskId);
-        applyIncidentUpdate(incident, incident.anomalyId);
-      } else {
-        applyTaskCompletionFallback(activeIncident, taskId);
-      }
+      const incident = await completeTaskRequest(activeIncident.id, taskId);
+      applyIncidentUpdate(incident, incident.anomalyId);
     } catch {
-      if (dashboardSource === "api") setDashboardSource("fallback");
-      applyTaskCompletionFallback(activeIncident, taskId);
-      setRequestError(t.errors.task);
+      setRequestError(
+        locale === "ru"
+          ? "Не удалось обновить задачу через backend. Проверьте сервер и повторите попытку."
+          : "Task update failed in the backend. Check the server and try again.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -673,19 +669,26 @@ export default function Page() {
     setBusyAction(`report-${activeIncident.id}`);
     setRequestError(null);
 
+    if (dashboardSource !== "api") {
+      setBusyAction(null);
+      setRequestError(
+        locale === "ru"
+          ? "Формирование отчёта требует доступного backend."
+          : "Report generation requires the backend to be available.",
+      );
+      return;
+    }
+
     try {
-      if (dashboardSource === "api") {
-        const incident = await generateReportRequest(activeIncident.id);
-        applyIncidentUpdate(incident, incident.anomalyId);
-      } else {
-        applyReportFallback(activeIncident, selectedAnomaly);
-      }
+      const incident = await generateReportRequest(activeIncident.id);
+      applyIncidentUpdate(incident, incident.anomalyId);
       setActiveStep("report");
     } catch {
-      if (dashboardSource === "api") setDashboardSource("fallback");
-      applyReportFallback(activeIncident, selectedAnomaly);
-      setActiveStep("report");
-      setRequestError(t.errors.report);
+      setRequestError(
+        locale === "ru"
+          ? "Не удалось сформировать отчёт через backend. Проверьте сервер и повторите попытку."
+          : "Report generation failed in the backend. Check the server and try again.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -700,19 +703,7 @@ export default function Page() {
 
     try {
       if (dashboardSource !== "api" || !hasApiBaseUrl) {
-        if (format !== "html") {
-          throw new Error("Binary report export requires API mode");
-        }
-
-        const html = buildReportHtml(selectedAnomaly, activeIncident, localizedReportSections, locale);
-        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${activeIncident.id.toLowerCase()}-mrv-report.html`;
-        link.click();
-        URL.revokeObjectURL(url);
-        return;
+        throw new Error("API mode is required for export");
       }
 
       const downloaded = await downloadReport(activeIncident.id, format, locale);
@@ -732,25 +723,20 @@ export default function Page() {
 
   const openPrintView = () => {
     if (!activeIncident || !selectedAnomaly) return;
-    if (dashboardSource === "api") {
-      const reportViewUrl = getReportViewUrl(activeIncident.id, true, locale);
-      if (reportViewUrl) {
-        window.open(reportViewUrl, "_blank", "noopener,noreferrer");
-        return;
-      }
+
+    if (dashboardSource !== "api") {
+      setRequestError(
+        locale === "ru"
+          ? "Версия для печати доступна только через backend."
+          : "The print view is available only through the backend.",
+      );
+      return;
     }
 
-    const html = buildReportHtml(
-      selectedAnomaly,
-      activeIncident,
-      localizedReportSections,
-      locale,
-      true,
-    );
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const reportViewUrl = getReportViewUrl(activeIncident.id, true, locale);
+    if (reportViewUrl) {
+      window.open(reportViewUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const changeSelectedAnomaly = (anomalyId: string) => {
@@ -787,50 +773,24 @@ export default function Page() {
     });
   }
 
-  function applyTaskCompletionFallback(incident: Incident, taskId: string) {
-    startTransition(() => {
-      setIncidents((current) => {
-        const existing = current[incident.id] ?? incident;
-        const tasks: IncidentTask[] = existing.tasks.map((task) =>
-          task.id === taskId ? { ...task, status: "done" } : task,
-        );
-        const doneCount = tasks.filter((task) => task.status === "done").length;
-
-        return {
-          ...current,
-          [incident.id]: {
-            ...existing,
-            tasks,
-            status: doneCount === tasks.length ? "mitigation" : "verification",
-          },
-        };
-      });
-    });
-  }
-
-  function applyReportFallback(incident: Incident, anomaly: Anomaly) {
-    startTransition(() => {
-      setIncidents((current) => {
-        const existing = current[incident.id] ?? incident;
-        const doneCount = existing.tasks.filter((task) => task.status === "done").length;
-        return {
-          ...current,
-          [incident.id]: {
-            ...existing,
-            reportGeneratedAt: "2026-03-27 09:00",
-            status: doneCount === existing.tasks.length ? "mitigation" : "verification",
-            reportSections: buildReportSectionsForUi(anomaly, existing, doneCount, locale),
-          },
-        };
-      });
-    });
-  }
-
   if (!selectedAnomaly) {
     return (
       <main className="site-shell">
         <section className="empty-shell">
-          <p>{t.errors.noSignal}</p>
+          <strong>{locale === "ru" ? "Живые подозрительные зоны пока не загружены" : "No live suspected zones are loaded yet"}</strong>
+          <p>
+            {locale === "ru"
+              ? "Запустите живую синхронизацию Earth Engine. После первого успешного обновления на странице появятся реальные подозрительные зоны, и станет доступен весь MRV workflow."
+              : "Run the Earth Engine live sync. After the first successful refresh the page will show real suspected zones and unlock the MRV workflow."}
+          </p>
+          <button
+            className="primary-button"
+            disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
+            onClick={() => void runPipelineSync()}
+            type="button"
+          >
+            {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
+          </button>
         </section>
       </main>
     );
@@ -909,7 +869,9 @@ export default function Page() {
                     ? t.status.loading
                     : dashboardSource === "api"
                       ? t.status.api
-                      : t.status.fallback}
+                      : locale === "ru"
+                        ? "Сервер недоступен"
+                        : "Server unavailable"}
                 </strong>
                 <HelpHint text={statusHelpText} />
               </div>
@@ -1192,29 +1154,18 @@ export default function Page() {
                 />
               </section>
 
-              <div className="panel-actions panel-actions-wrap">
-                <div className="action-with-hint">
-                  <HelpHint text={t.help.syncEvidence} />
-                  <button
-                    className="secondary-button"
-                    disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
-                    onClick={() => void runPipelineSync("gee")}
-                    type="button"
-                  >
-                    {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
-                  </button>
-                </div>
-                <div className="action-with-hint">
-                  <HelpHint text={t.help.resetSeeded} />
-                  <button
-                    className="secondary-button"
-                    disabled={busyAction === "sync-seeded" || !hasApiBaseUrl}
-                    onClick={() => void runPipelineSync("seeded")}
-                    type="button"
-                  >
-                    {busyAction === "sync-seeded" ? screeningText.resetting : screeningText.reset}
-                  </button>
-                </div>
+                <div className="panel-actions panel-actions-wrap">
+                  <div className="action-with-hint">
+                    <HelpHint text={t.help.syncEvidence} />
+                    <button
+                      className="secondary-button"
+                      disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
+                      onClick={() => void runPipelineSync()}
+                      type="button"
+                    >
+                      {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
+                    </button>
+                  </div>
                 <div className="action-with-hint">
                   <HelpHint
                     text={
@@ -1443,11 +1394,10 @@ export default function Page() {
                   ) : (
                     <button
                       className="secondary-button"
-                      disabled={busyAction === `export-${activeIncident.id}-html`}
-                      onClick={() => void exportReportArtifact("html")}
+                      disabled
                       type="button"
                     >
-                      {busyAction === `export-${activeIncident.id}-html` ? t.actions.exporting : t.actions.downloadHtml}
+                      {t.actions.downloadPdf}
                     </button>
                   )}
                   <button className="secondary-button" onClick={openPrintView} type="button">
@@ -1798,109 +1748,6 @@ function EmptyStage({ title, subtitle }: { title: string; subtitle: string }) {
       <p>{subtitle}</p>
     </div>
   );
-}
-
-function createFallbackIncident(anomaly: Anomaly): Incident {
-  const incidentId = `INC-${anomaly.id.replace("AN-", "")}`;
-
-  return {
-    id: incidentId,
-    anomalyId: anomaly.id,
-    title: `${anomaly.assetName} escalation`,
-    status: "triage",
-    owner: "Response lead",
-    priority: anomaly.severity === "high" ? "P1" : anomaly.severity === "medium" ? "P2" : "P3",
-    verificationWindow:
-      anomaly.severity === "high"
-        ? "Next 12 hours"
-        : anomaly.severity === "medium"
-          ? "Next 24 hours"
-          : "Next 48 hours",
-    narrative:
-      "Fallback incident created in the frontend so the flow remains usable when the API is unavailable.",
-    tasks: [
-      {
-        id: `${incidentId}-TASK-1`,
-        title: "Assign field review owner",
-        owner: "Response lead",
-        etaHours: 1,
-        status: "open",
-        notes: "Confirm the first verification owner.",
-      },
-      {
-        id: `${incidentId}-TASK-2`,
-        title: "Cross-check recent maintenance activity",
-        owner: "Reliability engineer",
-        etaHours: 4,
-        status: "open",
-        notes: "Look for compressor, flare, or shutdown activity.",
-      },
-      {
-        id: `${incidentId}-TASK-3`,
-        title: "Prepare ESG evidence note",
-        owner: "Compliance lead",
-        etaHours: 6,
-        status: "open",
-        notes: "Document what is measured and what still needs proof.",
-      },
-    ],
-  };
-}
-
-function buildReportHtml(
-  anomaly: Anomaly,
-  incident: Incident,
-  sections: ReportSection[],
-  locale: Locale,
-  autoPrint = false,
-) {
-  const labels =
-    locale === "ru"
-      ? {
-          title: "Предпросмотр отчёта Saryna MRV",
-          incident: "Инцидент",
-          asset: "Объект",
-          region: "Регион",
-          owner: "Ответственный",
-          tasks: "Задачи проверки",
-        }
-      : {
-          title: "Saryna MRV Report Preview",
-          incident: "Incident",
-          asset: "Asset",
-          region: "Region",
-          owner: "Owner",
-          tasks: "Verification tasks",
-        };
-
-  const taskItems = incident.tasks
-    .map(
-      (task) =>
-        `<li><strong>${escapeHtml(translateTaskTitle(task.title, locale))}</strong> - ${escapeHtml(translateOwner(task.owner, locale))} - ${escapeHtml(formatHours(task.etaHours, locale))}</li>`,
-    )
-    .join("");
-
-  const sectionMarkup = sections
-    .map(
-      (section) =>
-        `<section><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.body)}</p></section>`,
-    )
-    .join("");
-
-  const printScript = autoPrint
-    ? `<script>window.addEventListener("load",()=>{window.print();});</script>`
-    : "";
-
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(labels.title)}</title><style>:root{color-scheme:light;}body{margin:0;padding:40px;font-family:Aptos,"Segoe UI",sans-serif;color:#1f2933;background:#f6f1e8;}main{max-width:860px;margin:0 auto;padding:36px;border:1px solid #d7d0c4;background:#fffdfa;}h1,h2,h3{margin:0;}h1{font-family:"Iowan Old Style",Georgia,serif;font-size:2.1rem;letter-spacing:-0.04em;}.meta{margin:24px 0;display:grid;gap:8px;color:#5a6671;}section{margin-top:22px;padding-top:18px;border-top:1px solid #e6dfd4;}p,li{color:#4b5762;line-height:1.7;}ul{padding-left:20px;}</style>${printScript}</head><body><main><h1>${escapeHtml(labels.title)}</h1><div class="meta"><span>${escapeHtml(labels.incident)}: ${escapeHtml(incident.id)}</span><span>${escapeHtml(labels.asset)}: ${escapeHtml(translateAssetName(anomaly.assetName, locale))}</span><span>${escapeHtml(labels.region)}: ${escapeHtml(translateRegion(anomaly.region, locale))}</span><span>${escapeHtml(labels.owner)}: ${escapeHtml(translateOwner(incident.owner, locale))}</span></div>${sectionMarkup}<section><h2>${escapeHtml(labels.tasks)}</h2><ul>${taskItems}</ul></section></main></body></html>`;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function GlobeIcon() {

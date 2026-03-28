@@ -1,7 +1,7 @@
 import {
   type ActivityEvent,
   type Anomaly,
-  createDemoDashboardState,
+  createEmptyDashboardState,
   type DashboardState,
   type Incident,
   type IncidentTask,
@@ -10,14 +10,14 @@ import {
   type Severity,
   type TaskStatus,
   type TrendPoint,
-} from "./demo-data";
+} from "./dashboard-types";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 export const hasApiBaseUrl = Boolean(apiBaseUrl);
 
-export type DashboardSource = "api" | "fallback";
+export type DashboardSource = "api" | "unavailable";
 export type DashboardHydrationState = DashboardState & { source: DashboardSource };
-export type PipelineSource = "seeded" | "gee";
+export type PipelineSource = "gee";
 export type PipelineState = "ready" | "degraded" | "error" | "syncing";
 export type EvidenceFreshness = "fresh" | "stale" | "unavailable";
 export type ScreeningLevel = "low" | "medium" | "high";
@@ -214,61 +214,43 @@ export type DownloadedReport = {
   contentType: string;
 };
 
-export function fallbackDashboardState(): DashboardHydrationState {
+export function createUnavailableDashboardState(): DashboardHydrationState {
   return {
-    ...createDemoDashboardState(),
-    source: "fallback",
+    ...createEmptyDashboardState(),
+    source: "unavailable",
   };
 }
 
-export function fallbackPipelineStatus(anomalyCount: number): PipelineStatus {
+export function createInitialPipelineStatus(anomalyCount: number): PipelineStatus {
   return {
-    source: "seeded",
-    state: "ready",
-    providerLabel: "Seeded demo pipeline",
+    source: "gee",
+    state: "degraded",
+    providerLabel: "Google Earth Engine",
     anomalyCount,
-    statusMessage: "Seeded demo pipeline is active until a live sync is requested.",
+    statusMessage: "Run live sync to load the first Earth Engine screening snapshot.",
     stages: [
       {
         label: "Ingest layer",
-        value: "Seeded dataset active",
-        detail: "Open-data provider calls are not required for the current playback state.",
+        value: "Waiting for first sync",
+        detail: "The backend is ready, but no live Earth Engine screening snapshot is loaded yet.",
       },
       {
         label: "Normalization layer",
-        value: "Demo scoring loaded",
-        detail: "Baseline comparison and CO2e framing are already attached to the current anomaly feed.",
+        value: "No live queue yet",
+        detail: "Candidate ranking starts only after the first successful methane screening refresh.",
       },
       {
         label: "Verification layer",
         value: "Workflow ready",
-        detail: "Incident, task, and MRV reporting are ready for the contest demo.",
+        detail: "Incident, task, and MRV reporting are available as soon as a live candidate is promoted.",
       },
     ],
-    screeningSnapshot: {
-      areaLabel: "Kazakhstan screening coverage",
-      evidenceSource: "Seeded demo baseline",
-      freshness: "fresh",
-      screeningLevel: "medium",
-      syncedAt: "2026-03-26 07:40",
-      lastSuccessfulSyncAt: "2026-03-26 07:40",
-      observedWindow: "Seeded playback window across multiple Kazakhstan oil and gas regions.",
-      currentCh4Ppb: 1888.6,
-      baselineCh4Ppb: 1817.9,
-      deltaAbsPpb: 70.7,
-      deltaPct: 3.89,
-      confidenceNote:
-        "Seeded comparison used for contest-safe playback until a live sync is requested.",
-      caveat: "This snapshot is demo data, not a live Earth Engine pull.",
-      recommendedAction:
-        "Use the seeded evidence block to explain nationwide screening coverage, then promote manually when you are ready to open an operational case.",
-    },
   };
 }
 
 export async function loadDashboardState(): Promise<DashboardHydrationState> {
   if (!apiBaseUrl) {
-    return fallbackDashboardState();
+    return createUnavailableDashboardState();
   }
 
   try {
@@ -278,12 +260,12 @@ export async function loadDashboardState(): Promise<DashboardHydrationState> {
       source: "api",
     };
   } catch {
-    return fallbackDashboardState();
+    return createUnavailableDashboardState();
   }
 }
 
 export async function loadActivityFeed(
-  fallbackEvents: ActivityEvent[] = createDemoDashboardState().activityFeed,
+  fallbackEvents: ActivityEvent[] = [],
 ): Promise<ActivityEvent[]> {
   if (!apiBaseUrl) {
     return fallbackEvents;
@@ -419,14 +401,14 @@ export function getReportViewUrl(
 
 export async function loadPipelineStatus(anomalyCount: number): Promise<PipelineStatus> {
   if (!apiBaseUrl) {
-    return fallbackPipelineStatus(anomalyCount);
+    return createInitialPipelineStatus(anomalyCount);
   }
 
   try {
     const payload = await requestJson<ApiPipelineStatus>("/api/v1/pipeline/status");
     return normalizePipelineStatus(payload);
   } catch {
-    return fallbackPipelineStatus(anomalyCount);
+    return createInitialPipelineStatus(anomalyCount);
   }
 }
 

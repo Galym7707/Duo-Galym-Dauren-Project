@@ -11,44 +11,10 @@ class PipelineService:
     def __init__(self, store: DemoStore) -> None:
         self.store = store
         self.provider = GeeProvider()
-        self._status = self._seeded_status()
+        self._status = self._initial_status()
 
     def get_status(self) -> PipelineStatus:
         return self._status.model_copy(deep=True)
-
-    def sync_seeded(self) -> PipelineStatus:
-        now = self._now()
-        self.store.clear_live_evidence()
-        seeded_snapshot = self.store.screening_snapshot()
-        self._status = PipelineStatus(
-            source="seeded",
-            state="ready",
-            provider_label="Seeded demo pipeline",
-            project_id=None,
-            last_sync_at=now,
-            latest_observation_at=now,
-            anomaly_count=len(self.store.anomalies),
-            status_message="Seeded anomaly set reloaded for demo-safe playback.",
-            stages=[
-                PipelineStage(
-                    label="Ingest layer",
-                    value="Seeded dataset active",
-                    detail="Open-data adapters are bypassed and the contest demo dataset is loaded.",
-                ),
-                PipelineStage(
-                    label="Normalization layer",
-                    value="Demo baseline applied",
-                    detail="Anomaly score, CO2e framing, and workflow transitions are available for playback.",
-                ),
-                PipelineStage(
-                    label="Verification layer",
-                    value="Workflow ready",
-                    detail="Incident, task, and MRV reporting remain fully interactive.",
-                ),
-            ],
-            screening_snapshot=seeded_snapshot,
-        )
-        return self.get_status()
 
     def sync_gee(self) -> PipelineStatus:
         now = self._now()
@@ -115,9 +81,9 @@ class PipelineService:
             else self.store.mark_screening_unavailable(synced_at=now, caveat=summary.message)
         )
         normalization_detail = (
-            "The last verified live screening snapshot remains visible while seeded operational flow stays intact."
+            "The last verified live screening snapshot remains visible while the next live refresh is unavailable."
             if snapshot.last_successful_sync_at
-            else "No verified live screening snapshot is stored yet, so the seeded operational workflow remains the fallback."
+            else "No verified live screening snapshot is stored yet, so the queue stays empty until a live sync succeeds."
         )
         self._status = PipelineStatus(
             source="gee",
@@ -136,48 +102,48 @@ class PipelineService:
                     ),
                     PipelineStage(
                         label="Normalization layer",
-                        value="Screening evidence fallback active",
+                        value="Waiting for verified live evidence",
                         detail=normalization_detail,
                     ),
                     PipelineStage(
                         label="Verification layer",
                         value="Workflow preserved",
-                        detail="Incident, task, and MRV reporting remain usable even if live sync fails.",
+                        detail="Existing incidents and reports remain accessible even if a new live sync fails.",
                     ),
                 ],
                 screening_snapshot=snapshot,
             )
         return self.get_status()
 
-    def _seeded_status(self) -> PipelineStatus:
-        seeded_snapshot = self.store.screening_snapshot()
+    def _initial_status(self) -> PipelineStatus:
+        initial_snapshot = self.store.screening_snapshot()
         return PipelineStatus(
-            source="seeded",
-            state="ready",
-            provider_label="Seeded demo pipeline",
-            project_id=None,
+            source="gee",
+            state="degraded",
+            provider_label="Google Earth Engine",
+            project_id=self.provider.project_id,
             last_sync_at=None,
             latest_observation_at=None,
             anomaly_count=len(self.store.anomalies),
-            status_message="Seeded demo pipeline is active until a live sync is requested.",
+            status_message="Run live sync to load the first Earth Engine screening snapshot.",
             stages=[
                 PipelineStage(
                     label="Ingest layer",
-                    value="Seeded dataset active",
-                    detail="Open-data provider calls are not required for the current playback state.",
+                    value="Waiting for first sync",
+                    detail="No live CH4 scene has been loaded into the project yet.",
                 ),
                 PipelineStage(
                     label="Normalization layer",
-                    value="Demo scoring loaded",
-                    detail="Baseline comparison and CO2e framing are already attached to the current anomaly feed.",
+                    value="No live queue yet",
+                    detail="Candidate ranking begins only after a successful Earth Engine refresh.",
                 ),
                 PipelineStage(
                     label="Verification layer",
                     value="Workflow ready",
-                    detail="Incident, task, and MRV reporting are ready for the contest demo.",
+                    detail="Incidents, tasks, and MRV reports become actionable once a live candidate is promoted.",
                 ),
             ],
-            screening_snapshot=seeded_snapshot,
+            screening_snapshot=initial_snapshot,
         )
 
     def _now(self) -> str:
