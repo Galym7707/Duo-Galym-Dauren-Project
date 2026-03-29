@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
+from geoalchemy2.elements import WKTElement
 from sqlalchemy import desc, select
 from sqlalchemy.orm import joinedload
 
@@ -340,6 +341,8 @@ class WorkflowStore:
     ) -> None:
         del latest_observation_at
         with db_database.SessionLocal() as session:
+            bind = session.get_bind()
+            dialect_name = bind.dialect.name if bind is not None else "sqlite"
             active_ids = {candidate.id for candidate in candidates}
             for row in session.scalars(select(AnomalyRow).where(AnomalyRow.active.is_(True))).all():
                 if row.id not in active_ids:
@@ -381,7 +384,11 @@ class WorkflowStore:
                         coordinates=candidate.coordinates,
                         latitude=candidate.latitude,
                         longitude=candidate.longitude,
-                        location_wkt=self._point_wkt(candidate.latitude, candidate.longitude),
+                        location_geom=self._point_geometry_value(
+                            dialect_name,
+                            candidate.latitude,
+                            candidate.longitude,
+                        ),
                         verification_area=candidate.verification_area,
                         nearest_address=candidate.nearest_address,
                         nearest_landmark=candidate.nearest_landmark,
@@ -416,7 +423,11 @@ class WorkflowStore:
                 row.coordinates = candidate.coordinates
                 row.latitude = candidate.latitude
                 row.longitude = candidate.longitude
-                row.location_wkt = self._point_wkt(candidate.latitude, candidate.longitude)
+                row.location_geom = self._point_geometry_value(
+                    dialect_name,
+                    candidate.latitude,
+                    candidate.longitude,
+                )
                 row.verification_area = candidate.verification_area
                 row.nearest_address = candidate.nearest_address
                 row.nearest_landmark = candidate.nearest_landmark
@@ -1002,6 +1013,12 @@ class WorkflowStore:
 
     def _point_wkt(self, latitude: float, longitude: float) -> str:
         return f"POINT({longitude} {latitude})"
+
+    def _point_geometry_value(self, dialect_name: str, latitude: float, longitude: float) -> str | WKTElement:
+        point_wkt = self._point_wkt(latitude, longitude)
+        if dialect_name == "postgresql":
+            return WKTElement(point_wkt, srid=4326)
+        return point_wkt
 
     def _live_measurement_summary(self, anomaly) -> str:
         thermal_note = (

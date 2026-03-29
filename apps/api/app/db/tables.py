@@ -2,10 +2,37 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from geoalchemy2 import Geometry
+from geoalchemy2.elements import WKTElement
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from app.db.database import Base
+
+
+class PointGeometryType(TypeDecorator):
+    impl = String(96)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(
+                Geometry(geometry_type="POINT", srid=4326, spatial_index=False)
+            )
+        return dialect.type_descriptor(String(96))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        if isinstance(value, WKTElement):
+            return value.data
+        return value
+
+
+POINT_GEOMETRY = PointGeometryType()
 
 
 class PipelineStateRow(Base):
@@ -100,7 +127,7 @@ class AnomalyRow(Base):
     coordinates: Mapped[str] = mapped_column(String(128))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
-    location_wkt: Mapped[str] = mapped_column(String(96))
+    location_geom: Mapped[object] = mapped_column(POINT_GEOMETRY)
     verification_area: Mapped[str | None] = mapped_column(String(255), nullable=True)
     nearest_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     nearest_landmark: Mapped[str | None] = mapped_column(String(255), nullable=True)
