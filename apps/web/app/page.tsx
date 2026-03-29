@@ -390,6 +390,39 @@ const pipelineStateCopy = {
   },
 } as const;
 
+const juryUiCopy = {
+  en: {
+    navSignal: "Zone",
+    heroTitle: "Turn methane screening into field cases and MRV reports.",
+    heroSubtitle: "Start from a suspected zone, open the case, verify it in the field, and export the result.",
+    queueEyebrow: "Suspected zones",
+    queueTitle: "Choose a zone for review",
+    queueSubtitle: "Keep the queue short so the team can see what to inspect first.",
+    queueTop: "Top review zone",
+    scoreLabel: "Zone priority",
+    signalStepTitle: "Selected suspected zone",
+    signalStepSubtitle: "Start with the satellite evidence, then confirm the practical field context.",
+    readyStatusNote: "The page is showing a live queue of suspected zones for field review.",
+    readyStatusHelp:
+      "The interface is connected to the backend and the current queue is built from live Earth Engine screening results for operational review.",
+  },
+  ru: {
+    navSignal: "Зона",
+    heroTitle: "Из спутникового скрининга метана — в полевой кейс и MRV-отчёт.",
+    heroSubtitle: "Начните с подозрительной зоны, откройте инцидент, проведите выездную проверку и выгрузите результат.",
+    queueEyebrow: "Подозрительные зоны",
+    queueTitle: "Выберите зону для разбора",
+    queueSubtitle: "Очередь должна оставаться короткой, чтобы команда сразу видела, с чего начинать проверку.",
+    queueTop: "Главная зона на разбор",
+    scoreLabel: "Приоритет зоны",
+    signalStepTitle: "Выбранная подозрительная зона",
+    signalStepSubtitle: "Сначала проверьте спутниковые признаки, затем посмотрите географический и операционный контекст.",
+    readyStatusNote: "На странице активна живая очередь подозрительных зон для выездной проверки.",
+    readyStatusHelp:
+      "Интерфейс подключён к backend, а текущая очередь построена из живых результатов Earth Engine для операционного разбора.",
+  },
+} as const;
+
 export default function Page() {
   const initialDashboard = createUnavailableDashboardState();
   const faqRef = useRef<HTMLElement | null>(null);
@@ -424,6 +457,7 @@ export default function Page() {
   const coordinateActionText = coordinateActionCopy[locale];
   const valuePanelText = valuePanelCopy[locale];
   const emptyQueueText = emptyQueueCopy[locale];
+  const juryText = juryUiCopy[locale];
 
   function applyDashboardHydration(
     state: DashboardHydrationState,
@@ -598,6 +632,68 @@ export default function Page() {
   const faqItems = t.faq.items
     .filter((item) => item.id !== "demo")
     .map((item) => {
+    if (item.id === "goal") {
+      return locale === "ru"
+        ? {
+            ...item,
+            answer: [
+              "Сайт нужен не для просмотра карты ради карты, а для MRV-цикла: найти подозрительную зону, открыть рабочий кейс, провести проверку и сформировать отчёт.",
+              "Для нефтегаза это screening and operational prioritization layer: он помогает быстрее понять, куда отправлять команду и какой случай брать в работу первым.",
+              "Главная ценность — не спутниковая картинка сама по себе, а короткий путь от live-скрининга к действию и отчётности.",
+            ],
+          }
+        : {
+            ...item,
+            answer: [
+              "The site is not a map for its own sake. It is an MRV loop: find a suspected zone, open a working case, run verification, and generate the report.",
+              "For oil and gas teams it acts as a screening and operational prioritization layer that helps them see where to send field attention first.",
+              "The value is not the satellite image alone. The value is the short path from live screening to action and reporting.",
+            ],
+          };
+    }
+
+    if (item.id === "use") {
+      return locale === "ru"
+        ? {
+            ...item,
+            answer: [
+              "Сначала выберите подозрительную зону из live-очереди и посмотрите спутниковые признаки, координаты и район проверки.",
+              "Если зона действительно выглядит важной, откройте инцидент, чтобы у кейса появился ответственный и срок реакции.",
+              "Дальше закройте задачи проверки и выгрузите MRV-отчёт для внутреннего разбора, ESG или compliance-команды.",
+            ],
+          }
+        : {
+            ...item,
+            answer: [
+              "Start with the live queue of suspected zones and review the satellite evidence, coordinates, and verification area.",
+              "If the zone still looks material, open an incident so the case gets an owner and a response window.",
+              "Then complete the verification tasks and export the MRV report for internal review, ESG, or compliance teams.",
+            ],
+          };
+    }
+
+    if (item.id === "score") {
+      return locale === "ru"
+        ? {
+            ...item,
+            question: "Что означает приоритет зоны?",
+            answer: [
+              "Приоритет зоны — это операционная оценка по шкале от 0 до 100, которая помогает быстро отсортировать live-очередь.",
+              "Чем выше значение, тем сильнее текущая зона выделяется по доступным признакам и тем раньше её стоит разбирать.",
+              "Это инструмент приоритизации для полевой проверки, а не окончательное доказательство источника.",
+            ],
+          }
+        : {
+            ...item,
+            question: "What does zone priority mean?",
+            answer: [
+              "Zone priority is an operational score from 0 to 100 used to rank the live review queue.",
+              "A higher number means the current zone stands out more strongly in the available evidence and should be reviewed earlier.",
+              "It is a field prioritization aid, not final source proof.",
+            ],
+          };
+    }
+
     if (item.id === "impact" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready") {
       return locale === "ru"
         ? {
@@ -616,6 +712,26 @@ export default function Page() {
               "In live mode the page no longer inserts a synthetic tCO2e value for every suspected zone.",
               "Instead it shows real metrics from the current ingest: methane uplift versus baseline and the nearby VIIRS night-time thermal context.",
               "This keeps the interface honest: it shows what the live screening layer actually measures instead of a number the current pipeline does not calculate yet.",
+            ],
+          };
+    }
+
+    if (item.id === "report") {
+      return locale === "ru"
+        ? {
+            ...item,
+            answer: [
+              "Отчёт собирает ключевые факты по подозрительной зоне, ответственного по кейсу, статус задач и итог проверки.",
+              "Он нужен, чтобы замкнуть MRV-цикл и показать не только обнаружение, но и реальные действия команды.",
+              "Этот формат полезен для внутреннего операционного разбора, ESG-отчётности и коммуникации с compliance-функцией.",
+            ],
+          }
+        : {
+            ...item,
+            answer: [
+              "The report collects the core facts about the suspected zone, the case owner, the task status, and the current verification result.",
+              "Its job is to close the MRV loop and show not only detection, but also what the team actually did next.",
+              "This makes it useful for internal operations review, ESG reporting, and compliance communication.",
             ],
           };
     }
@@ -671,14 +787,14 @@ export default function Page() {
   const pipelineStateLabel = pipelineStateCopy[locale][pipelineStatus.state];
   const statusHelpText =
     dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
-      ? liveSignalText.statusHelp
+      ? juryText.readyStatusHelp
       : locale === "ru"
         ? "Страница подключена к backend, но без успешной живой синхронизации очередь подозрительных зон не будет заполнена."
         : "The page is connected to the backend, but the suspected-zone queue stays empty until a live sync succeeds.";
   const statusNote =
     dashboardSource === "api"
       ? pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
-        ? liveSignalText.statusNote
+        ? juryText.readyStatusNote
         : locale === "ru"
           ? "Локальный сервер доступен. Запустите живую синхронизацию, чтобы получить новые подозрительные зоны."
           : "The local server is available. Run live sync to load fresh suspected zones."
@@ -945,7 +1061,7 @@ export default function Page() {
               onClick={() => handleNavSelect(step)}
               type="button"
             >
-              {t.nav[step]}
+              {step === "signal" ? juryText.navSignal : t.nav[step]}
             </button>
           ))}
           <button className="nav-button" onClick={() => handleNavSelect("faq")} type="button">
@@ -981,8 +1097,8 @@ export default function Page() {
     <section className="hero-shell">
       <div className="hero-copy">
         <p className="eyebrow">{t.brand}</p>
-        <h1>{t.hero.title}</h1>
-        <p className="hero-subtitle">{t.hero.subtitle}</p>
+        <h1>{juryText.heroTitle}</h1>
+        <p className="hero-subtitle">{juryText.heroSubtitle}</p>
       </div>
 
       <div className="hero-side">
@@ -1083,9 +1199,9 @@ export default function Page() {
       <section className="workspace-shell" ref={workspaceRef}>
         <aside className="signal-rail">
           <div className="rail-head">
-            <p className="eyebrow">{t.queue.eyebrow}</p>
-            <h2>{t.queue.title}</h2>
-            <p>{t.queue.subtitle}</p>
+            <p className="eyebrow">{juryText.queueEyebrow}</p>
+            <h2>{juryText.queueTitle}</h2>
+            <p>{juryText.queueSubtitle}</p>
           </div>
 
           <div className="signal-list">
@@ -1125,7 +1241,7 @@ export default function Page() {
                   <p>{translateRegion(anomaly.region, locale)}</p>
                   <div className="signal-card-bottom">
                     <span>
-                      {t.summary.score} {anomaly.signalScore}
+                      {juryText.scoreLabel} {anomaly.signalScore}
                     </span>
                     <span>
                       {incident ? incidentStatusLabel[locale][incident.status] : t.summary.screening}
@@ -1137,7 +1253,7 @@ export default function Page() {
           </div>
 
           <div className="rail-footer">
-            <span>{t.queue.top}</span>
+            <span>{juryText.queueTop}</span>
             <strong>
               {translateAssetName(strongestAnomaly?.assetName ?? selectedAnomaly.assetName, locale)}
             </strong>
@@ -1149,8 +1265,8 @@ export default function Page() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">{t.steps[activeStep].eyebrow}</p>
-              <h2>{t.steps[activeStep].title}</h2>
-              <p>{t.steps[activeStep].subtitle}</p>
+              <h2>{activeStep === "signal" ? juryText.signalStepTitle : t.steps[activeStep].title}</h2>
+              <p>{activeStep === "signal" ? juryText.signalStepSubtitle : t.steps[activeStep].subtitle}</p>
             </div>
           </div>
 
@@ -1159,7 +1275,7 @@ export default function Page() {
               <section className="metric-grid">
                 <MetricCard
                   hint={t.help.score}
-                  label={t.summary.score}
+                  label={juryText.scoreLabel}
                   value={`${selectedAnomaly.signalScore} / 100`}
                 />
                 <MetricCard
