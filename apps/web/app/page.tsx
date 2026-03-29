@@ -325,6 +325,71 @@ const coordinateActionCopy = {
   },
 } as const;
 
+const valuePanelCopy = {
+  en: {
+    eyebrow: "Operational value",
+    queueLabel: "Live review queue",
+    openCases: "Open cases",
+    strongestUplift: "Strongest CH4 uplift",
+    lastSync: "Last live sync",
+    defaultScope: "Kazakhstan",
+    scopeLabel: "Screening scope",
+    bodyWithQueue:
+      "Instead of scanning nationwide methane data manually, the team starts from a short live queue ranked for field review and case creation.",
+    bodyWithoutQueue:
+      "The latest live run did not create a review queue. The team can inspect sync history and refresh the screening window without guessing from an empty map.",
+  },
+  ru: {
+    eyebrow: "Практическая ценность",
+    queueLabel: "Живая очередь на разбор",
+    openCases: "Открытые кейсы",
+    strongestUplift: "Макс. рост CH4",
+    lastSync: "Последняя live-синхронизация",
+    defaultScope: "Казахстан",
+    scopeLabel: "Охват скрининга",
+    bodyWithQueue:
+      "Вместо ручного просмотра всей страны команда сразу получает короткую живую очередь, с которой можно начать выездную проверку и открыть рабочий кейс.",
+    bodyWithoutQueue:
+      "Последний live-запуск не сформировал очередь на разбор. Команда всё равно видит историю синхронизаций и может безопасно перезапустить скрининг, не гадая по пустой карте.",
+  },
+} as const;
+
+const emptyQueueCopy = {
+  en: {
+    eyebrow: "Live queue",
+    title: "No suspected zones were added after the latest live run",
+    body:
+      "This is a valid empty result, not a broken screen. Refresh the screening window or wait for the next scheduled run before opening a case.",
+    latestRun: "Latest live run",
+    nextRun: "Next scheduled sync",
+    serverState: "Backend state",
+  },
+  ru: {
+    eyebrow: "Живая очередь",
+    title: "После последнего live-запуска новые подозрительные зоны не появились",
+    body:
+      "Это нормальный пустой результат, а не поломка интерфейса. Обновите окно скрининга или дождитесь следующей плановой синхронизации, прежде чем открывать кейс.",
+    latestRun: "Последний live-запуск",
+    nextRun: "Следующая плановая синхронизация",
+    serverState: "Состояние backend",
+  },
+} as const;
+
+const pipelineStateCopy = {
+  en: {
+    ready: "Ready",
+    syncing: "Syncing",
+    degraded: "Degraded",
+    error: "Error",
+  },
+  ru: {
+    ready: "Готово",
+    syncing: "Идёт обновление",
+    degraded: "С ограничениями",
+    error: "Ошибка",
+  },
+} as const;
+
 export default function Page() {
   const initialDashboard = createUnavailableDashboardState();
   const faqRef = useRef<HTMLElement | null>(null);
@@ -357,6 +422,8 @@ export default function Page() {
   const mapCardText = mapCardCopy[locale];
   const liveSignalText = liveSignalCopy[locale];
   const coordinateActionText = coordinateActionCopy[locale];
+  const valuePanelText = valuePanelCopy[locale];
+  const emptyQueueText = emptyQueueCopy[locale];
 
   function applyDashboardHydration(
     state: DashboardHydrationState,
@@ -582,6 +649,26 @@ export default function Page() {
         screeningSnapshot?.syncedAt ??
         screeningText.notAvailable
       : screeningSnapshot?.syncedAt ?? screeningText.notAvailable;
+  const liveQueueCount = Math.max(anomalies.length, pipelineStatus.anomalyCount);
+  const openIncidentCount = Object.keys(incidents).length;
+  const strongestMethaneUplift = anomalies.reduce<number | null>((best, anomaly) => {
+    if (anomaly.methaneDeltaPpb === undefined) {
+      return best;
+    }
+
+    return best === null || anomaly.methaneDeltaPpb > best ? anomaly.methaneDeltaPpb : best;
+  }, null);
+  const strongestMethaneUpliftLabel =
+    strongestMethaneUplift === null
+      ? screeningText.notAvailable
+      : `${formatMetricNumber(strongestMethaneUplift, locale)} ppb`;
+  const latestLiveSyncValue = mapSyncValue === screeningText.notAvailable ? screeningText.notAvailable : formatTimestamp(mapSyncValue, locale);
+  const nextScheduledSyncValue = pipelineHistory.schedule.nextRunAt
+    ? formatTimestamp(pipelineHistory.schedule.nextRunAt, locale)
+    : screeningText.notAvailable;
+  const businessValueTitle = formatBusinessValueTitle(liveQueueCount, locale);
+  const businessValueBody = liveQueueCount > 0 ? valuePanelText.bodyWithQueue : valuePanelText.bodyWithoutQueue;
+  const pipelineStateLabel = pipelineStateCopy[locale][pipelineStatus.state];
   const statusHelpText =
     dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
       ? liveSignalText.statusHelp
@@ -834,24 +921,153 @@ export default function Page() {
     });
   }
 
+  const pageHeader = (
+    <header className="site-header">
+      <div className="header-bar">
+        <button
+          className="brand-button"
+          onClick={() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          type="button"
+        >
+          <span className="brand-mark" />
+          <span className="brand-copy">
+            <strong>{t.brand}</strong>
+            <small>{t.tagline}</small>
+          </span>
+        </button>
+
+        <nav aria-label="Main navigation" className="header-nav">
+          {stepOrder.map((step) => (
+            <button
+              key={step}
+              className={`nav-button ${activeStep === step ? "nav-button-active" : ""}`}
+              disabled={step !== "signal" && !activeIncident}
+              onClick={() => handleNavSelect(step)}
+              type="button"
+            >
+              {t.nav[step]}
+            </button>
+          ))}
+          <button className="nav-button" onClick={() => handleNavSelect("faq")} type="button">
+            {t.nav.faq}
+          </button>
+        </nav>
+
+        <div className="header-controls">
+          <button
+            aria-label={t.controls.language}
+            className="language-toggle"
+            onClick={() => setLocale((current) => (current === "en" ? "ru" : "en"))}
+            type="button"
+          >
+            <GlobeIcon />
+            <span>{locale.toUpperCase()}</span>
+          </button>
+
+          <button
+            aria-label={t.controls.theme}
+            className={`theme-toggle theme-toggle-${theme}`}
+            onClick={() => setTheme((current) => (current === "day" ? "night" : "day"))}
+            type="button"
+          >
+            {theme === "day" ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+
+  const heroSection = (
+    <section className="hero-shell">
+      <div className="hero-copy">
+        <p className="eyebrow">{t.brand}</p>
+        <h1>{t.hero.title}</h1>
+        <p className="hero-subtitle">{t.hero.subtitle}</p>
+      </div>
+
+      <div className="hero-side">
+        <section className="value-card">
+          <p className="eyebrow">{valuePanelText.eyebrow}</p>
+          <strong className="value-card-title">{businessValueTitle}</strong>
+          <p className="value-card-copy">{businessValueBody}</p>
+
+          <div className="value-card-grid">
+            <article className="value-card-stat">
+              <span>{valuePanelText.scopeLabel}</span>
+              <strong>{valuePanelText.defaultScope}</strong>
+            </article>
+            <article className="value-card-stat">
+              <span>{valuePanelText.strongestUplift}</span>
+              <strong>{strongestMethaneUpliftLabel}</strong>
+            </article>
+            <article className="value-card-stat">
+              <span>{valuePanelText.openCases}</span>
+              <strong>{openIncidentCount}</strong>
+            </article>
+            <article className="value-card-stat">
+              <span>{valuePanelText.lastSync}</span>
+              <strong>{latestLiveSyncValue}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section className="status-pill">
+          <span className={`status-dot ${dashboardSource === "api" ? "status-dot-live" : ""}`} />
+          <div>
+            <div className="status-title">
+              <strong>
+                {loadingDashboard
+                  ? t.status.loading
+                  : dashboardSource === "api"
+                    ? t.status.api
+                    : locale === "ru"
+                      ? "Сервер недоступен"
+                      : "Server unavailable"}
+              </strong>
+              <HelpHint text={statusHelpText} />
+            </div>
+            <p>{statusNote}</p>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+
   if (!selectedAnomaly) {
     return (
       <main className="site-shell">
-        <section className="empty-shell">
-          <strong>{locale === "ru" ? "Живые подозрительные зоны пока не загружены" : "No live suspected zones are loaded yet"}</strong>
-          <p>
-            {locale === "ru"
-              ? "Запустите живую синхронизацию Earth Engine. После первого успешного обновления на странице появятся реальные подозрительные зоны, и станет доступен весь MRV workflow."
-              : "Run the Earth Engine live sync. After the first successful refresh the page will show real suspected zones and unlock the MRV workflow."}
-          </p>
-          <button
-            className="primary-button"
-            disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
-            onClick={() => void runPipelineSync()}
-            type="button"
-          >
-            {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
-          </button>
+        {pageHeader}
+        {heroSection}
+        {requestError ? <section className="error-banner">{requestError}</section> : null}
+        <section className="empty-shell empty-live-shell">
+          <div className="empty-live-copy">
+            <p className="eyebrow">{emptyQueueText.eyebrow}</p>
+            <strong>{emptyQueueText.title}</strong>
+            <p>{emptyQueueText.body}</p>
+            <button
+              className="primary-button"
+              disabled={busyAction === "sync-gee" || !hasApiBaseUrl}
+              onClick={() => void runPipelineSync()}
+              type="button"
+            >
+              {busyAction === "sync-gee" ? screeningText.syncing : screeningText.sync}
+            </button>
+          </div>
+
+          <div className="empty-live-grid">
+            <article className="empty-live-cell">
+              <span>{emptyQueueText.latestRun}</span>
+              <strong>{latestLiveSyncValue}</strong>
+            </article>
+            <article className="empty-live-cell">
+              <span>{emptyQueueText.nextRun}</span>
+              <strong>{nextScheduledSyncValue}</strong>
+            </article>
+            <article className="empty-live-cell">
+              <span>{emptyQueueText.serverState}</span>
+              <strong>{pipelineStateLabel}</strong>
+            </article>
+          </div>
         </section>
       </main>
     );
@@ -859,88 +1075,8 @@ export default function Page() {
 
   return (
     <main className="site-shell">
-      <header className="site-header">
-        <div className="header-bar">
-          <button
-            className="brand-button"
-            onClick={() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            type="button"
-          >
-            <span className="brand-mark" />
-            <span className="brand-copy">
-              <strong>{t.brand}</strong>
-              <small>{t.tagline}</small>
-            </span>
-          </button>
-
-          <nav aria-label="Main navigation" className="header-nav">
-            {stepOrder.map((step) => (
-              <button
-                key={step}
-                className={`nav-button ${activeStep === step ? "nav-button-active" : ""}`}
-                disabled={step !== "signal" && !activeIncident}
-                onClick={() => handleNavSelect(step)}
-                type="button"
-              >
-                {t.nav[step]}
-              </button>
-            ))}
-            <button className="nav-button" onClick={() => handleNavSelect("faq")} type="button">
-              {t.nav.faq}
-            </button>
-          </nav>
-
-          <div className="header-controls">
-            <button
-              aria-label={t.controls.language}
-              className="language-toggle"
-              onClick={() => setLocale((current) => (current === "en" ? "ru" : "en"))}
-              type="button"
-            >
-              <GlobeIcon />
-              <span>{locale.toUpperCase()}</span>
-            </button>
-
-            <button
-              aria-label={t.controls.theme}
-              className={`theme-toggle theme-toggle-${theme}`}
-              onClick={() => setTheme((current) => (current === "day" ? "night" : "day"))}
-              type="button"
-            >
-              {theme === "day" ? <SunIcon /> : <MoonIcon />}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <section className="hero-shell">
-        <div className="hero-copy">
-          <p className="eyebrow">{t.brand}</p>
-          <h1>{t.hero.title}</h1>
-          <p className="hero-subtitle">{t.hero.subtitle}</p>
-        </div>
-
-        <div className="hero-side">
-          <section className="status-pill">
-            <span className={`status-dot ${dashboardSource === "api" ? "status-dot-live" : ""}`} />
-            <div>
-              <div className="status-title">
-                <strong>
-                  {loadingDashboard
-                    ? t.status.loading
-                    : dashboardSource === "api"
-                      ? t.status.api
-                      : locale === "ru"
-                        ? "Сервер недоступен"
-                        : "Server unavailable"}
-                </strong>
-                <HelpHint text={statusHelpText} />
-              </div>
-              <p>{statusNote}</p>
-            </div>
-          </section>
-        </div>
-      </section>
+      {pageHeader}
+      {heroSection}
 
       {requestError ? <section className="error-banner">{requestError}</section> : null}
 
@@ -1634,6 +1770,18 @@ type CoordinateLinks = {
   googleMaps: string;
   twoGis: string;
 };
+
+function formatBusinessValueTitle(queueCount: number, locale: Locale) {
+  if (locale === "ru") {
+    if (queueCount <= 0) return "Живая очередь на выездной разбор пока пуста";
+    if (queueCount === 1) return "1 подозрительная зона готова к выездной проверке";
+    return `${queueCount} подозрительных зон готовы к выездной проверке`;
+  }
+
+  if (queueCount <= 0) return "The live review queue is empty for now";
+  if (queueCount === 1) return "1 suspected zone is ready for field review";
+  return `${queueCount} suspected zones are ready for field review`;
+}
 
 function buildCoordinateLinks(anomaly: Anomaly): CoordinateLinks | null {
   const latitude = Number(anomaly.latitude);
