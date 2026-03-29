@@ -12,8 +12,8 @@ import {
   type TrendPoint,
 } from "./dashboard-types";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
-export const hasApiBaseUrl = Boolean(apiBaseUrl);
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
+export const hasApiBaseUrl = true;
 
 export type DashboardSource = "api" | "unavailable";
 export type DashboardHydrationState = DashboardState & { source: DashboardSource };
@@ -292,10 +292,6 @@ export function createInitialPipelineHistory(): PipelineHistoryPayload {
 }
 
 export async function loadDashboardState(): Promise<DashboardHydrationState> {
-  if (!apiBaseUrl) {
-    return createUnavailableDashboardState();
-  }
-
   try {
     const payload = await requestJson<ApiDashboardPayload>("/api/v1/dashboard");
     return {
@@ -310,10 +306,6 @@ export async function loadDashboardState(): Promise<DashboardHydrationState> {
 export async function loadActivityFeed(
   fallbackEvents: ActivityEvent[] = [],
 ): Promise<ActivityEvent[]> {
-  if (!apiBaseUrl) {
-    return fallbackEvents;
-  }
-
   try {
     const payload = await requestJson<ApiActivityFeedPayload>("/api/v1/activity");
     return payload.events.map(normalizeActivityEvent);
@@ -329,10 +321,6 @@ export async function loadIncidentActivity(
   const filteredFallback = fallbackEvents.filter(
     (event) => event.incidentId === incidentId || event.stage === "ingest",
   );
-
-  if (!apiBaseUrl) {
-    return filteredFallback;
-  }
 
   try {
     const payload = await requestJson<ApiActivityFeedPayload>(
@@ -400,10 +388,6 @@ export async function downloadReport(
   format: ReportExportFormat = "html",
   locale: "en" | "ru" = "en",
 ): Promise<DownloadedReport> {
-  if (!apiBaseUrl) {
-    throw new Error("API base URL is not configured");
-  }
-
   const params = new URLSearchParams({ format, locale });
   const response = await fetch(
     `${apiBaseUrl}/api/v1/incidents/${incidentId}/report/export?${params.toString()}`,
@@ -431,10 +415,6 @@ export function getReportViewUrl(
   autoPrint = false,
   locale: "en" | "ru" = "en",
 ): string | null {
-  if (!apiBaseUrl) {
-    return null;
-  }
-
   const params = new URLSearchParams({ locale });
   if (autoPrint) {
     params.set("auto_print", "true");
@@ -443,10 +423,6 @@ export function getReportViewUrl(
 }
 
 export async function loadPipelineStatus(anomalyCount: number): Promise<PipelineStatus> {
-  if (!apiBaseUrl) {
-    return createInitialPipelineStatus(anomalyCount);
-  }
-
   try {
     const payload = await requestJson<ApiPipelineStatus>("/api/v1/pipeline/status");
     return normalizePipelineStatus(payload);
@@ -456,10 +432,6 @@ export async function loadPipelineStatus(anomalyCount: number): Promise<Pipeline
 }
 
 export async function syncPipeline(source: PipelineSource = "gee"): Promise<PipelineStatus> {
-  if (!apiBaseUrl) {
-    throw new Error("API base URL is not configured");
-  }
-
   const payload = await requestJson<ApiPipelineSyncResponse>("/api/v1/pipeline/sync", {
     method: "POST",
     headers: {
@@ -471,10 +443,6 @@ export async function syncPipeline(source: PipelineSource = "gee"): Promise<Pipe
 }
 
 export async function loadPipelineHistory(limit = 10): Promise<PipelineHistoryPayload> {
-  if (!apiBaseUrl) {
-    return createInitialPipelineHistory();
-  }
-
   try {
     const payload = await requestJson<ApiPipelineHistoryPayload>(`/api/v1/pipeline/history?limit=${limit}`);
     return normalizePipelineHistory(payload);

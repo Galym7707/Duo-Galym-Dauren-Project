@@ -1,85 +1,29 @@
-# Duo Galym Dauren Project
+---
+title: Saryna MRV
+sdk: docker
+app_port: 7860
+fullWidth: true
+---
 
-MVP-платформа для нефтегаза Казахстана, позиционируемая как MRV-инструмент:
+# Saryna MRV
 
-- Measurement: обнаружение CH4-анomalий и flare events по спутниковым данным
-- Reporting: формирование incident cards и MRV-отчетов
-- Verification: перевод аномалии в задачу на проверку и статус устранения
+Saryna MRV is a methane and flaring workflow demo for Kazakhstan oil and gas operations.
 
-Главный demo loop:
+The product focus is not a map by itself. The core loop is:
 
-1. Загрузка данных
-2. Нормализация
-3. Аномалия
-4. Incident card
-5. Задача
-6. MRV-отчет
+1. Load satellite screening data
+2. Rank suspected zones
+3. Open an operational case
+4. Track verification tasks
+5. Export an MRV report
 
-## Позиционирование
+## What is in this repository
 
-Это не "еще один dashboard" и не "магический AI".
+- `apps/web` — Next.js frontend
+- `apps/api` — FastAPI backend
+- `Dockerfile` — Hugging Face Docker Space entrypoint
 
-Продукт подается как:
-
-- MRV-инструмент для methane & flaring visibility
-- Screening and operational prioritization layer
-- Pre-LDAR intelligence layer
-- ESG / compliance / operations bridge
-
-## Почему это сильная ставка для Kazakhstan Startup Challenge 2026
-
-- Попадает в экологическую, ESG и энергоэффективную повестку нефтегаза Казахстана
-- Использует открытые данные, поэтому MVP можно показать без доступа к данным оператора
-- Отличается от типичных конкурсных решений тем, что показывает workflow, а не только карту или чат
-- Хорошо звучит для жюри PetroDigital: риск, регуляторика, контроль, доказуемость, операционная реакция
-
-## MVP до 3 апреля
-
-- Карта с выбранной территорией и слоями CH4 / flare events
-- Индекс аномалии по CH4
-- Карточка инцидента
-- Создание задачи на проверку
-- Экспорт краткого MRV-отчета
-
-## Полировка к 9 апреля
-
-- Улучшение narrative для сценического pitch
-- Чище UI и понятнее demo flow
-- Сильнее экономика: tCO2e, KZT, время реакции, regulatory exposure
-- Более уверенный Q&A по ограничениям и pilot scope
-
-## Источники данных
-
-- Sentinel-5P / TROPOMI для CH4
-- VIIRS Nightfire для flare detection
-- Перевод CH4 в CO2e с использованием актуальных GWP-коэффициентов
-
-## Базовый стек
-
-- Frontend: Next.js, TypeScript, Tailwind, MapLibre, Recharts
-- Backend: FastAPI, Python, Pydantic, SQLAlchemy, GeoPandas, Shapely
-- Database: PostgreSQL + PostGIS
-- Background jobs: APScheduler или Celery
-- Storage: Supabase Storage или S3-compatible
-
-## Документы в репозитории
-
-- `docs/project-brief.md`: рабочая рамка для MVP, demo и pitch
-- `docs/contest-research.md`: конспект конкурсного исследования из исходного документа
-- `docs/demo-script.md`: 90-second screencast path, exact click order, and safe fallback narration
-- `docs/pitch-qna-pack.md`: short opening, why-now framing, and ready answers for jury Q&A
-- `docs/final-submission-pack.md`: final preflight, fallback, and must-show checklist for April 3, 2026 and April 9, 2026
-- `docs/slide-deck-outline.md`: recommended 7-slide deck with exact role of each slide
-- `docs/slide-copy-pack.md`: paste-ready slide text, reusable one-liners, and safe numbers guidance
-- `docs/submission-form-pack.md`: paste-ready answers for contest forms, applications, and short product descriptions
-- `docs/source/Победный проект для Kazakhstan Startup Challenge.docx`: исходный документ
-
-## Текущая структура MVP
-
-- `apps/web`: Next.js demo surface для anomaly -> incident -> task -> report
-- `apps/api`: FastAPI backend scaffold с typed MRV endpoints и seeded demo state
-
-## Быстрый старт
+## Local development
 
 Frontend:
 
@@ -88,47 +32,30 @@ npm install
 npm run dev --workspace=@duo/web
 ```
 
-Optional environment for live API wiring:
-
-```bash
-set NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
-```
-
 Backend:
 
 ```bash
 cd apps/api
-pip install "fastapi[standard]"
-fastapi dev app/main.py
+pip install -e .
+uvicorn app.main:app --app-dir apps/api --reload
 ```
 
-Earth Engine project for live CH4 sync:
+## Hugging Face Space deployment
 
-```bash
-set EARTH_ENGINE_PROJECT=gen-lang-client-0372752376
-```
+This repository is configured for a Docker Space that serves:
 
-Live backend runbook:
+- the exported frontend from FastAPI static files
+- the backend API on the same public port
 
-- `docs/backend-live-sync.md`
+### Runtime expectations
 
-## Что уже реализовано
+- The container listens on port `7860`
+- If `DATABASE_URL` is not set, the app falls back to local SQLite for demo use
+- Earth Engine requires project configuration and credentials through Space secrets
 
-- demo-safe anomaly queue
-- incident workspace с задачами верификации
-- MRV report preview
-- FastAPI API contract под дальнейшую интеграцию реальных данных
-- frontend tries the FastAPI contract first and falls back to seeded state if the API is unavailable
-- pipeline status and manual Earth Engine sync scaffold for CH4 screening
-- live screening evidence snapshot with `fresh / stale / unavailable` states, current vs baseline comparison, and manual promote path
-- MRV audit feed exposed as first-class API resources for global and incident-specific evidence views
-- audit events now carry source, actor, entity, and metadata so the timeline reads like evidence, not just UI copy
-- frontend now supports a stage-safe `Sync latest evidence -> Return to seeded mode` loop with visible screening evidence change before incident promotion
-- Signal step now uses a real MapLibre surface with anomaly markers, shared workflow selection, and an internal sketch fallback for demo safety
-- Signal step now opens on Kazakhstan-wide screening coverage with named regional jump presets for faster demo narration
+### Required Space secrets
 
-## Что дальше по приоритету
+- `EARTH_ENGINE_PROJECT`
+- `EARTH_ENGINE_SERVICE_ACCOUNT_JSON`
 
-1. Подключить frontend к backend API вместо локального seeded state
-2. Добавить ingest-normalize pipeline для Sentinel-5P и VIIRS Nightfire
-3. Перейти с in-memory store на Postgres/PostGIS
+Without Earth Engine credentials, the application can still boot, but screening refresh will not succeed.

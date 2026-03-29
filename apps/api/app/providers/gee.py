@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import json
 import math
 import os
+from pathlib import Path
+import tempfile
 from typing import Literal
 
 from app.providers.reverse_geocoder import ReverseGeocoder
@@ -99,6 +102,7 @@ class GeeProvider:
     def __init__(self) -> None:
         self.project_id = os.getenv("EARTH_ENGINE_PROJECT", "gen-lang-client-0372752376")
         self.reverse_geocoder = ReverseGeocoder()
+        self._service_account_key_path: str | None = None
 
     def sync_summary(self) -> GeeSyncSummary:
         try:
@@ -111,7 +115,7 @@ class GeeProvider:
             )
 
         try:
-            ee.Initialize(project=self.project_id)
+            self._initialize_earth_engine(ee)
         except Exception as error:  # pragma: no cover - runtime/environment dependent
             return GeeSyncSummary(
                 project_id=self.project_id,
@@ -220,6 +224,56 @@ class GeeProvider:
             scene_count=scene_count,
             candidates=candidates,
         )
+
+    def _initialize_earth_engine(self, ee: object) -> None:
+        service_account_json = os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_JSON")
+        service_account_file = os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_FILE")
+
+        if service_account_json:
+            key_path, service_account_email = self._write_service_account_key(service_account_json)
+            credentials = ee.ServiceAccountCredentials(service_account_email, key_file=key_path)
+            ee.Initialize(credentials=credentials, project=self.project_id)
+            return
+
+        if service_account_file:
+            key_path = Path(service_account_file)
+            if not key_path.exists():
+                raise FileNotFoundError(
+                    f"Earth Engine service account file was not found: {key_path}"
+                )
+
+            payload = json.loads(key_path.read_text(encoding="utf-8"))
+            service_account_email = payload.get("client_email")
+            if not service_account_email:
+                raise ValueError("Earth Engine service account JSON is missing client_email.")
+
+            credentials = ee.ServiceAccountCredentials(
+                service_account_email,
+                key_file=str(key_path),
+            )
+            ee.Initialize(credentials=credentials, project=self.project_id)
+            return
+
+        ee.Initialize(project=self.project_id)
+
+    def _write_service_account_key(self, raw_json: str) -> tuple[str, str]:
+        payload = json.loads(raw_json)
+        service_account_email = payload.get("client_email")
+        if not service_account_email:
+            raise ValueError("Earth Engine service account JSON is missing client_email.")
+
+        if self._service_account_key_path is None:
+            temp_file = tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix="-earth-engine-service-account.json",
+                delete=False,
+                encoding="utf-8",
+            )
+            with temp_file:
+                json.dump(payload, temp_file)
+            self._service_account_key_path = temp_file.name
+
+        return self._service_account_key_path, service_account_email
 
     def _build_candidates(
         self,

@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+.next
+node_modules
+apps/web/.next
+apps/web/node_modules
+apps/web/out
+apps/api/.venv
+apps/api/.env
+.codex-artifacts
+test-results
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
