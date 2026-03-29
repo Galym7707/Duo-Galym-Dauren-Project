@@ -56,7 +56,7 @@ const KAZAKHSTAN_STYLE: StyleSpecification = {
 
 const mapCopy = {
   en: {
-    fallback: "Map unavailable. Showing the simplified live-screening backup view.",
+    fallback: "Map unavailable. Showing the simplified backup view.",
     detailTitle: "Selected marker",
     coordinates: "Coordinates",
     facility: "Facility",
@@ -65,6 +65,8 @@ const mapCopy = {
     nearestLandmark: "Nearest landmark",
     notAvailable: "Not available nearby",
     actionHint: "Screening marker only. Use manual promotion to open the operational incident.",
+    enterFullscreen: "Open map in full screen",
+    exitFullscreen: "Exit full screen",
   },
   ru: {
     fallback: "Карта временно недоступна. Показан упрощённый запасной вид.",
@@ -94,15 +96,25 @@ export function AnomalyMap({
   primaryActionLabel,
   primaryActionDisabled = false,
 }: AnomalyMapProps) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapInstance | null>(null);
   const markersRef = useRef<MarkerInstance[]>([]);
   const [mapModule, setMapModule] = useState<MapLibreModule | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [useFallback, setUseFallback] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const t = copy[locale];
   const mapText = mapCopy[locale];
+  const fullscreenLabel =
+    locale === "ru"
+      ? isFullscreen
+        ? "Выйти из полноэкранного режима"
+        : "Открыть карту на весь экран"
+      : isFullscreen
+        ? "Exit full screen"
+        : "Open map in full screen";
   const selectedAnomaly = useMemo(
     () => anomalies.find((anomaly) => anomaly.id === selectedAnomalyId) ?? anomalies[0] ?? null,
     [anomalies, selectedAnomalyId],
@@ -166,6 +178,21 @@ export function AnomalyMap({
   }, [anomalies, mapReady]);
 
   useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === shellRef.current);
+      if (mapRef.current) {
+        requestAnimationFrame(() => mapRef.current?.resize());
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mapReady || !mapRef.current || !mapModule) return;
 
     markersRef.current.forEach((marker) => marker.remove());
@@ -195,8 +222,32 @@ export function AnomalyMap({
     }
   }, [anomalies, liveReactionAnomalyId, locale, mapModule, mapReady, onSelectAnomaly, selectedAnomalyId]);
 
+  async function toggleFullscreen() {
+    if (!shellRef.current) return;
+
+    try {
+      if (document.fullscreenElement === shellRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await shellRef.current.requestFullscreen();
+      }
+    } catch {
+      // Ignore rejected fullscreen requests and keep the current map view.
+    }
+  }
+
   return (
-    <div className={`map-shell map-shell-${tone}`}>
+    <div className={`map-shell map-shell-${tone} ${isFullscreen ? "map-shell-fullscreen" : ""}`} ref={shellRef}>
+      <button
+        aria-label={fullscreenLabel}
+        className="map-fullscreen-button"
+        onClick={() => void toggleFullscreen()}
+        title={fullscreenLabel}
+        type="button"
+      >
+        {isFullscreen ? <CollapseIcon /> : <ExpandIcon />}
+      </button>
+
       {useFallback ? (
         <div className="map-fallback-shell">
           <div className="map-fallback-banner">{mapText.fallback}</div>
@@ -268,6 +319,48 @@ export function AnomalyMap({
         </aside>
       ) : null}
     </div>
+  );
+}
+
+function ExpandIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M6 2.75H2.75V6M12 2.75h3.25V6M6 15.25H2.75V12M12 15.25h3.25V12"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M7.25 2.75H6v1.25M10.75 2.75H12v1.25M7.25 15.25H6V14M10.75 15.25H12V14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function CollapseIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M6 6H2.75V2.75M12 6h3.25V2.75M6 12H2.75v3.25M12 12h3.25v3.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M6 6 8 8M12 6 10 8M6 12l2-2M12 12l-2-2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }
 

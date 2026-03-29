@@ -133,24 +133,24 @@ const mapSyncLabelCopy = {
 
 const mapCardCopy = {
   en: {
-    contextLive: "Live screening view",
-    contextFallback: "Live sync required",
+    contextLive: "Updated screening view",
+    contextFallback: "Data refresh required",
     noteLive:
       "The map stays geographically stable. Screening evidence was refreshed for the selected Kazakhstan window.",
     noteDegraded:
-      "The last verified screening snapshot is still shown while the live refresh is degraded.",
+      "The last verified screening snapshot is still shown while the current refresh is degraded.",
     noteUnavailable:
-      "Live screening is unavailable. Refresh Earth Engine data before using this page for decisions.",
+      "Real-time screening is unavailable. Refresh Earth Engine data before using this page for decisions.",
   },
   ru: {
     contextLive: "Обновлённый скрининг",
-    contextFallback: "Нужна живая синхронизация",
+    contextFallback: "Нужно обновление данных",
     noteLive:
       "География карты остаётся стабильной. Данные скрининга обновлены для выбранной зоны Казахстана.",
     noteDegraded:
       "Последний подтверждённый снимок скрининга всё ещё показан, пока новое обновление работает с ограничениями.",
     noteUnavailable:
-      "Спутниковый скрининг сейчас недоступен. Перед принятием решений обновите живые данные Earth Engine.",
+      "Спутниковый скрининг сейчас недоступен. Перед принятием решений обновите данные Earth Engine.",
   },
 } as const;
 
@@ -172,10 +172,10 @@ const screeningCopy = {
     recommendation: "Action plan",
     sync: "Sync latest evidence",
     syncing: "Syncing...",
-    noApi: "Live sync needs the FastAPI backend to be available.",
+    noApi: "Data refresh needs the FastAPI backend to be available.",
     syncingGee: "Refreshing satellite screening evidence...",
     syncFailedGee:
-      "Live sync failed. If a verified screening snapshot already exists, the page keeps the last successful version.",
+      "Data refresh failed. If a verified screening snapshot already exists, the page keeps the last successful version.",
     notAvailable: "Not available",
     noCaveat: "No additional caveat.",
     freshness: {
@@ -197,6 +197,12 @@ const screeningCopy = {
         "This shows how far the latest reading is from the baseline. A higher positive difference means the current zone stands out more strongly.",
       level:
         "This is the simplified priority level for quick decisions. It combines the satellite comparison into a low, medium, or high screening priority.",
+      source:
+        "This shows which external data source produced the current methane comparison on the page.",
+      synced:
+        "This is the time when the backend last refreshed this satellite comparison and saved the newest result.",
+      observed:
+        "This shows which satellite scene was used for the current comparison and against what historical baseline it was checked.",
     },
   },
   ru: {
@@ -241,6 +247,12 @@ const screeningCopy = {
         "Это разница между текущим и базовым уровнем. Она показана в ppb и в процентах, чтобы было видно и абсолютное, и относительное отклонение.",
       level:
         "Это упрощённая оценка важности зоны для быстрого решения. Она показывает, насколько внимательно стоит отнестись к этому случаю.",
+      source:
+        "Здесь видно, из какого внешнего источника пришло текущее спутниковое сравнение метана на странице.",
+      synced:
+        "Это время последнего обновления, когда backend заново получил спутниковые данные и сохранил текущий результат.",
+      observed:
+        "Здесь видно, какая спутниковая сцена взята для текущего сравнения и с каким историческим базовым окном она сопоставлялась.",
     },
   },
 } as const;
@@ -255,29 +267,29 @@ const liveSignalCopy = {
     nearestAddress: "Nearest address",
     nearestLandmark: "Nearest landmark",
     noThermalContext: "No recent night-time detections",
-    noImpact: "Not estimated in live screening",
+    noImpact: "Not estimated in current screening",
     notAvailable: "Not available",
     notMappedNearby: "No mapped result nearby",
     detections: "night detections",
     hints: {
       methaneUplift:
-        "This compares the current CH4 scene with the rolling baseline at the selected live candidate point.",
+        "This compares the current CH4 scene with the rolling baseline at the selected candidate point.",
       thermalContext:
-        "This counts night-time VIIRS thermal detections within 25 km over the last 72 hours. It is context, not proof of a flare source.",
+        "This counts night-time VIIRS thermal detections within 25 km over the last 72 hours.",
       evidenceSource:
-        "This shows which live data layers produced the current candidate on the page.",
+        "This shows which data layers produced the current candidate on the page.",
       baselineWindow:
         "This shows the historical comparison window used to decide whether the current CH4 reading stands out.",
       verificationArea:
-        "This narrows the live hotspot to the nearest mapped district or local area for field review.",
+        "This narrows the hotspot to the nearest mapped district or local area for field review.",
       nearestAddress:
         "This is the closest mapped address near the hotspot center. It is a route-planning hint, not proof of the exact source.",
       nearestLandmark:
         "This is the closest mapped landmark or place near the hotspot center. It is useful as a navigation anchor.",
     },
-    statusNote: "Live Earth Engine candidates are active on the page.",
+    statusNote: "Earth Engine candidates are active on the page.",
     statusHelp:
-      "The interface is connected to the local backend and the current queue is built from live Earth Engine methane candidates.",
+      "The interface is connected to the local backend and the current queue is built from Earth Engine methane candidates.",
   },
   ru: {
     methaneUplift: "Рост метана",
@@ -288,38 +300,40 @@ const liveSignalCopy = {
     nearestAddress: "Ближайший адрес",
     nearestLandmark: "Ближайший ориентир",
     noThermalContext: "Свежих ночных срабатываний нет",
-    noImpact: "В живом скрининге не оценивается",
+    noImpact: "В текущем скрининге не оценивается",
     notAvailable: "Недоступно",
     notMappedNearby: "Рядом нет подходящего адреса или объекта",
     detections: "ночных срабатываний",
     hints: {
       methaneUplift:
-        "Это сравнение текущей сцены CH4 с базовым уровнем для выбранной живой точки наблюдения.",
+        "Это сравнение текущей сцены CH4 с базовым уровнем для выбранной точки наблюдения.",
       thermalContext:
-        "Это число ночных VIIRS-срабатываний в радиусе 25 км за последние 72 часа. Это контекст, а не доказательство точного источника.",
+        "Это число ночных VIIRS-срабатываний в радиусе 25 км за последние 72 часа.",
       evidenceSource:
-        "Здесь видно, из каких живых слоёв данных собран текущий кандидат на странице.",
+        "Здесь видно, из каких слоёв данных собран текущий кандидат на странице.",
       baselineWindow:
         "Здесь видно, какое историческое окно сравнения использовалось для оценки отклонения текущего CH4.",
       verificationArea:
-        "Это ближайший район или локальная зона вокруг центра hotspot, чтобы команде было проще планировать выезд.",
+        "Это ближайший район или локальная зона вокруг центра предполагаемой зоны, чтобы команде было проще планировать выезд.",
       nearestAddress:
-        "Это ближайший адрес рядом с центром hotspot. Это навигационная подсказка, а не доказательство точного источника.",
+        "Это ближайший адрес рядом с центром предполагаемой зоны. Это навигационная подсказка для выездной проверки.",
       nearestLandmark:
-        "Это ближайший ориентир или отмеченный на карте объект рядом с центром hotspot. Его удобно использовать как точку привязки.",
+        "Это ближайший ориентир или отмеченный на карте объект рядом с центром предполагаемой зоны. Его удобно использовать как точку привязки.",
     },
-    statusNote: "На странице активна живая очередь Earth Engine-кандидатов.",
+    statusNote: "На странице активна очередь Earth Engine-кандидатов.",
     statusHelp:
-      "Интерфейс подключён к локальному backend, а текущая очередь построена из живых methane-кандидатов Earth Engine.",
+      "Интерфейс подключён к локальному backend, а текущая очередь построена из methane-кандидатов Earth Engine.",
   },
 } as const;
 
 const coordinateActionCopy = {
   en: {
+    title: "Open location in",
     googleMaps: "Open in Google Maps",
     twoGis: "Open in 2GIS",
   },
   ru: {
+    title: "Открыть местоположение в",
     googleMaps: "Открыть в Google Maps",
     twoGis: "Открыть в 2GIS",
   },
@@ -328,48 +342,48 @@ const coordinateActionCopy = {
 const valuePanelCopy = {
   en: {
     eyebrow: "Operational value",
-    queueLabel: "Live review queue",
+    queueLabel: "Review queue",
     openCases: "Open cases",
     strongestUplift: "Strongest CH4 uplift",
-    lastSync: "Last live sync",
+    lastSync: "Last refresh",
     defaultScope: "Kazakhstan",
     scopeLabel: "Screening scope",
     bodyWithQueue:
-      "Instead of scanning nationwide methane data manually, the team starts from a short live queue ranked for field review and case creation.",
+      "Instead of scanning nationwide methane data manually, the team starts from a short queue ranked for field review and case creation.",
     bodyWithoutQueue:
-      "The latest live run did not create a review queue. The team can inspect sync history and refresh the screening window without guessing from an empty map.",
+      "The latest refresh did not create a review queue. The team can inspect sync history and refresh the screening window without guessing from an empty map.",
   },
   ru: {
     eyebrow: "Практическая ценность",
-    queueLabel: "Живая очередь на разбор",
+    queueLabel: "Очередь на разбор",
     openCases: "Открытые кейсы",
     strongestUplift: "Макс. рост CH4",
-    lastSync: "Последняя live-синхронизация",
+    lastSync: "Последнее обновление",
     defaultScope: "Казахстан",
     scopeLabel: "Охват скрининга",
     bodyWithQueue:
-      "Вместо ручного просмотра всей страны команда сразу получает короткую живую очередь, с которой можно начать выездную проверку и открыть рабочий кейс.",
+      "Вместо ручного просмотра всей страны команда сразу получает короткую очередь, с которой можно начать выездную проверку и открыть рабочий кейс.",
     bodyWithoutQueue:
-      "Последний live-запуск не сформировал очередь на разбор. Команда всё равно видит историю синхронизаций и может безопасно перезапустить скрининг, не гадая по пустой карте.",
+      "Последнее обновление не сформировало очередь на разбор. Команда всё равно видит историю синхронизаций и может безопасно перезапустить скрининг, не гадая по пустой карте.",
   },
 } as const;
 
 const emptyQueueCopy = {
   en: {
-    eyebrow: "Live queue",
-    title: "No suspected zones were added after the latest live run",
+    eyebrow: "Review queue",
+    title: "No suspected zones were added after the latest refresh",
     body:
       "This is a valid empty result, not a broken screen. Refresh the screening window or wait for the next scheduled run before opening a case.",
-    latestRun: "Latest live run",
+    latestRun: "Latest refresh",
     nextRun: "Next scheduled sync",
     serverState: "Backend state",
   },
   ru: {
-    eyebrow: "Живая очередь",
-    title: "После последнего live-запуска новые подозрительные зоны не появились",
+    eyebrow: "Очередь на разбор",
+    title: "После последнего обновления новые подозрительные зоны не появились",
     body:
       "Это нормальный пустой результат, а не поломка интерфейса. Обновите окно скрининга или дождитесь следующей плановой синхронизации, прежде чем открывать кейс.",
-    latestRun: "Последний live-запуск",
+    latestRun: "Последнее обновление",
     nextRun: "Следующая плановая синхронизация",
     serverState: "Состояние backend",
   },
@@ -397,14 +411,13 @@ const juryUiCopy = {
     heroSubtitle: "Start from a suspected zone, open the case, verify it in the field, and export the result.",
     queueEyebrow: "Suspected zones",
     queueTitle: "Choose a zone for review",
-    queueSubtitle: "Keep the queue short so the team can see what to inspect first.",
     queueTop: "Top review zone",
     scoreLabel: "Zone priority",
     signalStepTitle: "Selected suspected zone",
     signalStepSubtitle: "Start with the satellite evidence, then confirm the practical field context.",
-    readyStatusNote: "The page is showing a live queue of suspected zones for field review.",
+    readyStatusNote: "The page is showing a current queue of suspected zones for field review.",
     readyStatusHelp:
-      "The interface is connected to the backend and the current queue is built from live Earth Engine screening results for operational review.",
+      "The interface is connected to the backend and the current queue is built from Earth Engine screening results for operational review.",
   },
   ru: {
     navSignal: "Зона",
@@ -412,14 +425,13 @@ const juryUiCopy = {
     heroSubtitle: "Начните с подозрительной зоны, откройте инцидент, проведите выездную проверку и выгрузите результат.",
     queueEyebrow: "Подозрительные зоны",
     queueTitle: "Выберите зону для разбора",
-    queueSubtitle: "Очередь должна оставаться короткой, чтобы команда сразу видела, с чего начинать проверку.",
     queueTop: "Главная зона на разбор",
     scoreLabel: "Приоритет зоны",
     signalStepTitle: "Выбранная подозрительная зона",
     signalStepSubtitle: "Сначала проверьте спутниковые признаки, затем посмотрите географический и операционный контекст.",
-    readyStatusNote: "На странице активна живая очередь подозрительных зон для выездной проверки.",
+    readyStatusNote: "На странице активна текущая очередь подозрительных зон для выездной проверки.",
     readyStatusHelp:
-      "Интерфейс подключён к backend, а текущая очередь построена из живых результатов Earth Engine для операционного разбора.",
+      "Интерфейс подключён к backend, а текущая очередь построена из результатов Earth Engine для операционного разбора.",
   },
 } as const;
 
@@ -546,10 +558,38 @@ export default function Page() {
     let cancelled = false;
 
     async function hydrateDashboard() {
-      const { state, nextPipelineStatus, nextPipelineHistory } = await loadWorkspaceSnapshot(true);
+      const dashboardPromise = loadDashboardState();
+      const pipelineStatusPromise = loadPipelineStatus(anomalies.length);
+      const pipelineHistoryPromise = loadPipelineHistory(12);
 
+      let state = await dashboardPromise;
+      if (cancelled) return;
+      applyDashboardHydration(state);
+
+      let nextPipelineStatus = await pipelineStatusPromise;
+      let nextPipelineHistory = await pipelineHistoryPromise;
       if (cancelled) return;
       applyDashboardHydration(state, nextPipelineStatus, nextPipelineHistory);
+
+      if (
+        hasApiBaseUrl &&
+        state.source === "api" &&
+        state.anomalies.length === 0 &&
+        nextPipelineStatus.state !== "syncing"
+      ) {
+        try {
+          nextPipelineStatus = await syncPipeline("gee");
+          [state, nextPipelineHistory] = await Promise.all([
+            loadDashboardState(),
+            loadPipelineHistory(12),
+          ]);
+          if (cancelled) return;
+          applyDashboardHydration(state, nextPipelineStatus, nextPipelineHistory);
+        } catch {
+          if (cancelled) return;
+          applyDashboardHydration(state, nextPipelineStatus, nextPipelineHistory);
+        }
+      }
     }
 
     void hydrateDashboard();
@@ -615,6 +655,25 @@ export default function Page() {
     liveSignalSelected && selectedAnomaly?.nearestLandmark
       ? translateAdministrativeLabel(selectedAnomaly.nearestLandmark, locale)
       : liveSignalText.notMappedNearby;
+  const translatedAssetName = selectedAnomaly ? translateAssetName(selectedAnomaly.assetName, locale) : "";
+  const translatedRegion = selectedAnomaly ? translateRegion(selectedAnomaly.region, locale) : "";
+  const normalizedAssetName = normalizeInfoValue(translatedAssetName);
+  const normalizedRegion = normalizeInfoValue(translatedRegion);
+  const normalizedVerificationArea = normalizeInfoValue(translatedVerificationArea);
+  const normalizedNearestLandmark = normalizeInfoValue(translatedNearestLandmark);
+  const showVerificationArea =
+    liveSignalSelected &&
+    normalizedVerificationArea.length > 0 &&
+    normalizedVerificationArea !== normalizeInfoValue(liveSignalText.notMappedNearby) &&
+    normalizedVerificationArea !== normalizedAssetName &&
+    normalizedVerificationArea !== normalizedRegion;
+  const showNearestLandmark =
+    liveSignalSelected &&
+    normalizedNearestLandmark.length > 0 &&
+    normalizedNearestLandmark !== normalizeInfoValue(liveSignalText.notMappedNearby) &&
+    normalizedNearestLandmark !== normalizedAssetName &&
+    normalizedNearestLandmark !== normalizedVerificationArea &&
+    normalizedNearestLandmark !== normalizedRegion;
   const selectedAnomalyCoordinateLinks = selectedAnomaly ? buildCoordinateLinks(selectedAnomaly) : null;
 
   const completedTasks = activeIncident
@@ -629,7 +688,7 @@ export default function Page() {
     selectedAnomaly && activeIncident
       ? buildReportSectionsForUi(selectedAnomaly, activeIncident, completedTasks, locale)
       : [];
-  const faqItems = t.faq.items
+  const faqItems: Array<{ id: string; question: string; answer: string[] }> = t.faq.items
     .filter((item) => item.id !== "demo")
     .map((item) => {
     if (item.id === "goal") {
@@ -637,17 +696,17 @@ export default function Page() {
         ? {
             ...item,
             answer: [
-              "Сайт нужен не для просмотра карты ради карты, а для MRV-цикла: найти подозрительную зону, открыть рабочий кейс, провести проверку и сформировать отчёт.",
-              "Для нефтегаза это screening and operational prioritization layer: он помогает быстрее понять, куда отправлять команду и какой случай брать в работу первым.",
-              "Главная ценность — не спутниковая картинка сама по себе, а короткий путь от live-скрининга к действию и отчётности.",
+              "Сайт помогает быстро выбрать подозрительную зону, открыть кейс, провести проверку и выгрузить отчёт.",
+              "Для команды это способ сразу понять, куда ехать в первую очередь и какой случай брать в работу.",
+              "Главная польза сайта — не карта сама по себе, а понятный порядок действий после спутниковой проверки.",
             ],
           }
         : {
             ...item,
             answer: [
-              "The site is not a map for its own sake. It is an MRV loop: find a suspected zone, open a working case, run verification, and generate the report.",
-              "For oil and gas teams it acts as a screening and operational prioritization layer that helps them see where to send field attention first.",
-              "The value is not the satellite image alone. The value is the short path from live screening to action and reporting.",
+              "The site helps the team choose a suspected zone, open a case, run verification, and export the report.",
+              "For the team it is a practical way to see where to go first and which case should be handled before the others.",
+              "The main value is not the map itself, but the clear next steps after the satellite check.",
             ],
           };
     }
@@ -657,17 +716,55 @@ export default function Page() {
         ? {
             ...item,
             answer: [
-              "Сначала выберите подозрительную зону из live-очереди и посмотрите спутниковые признаки, координаты и район проверки.",
+              "Сначала выберите подозрительную зону из очереди на разбор и посмотрите спутниковые признаки, координаты и район проверки.",
               "Если зона действительно выглядит важной, откройте инцидент, чтобы у кейса появился ответственный и срок реакции.",
-              "Дальше закройте задачи проверки и выгрузите MRV-отчёт для внутреннего разбора, ESG или compliance-команды.",
+              "Дальше закройте задачи проверки и выгрузите MRV-отчёт для внутреннего разбора, ESG или тех, кто отвечает за соблюдение требований.",
             ],
           }
         : {
             ...item,
             answer: [
-              "Start with the live queue of suspected zones and review the satellite evidence, coordinates, and verification area.",
+              "Start with the review queue of suspected zones and review the satellite evidence, coordinates, and verification area.",
               "If the zone still looks material, open an incident so the case gets an owner and a response window.",
               "Then complete the verification tasks and export the MRV report for internal review, ESG, or compliance teams.",
+            ],
+          };
+    }
+
+    if (item.id === "map") {
+      return locale === "ru"
+        ? {
+            ...item,
+            answer: [
+              "Точки — это маркеры объектов на карте Казахстана.",
+              "Они помогают понять, где находится выбранный случай и какие зоны есть в других регионах.",
+            ],
+          }
+        : {
+            ...item,
+            answer: [
+              "The dots are asset markers placed on the Kazakhstan map.",
+              "They help the user see where the selected case is located and compare it with zones in other regions.",
+            ],
+          };
+    }
+
+    if (item.id === "location") {
+      return locale === "ru"
+        ? {
+            ...item,
+            answer: [
+              "Эти поля помогают команде доехать до предполагаемой зоны и не создают ложного впечатления, что система уже знает точную точку выброса.",
+              "Район проверки показывает ближайший район или локальную зону вокруг центра спутниковой аномалии.",
+              "Ближайший адрес и ближайший ориентир получаются через reverse geocoding (обратное геокодирование) рядом с этим центром. Это навигационные подсказки для выездной проверки.",
+            ],
+          }
+        : {
+            ...item,
+            answer: [
+              "These fields help the team reach the suspected zone without pretending that the system already knows the exact source point.",
+              "Verification area shows the nearest mapped district or local area around the center of the satellite hotspot.",
+              "Nearest address and nearest landmark come from reverse geocoding (address lookup by coordinates) near that center point. They are route-planning hints for field review.",
             ],
           };
     }
@@ -678,7 +775,7 @@ export default function Page() {
             ...item,
             question: "Что означает приоритет зоны?",
             answer: [
-              "Приоритет зоны — это операционная оценка по шкале от 0 до 100, которая помогает быстро отсортировать live-очередь.",
+              "Приоритет зоны — это операционная оценка по шкале от 0 до 100, которая помогает быстро отсортировать очередь на разбор.",
               "Чем выше значение, тем сильнее текущая зона выделяется по доступным признакам и тем раньше её стоит разбирать.",
               "Это инструмент приоритизации для полевой проверки, а не окончательное доказательство источника.",
             ],
@@ -687,7 +784,7 @@ export default function Page() {
             ...item,
             question: "What does zone priority mean?",
             answer: [
-              "Zone priority is an operational score from 0 to 100 used to rank the live review queue.",
+              "Zone priority is an operational score from 0 to 100 used to rank the review queue.",
               "A higher number means the current zone stands out more strongly in the available evidence and should be reviewed earlier.",
               "It is a field prioritization aid, not final source proof.",
             ],
@@ -700,18 +797,18 @@ export default function Page() {
             ...item,
             question: "Что теперь показывает второй ключевой показатель?",
             answer: [
-              "В живом режиме экран больше не подставляет искусственный tCO2e для каждой подозрительной зоны.",
+              "В текущем режиме экран больше не подставляет искусственный tCO2e для каждой подозрительной зоны.",
               "Вместо этого сайт показывает реальные метрики из текущего ingest: рост метана относительно базового уровня и ночной термоконтекст VIIRS рядом с точкой наблюдения.",
-              "Так интерфейс остаётся честным: он показывает то, что реально измерено живым скринингом, а не расчёт, которого в текущем pipeline пока нет.",
+              "Так интерфейс остаётся честным: он показывает то, что реально измерено текущим скринингом, а не расчёт, которого в текущем pipeline пока нет.",
             ],
           }
         : {
             ...item,
             question: "What does the second key metric show now?",
             answer: [
-              "In live mode the page no longer inserts a synthetic tCO2e value for every suspected zone.",
+              "In the current mode the page no longer inserts a synthetic tCO2e value for every suspected zone.",
               "Instead it shows real metrics from the current ingest: methane uplift versus baseline and the nearby VIIRS night-time thermal context.",
-              "This keeps the interface honest: it shows what the live screening layer actually measures instead of a number the current pipeline does not calculate yet.",
+              "This keeps the interface honest: it shows what the current screening layer actually measures instead of a number the current pipeline does not calculate yet.",
             ],
           };
     }
@@ -722,22 +819,43 @@ export default function Page() {
             ...item,
             answer: [
               "Отчёт собирает ключевые факты по подозрительной зоне, ответственного по кейсу, статус задач и итог проверки.",
-              "Он нужен, чтобы замкнуть MRV-цикл и показать не только обнаружение, но и реальные действия команды.",
-              "Этот формат полезен для внутреннего операционного разбора, ESG-отчётности и коммуникации с compliance-функцией.",
+              "Он нужен, чтобы сразу было видно, что нашли, кто проверял и чем всё закончилось.",
+              "Этот формат полезен для внутреннего разбора, ESG-отчётности и общения с теми, кто отвечает за соблюдение требований.",
             ],
           }
         : {
             ...item,
             answer: [
               "The report collects the core facts about the suspected zone, the case owner, the task status, and the current verification result.",
-              "Its job is to close the MRV loop and show not only detection, but also what the team actually did next.",
+              "Its job is to show what was found, who checked it, and what the result was.",
               "This makes it useful for internal operations review, ESG reporting, and compliance communication.",
             ],
           };
     }
 
-    return item;
+    return { id: item.id, question: item.question, answer: [...item.answer] };
   });
+  const mrvFaqItem =
+    locale === "ru"
+      ? {
+          id: "mrv",
+          question: "Что означает MRV?",
+          answer: [
+            "MRV расшифровывается как Measurement, Reporting, Verification.",
+            "По-русски это измерение, отчётность и проверка.",
+            "На этом сайте MRV означает понятную последовательность: найти зону, открыть кейс, провести проверку и зафиксировать результат в отчёте.",
+          ],
+        }
+      : {
+          id: "mrv",
+          question: "What does MRV mean?",
+          answer: [
+            "MRV stands for Measurement, Reporting, and Verification.",
+            "On this site it means one clear sequence: review the zone, open the case, verify it, and record the result in the report.",
+            "It is the working path from satellite screening to documented action.",
+          ],
+        };
+  faqItems.splice(2, 0, mrvFaqItem);
   const screeningSnapshot = pipelineStatus.screeningSnapshot;
   const mapCardTone: MapCardTone =
     pipelineStatus.state === "ready" && screeningSnapshot?.freshness === "fresh"
@@ -765,7 +883,8 @@ export default function Page() {
         screeningSnapshot?.syncedAt ??
         screeningText.notAvailable
       : screeningSnapshot?.syncedAt ?? screeningText.notAvailable;
-  const liveQueueCount = Math.max(anomalies.length, pipelineStatus.anomalyCount);
+  const liveQueueCount =
+    loadingDashboard || dashboardSource !== "api" ? pipelineStatus.anomalyCount : anomalies.length;
   const openIncidentCount = Object.keys(incidents).length;
   const strongestMethaneUplift = anomalies.reduce<number | null>((best, anomaly) => {
     if (anomaly.methaneDeltaPpb === undefined) {
@@ -786,21 +905,29 @@ export default function Page() {
   const businessValueBody = liveQueueCount > 0 ? valuePanelText.bodyWithQueue : valuePanelText.bodyWithoutQueue;
   const pipelineStateLabel = pipelineStateCopy[locale][pipelineStatus.state];
   const statusHelpText =
-    dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
+    loadingDashboard
+      ? locale === "ru"
+        ? "Страница загружает состояние backend и очередь на разбор. Первые ответы API могут занять несколько секунд."
+        : "The page is loading backend state and the review queue. The first API responses can take a few seconds."
+      : dashboardSource === "api" && pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
       ? juryText.readyStatusHelp
       : locale === "ru"
-        ? "Страница подключена к backend, но без успешной живой синхронизации очередь подозрительных зон не будет заполнена."
-        : "The page is connected to the backend, but the suspected-zone queue stays empty until a live sync succeeds.";
+        ? "Страница подключена к backend, но без успешного обновления очередь подозрительных зон не будет заполнена."
+        : "The page is connected to the backend, but the suspected-zone queue stays empty until a refresh succeeds.";
   const statusNote =
-    dashboardSource === "api"
+    loadingDashboard
+      ? locale === "ru"
+        ? "Подключаемся к backend и загружаем очередь на разбор."
+        : "Connecting to the backend and loading the review queue."
+      : dashboardSource === "api"
       ? pipelineStatus.source === "gee" && pipelineStatus.state === "ready"
         ? juryText.readyStatusNote
         : locale === "ru"
-          ? "Локальный сервер доступен. Запустите живую синхронизацию, чтобы получить новые подозрительные зоны."
-          : "The local server is available. Run live sync to load fresh suspected zones."
+          ? "Локальный сервер доступен. Запустите обновление данных, чтобы получить новые подозрительные зоны."
+          : "The local server is available. Run a data refresh to load fresh suspected zones."
       : locale === "ru"
-        ? "Сервер недоступен. Без backend сайт не покажет живые подозрительные зоны и не выполнит workflow."
-        : "The backend is unavailable. Without it the site cannot load live suspected zones or run the workflow.";
+        ? "Сервер недоступен. Без backend сайт не покажет подозрительные зоны и не выполнит workflow."
+        : "The backend is unavailable. Without it the site cannot load suspected zones or run the workflow.";
 
   useEffect(() => {
     if (scopedAnomalies.length === 0) return;
@@ -874,8 +1001,8 @@ export default function Page() {
       setBusyAction(null);
       setRequestError(
         locale === "ru"
-          ? "Сначала нужен доступный backend и живая синхронизация. Без этого инцидент создать нельзя."
-          : "A working backend and live sync are required before an incident can be created.",
+          ? "Сначала нужен доступный backend и обновление данных. Без этого инцидент создать нельзя."
+          : "A working backend and data refresh are required before an incident can be created.",
       );
       return;
     }
@@ -1150,6 +1277,31 @@ export default function Page() {
   );
 
   if (!selectedAnomaly) {
+    if (loadingDashboard) {
+      return (
+        <main className="site-shell">
+          {pageHeader}
+          {heroSection}
+          {requestError ? <section className="error-banner">{requestError}</section> : null}
+          <section className="empty-shell empty-live-shell">
+            <div className="empty-live-copy">
+              <p className="eyebrow">{locale === "ru" ? "Загрузка" : "Loading"}</p>
+              <strong>
+                {locale === "ru"
+                  ? "Подключаемся к backend и загружаем данные"
+                  : "Connecting to the backend and loading data"}
+              </strong>
+              <p>
+                {locale === "ru"
+                  ? "Первый ответ от API может занять несколько секунд. После загрузки появится очередь подозрительных зон и рабочий workflow."
+                  : "The first API response can take a few seconds. After that the suspected-zone queue and workflow will appear."}
+              </p>
+            </div>
+          </section>
+        </main>
+      );
+    }
+
     return (
       <main className="site-shell">
         {pageHeader}
@@ -1201,7 +1353,6 @@ export default function Page() {
           <div className="rail-head">
             <p className="eyebrow">{juryText.queueEyebrow}</p>
             <h2>{juryText.queueTitle}</h2>
-            <p>{juryText.queueSubtitle}</p>
           </div>
 
           <div className="signal-list">
@@ -1343,14 +1494,17 @@ export default function Page() {
                   <section className="signal-focus evidence-detail-grid">
                     <InfoRow
                       label={screeningText.source}
+                      hint={screeningText.help.source}
                       value={translateScreeningEvidenceSource(screeningSnapshot.evidenceSource, locale)}
                     />
                     <InfoRow
                       label={screeningText.synced}
+                      hint={screeningText.help.synced}
                       value={screeningSnapshot.syncedAt ?? screeningText.notAvailable}
                     />
                     <InfoRow
                       label={screeningText.observed}
+                      hint={screeningText.help.observed}
                       value={
                         screeningSnapshot.observedWindow
                           ? translateScreeningObservedWindow(screeningSnapshot.observedWindow, locale)
@@ -1369,7 +1523,7 @@ export default function Page() {
               ) : null}
 
               <section className="signal-focus">
-                <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
+                <InfoRow label={t.summary.region} value={translatedRegion} />
                 <InfoRow
                   actions={
                     selectedAnomalyCoordinateLinks ? (
@@ -1380,7 +1534,7 @@ export default function Page() {
                   label={t.summary.coordinates}
                   value={selectedAnomaly.coordinates}
                 />
-                {liveSignalSelected ? (
+                {showVerificationArea ? (
                   <InfoRow
                     hint={t.help.verificationArea}
                     label={t.summary.verificationArea}
@@ -1394,14 +1548,14 @@ export default function Page() {
                     value={translatedNearestAddress}
                   />
                 ) : null}
-                {liveSignalSelected ? (
+                {showNearestLandmark ? (
                   <InfoRow
                     hint={t.help.nearestLandmark}
                     label={t.summary.nearestLandmark}
                     value={translatedNearestLandmark}
                   />
                 ) : null}
-                <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
+                <InfoRow label={t.panels.assets} value={translatedAssetName} />
                 {!liveSignalSelected ? (
                   <InfoRow label={t.summary.facility} value={translateFacility(selectedAnomaly.facilityType, locale)} />
                 ) : null}
@@ -1536,8 +1690,8 @@ export default function Page() {
                 </section>
 
                 <section className="signal-focus">
-                  <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
-                  <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
+                  <InfoRow label={t.panels.assets} value={translatedAssetName} />
+                  <InfoRow label={t.summary.region} value={translatedRegion} />
                   <InfoRow
                     actions={
                       selectedAnomalyCoordinateLinks ? (
@@ -1548,7 +1702,7 @@ export default function Page() {
                     label={t.summary.coordinates}
                     value={selectedAnomaly.coordinates}
                   />
-                  {liveSignalSelected ? (
+                  {showVerificationArea ? (
                     <InfoRow
                       hint={t.help.verificationArea}
                       label={t.summary.verificationArea}
@@ -1562,7 +1716,7 @@ export default function Page() {
                       value={translatedNearestAddress}
                     />
                   ) : null}
-                  {liveSignalSelected ? (
+                  {showNearestLandmark ? (
                     <InfoRow
                       hint={t.help.nearestLandmark}
                       label={t.summary.nearestLandmark}
@@ -1787,8 +1941,8 @@ function buildReportSectionsForUi(
         title: "Что увидели",
         body: liveSignal
           ? thermalHits > 0
-            ? `Живой спутниковый скрининг отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) и ${thermalHits} ночными VIIRS-срабатываниями в радиусе 25 км.`
-            : `Живой спутниковый скрининг отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) без недавних ночных VIIRS-срабатываний в радиусе 25 км.`
+            ? `Спутниковый скрининг в реальном времени отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) и ${thermalHits} ночными VIIRS-срабатываниями в радиусе 25 км.`
+            : `Спутниковый скрининг в реальном времени отметил зону ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) без недавних ночных VIIRS-срабатываний в радиусе 25 км.`
           : `Спутниковый разбор отметил объект ${translateAssetName(anomaly.assetName, locale)} в регионе ${translateRegion(anomaly.region, locale)} с ростом метана на ${anomaly.methaneDeltaPct}% и ${anomaly.flareHours ?? 0} часами факельной активности.`,
       },
       {
@@ -1798,7 +1952,7 @@ function buildReportSectionsForUi(
       {
         title: "Как продвигается проверка",
         body: liveSignal
-          ? `Выполнено ${completedTasks} из ${incident.tasks.length} задач. Живая очередь пока не переводит эту подозрительную зону в tCO2e: она честно ранжирует кейсы по росту метана и тепловому контексту рядом с точкой наблюдения.`
+          ? `Выполнено ${completedTasks} из ${incident.tasks.length} задач. Очередь на разбор пока не переводит эту подозрительную зону в tCO2e: она честно ранжирует кейсы по росту метана и тепловому контексту рядом с точкой наблюдения.`
           : `Выполнено ${completedTasks} из ${incident.tasks.length} задач. Текущая оценка возможного эффекта составляет ${anomaly.co2eTonnes ?? 0} tCO2e.`,
       },
     ];
@@ -1809,8 +1963,8 @@ function buildReportSectionsForUi(
       title: "What was observed",
       body: liveSignal
         ? thermalHits > 0
-          ? `Live satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and ${thermalHits} night-time VIIRS detections inside the 25 km context window.`
-          : `Live satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and no recent night-time VIIRS detections inside the 25 km context window.`
+          ? `Real-time satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and ${thermalHits} night-time VIIRS detections inside the 25 km context window.`
+          : `Real-time satellite screening flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${deltaPpb.toFixed(2)} ppb (${anomaly.methaneDeltaPct.toFixed(2)}%) methane uplift and no recent night-time VIIRS detections inside the 25 km context window.`
         : `Satellite review flagged ${translateAssetName(anomaly.assetName, locale)} in ${translateRegion(anomaly.region, locale)} with ${anomaly.methaneDeltaPct}% methane uplift and ${anomaly.flareHours ?? 0} hours of flare activity.`,
     },
     {
@@ -1820,7 +1974,7 @@ function buildReportSectionsForUi(
     {
       title: "How verification is progressing",
       body: liveSignal
-        ? `${completedTasks} of ${incident.tasks.length} tasks are complete. This live queue does not estimate tCO2e yet; it ranks the case by methane uplift and nearby thermal context.`
+        ? `${completedTasks} of ${incident.tasks.length} tasks are complete. This review queue does not estimate tCO2e yet; it ranks the case by methane uplift and nearby thermal context.`
         : `${completedTasks} of ${incident.tasks.length} tasks are complete. The current estimated impact is ${anomaly.co2eTonnes ?? 0} tCO2e.`,
     },
   ];
@@ -1889,12 +2043,12 @@ type CoordinateLinks = {
 
 function formatBusinessValueTitle(queueCount: number, locale: Locale) {
   if (locale === "ru") {
-    if (queueCount <= 0) return "Живая очередь на выездной разбор пока пуста";
+    if (queueCount <= 0) return "Очередь на выездной разбор пока пуста";
     if (queueCount === 1) return "1 подозрительная зона готова к выездной проверке";
     return `${queueCount} подозрительных зон готовы к выездной проверке`;
   }
 
-  if (queueCount <= 0) return "The live review queue is empty for now";
+  if (queueCount <= 0) return "The review queue is empty for now";
   if (queueCount === 1) return "1 suspected zone is ready for field review";
   return `${queueCount} suspected zones are ready for field review`;
 }
@@ -1921,6 +2075,10 @@ function formatMetricNumber(value: number, locale: Locale) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function normalizeInfoValue(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -1960,19 +2118,65 @@ function CoordinateActionLinks({
 }: {
   links: CoordinateLinks;
   labels: {
+    title: string;
     googleMaps: string;
     twoGis: string;
   };
 }) {
   return (
-    <>
-      <a className="info-row-link" href={links.googleMaps} rel="noreferrer" target="_blank">
-        {labels.googleMaps}
-      </a>
-      <a className="info-row-link" href={links.twoGis} rel="noreferrer" target="_blank">
-        {labels.twoGis}
-      </a>
-    </>
+    <div className="map-app-links">
+      <span className="map-app-links-title">{labels.title}</span>
+      <div className="map-app-links-row">
+        <MapAppLink href={links.googleMaps} label={labels.googleMaps}>
+          <img
+            alt=""
+            className="map-app-image"
+            decoding="async"
+            height="28"
+            loading="lazy"
+            src="/icons/google-maps-official.png"
+            width="28"
+          />
+        </MapAppLink>
+        <MapAppLink href={links.twoGis} label={labels.twoGis}>
+          <img
+            alt=""
+            className="map-app-image"
+            decoding="async"
+            height="28"
+            loading="lazy"
+            src="/icons/2gis-official.png"
+            width="28"
+          />
+        </MapAppLink>
+      </div>
+    </div>
+  );
+}
+
+function MapAppLink({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      aria-label={label}
+      className="info-row-link map-app-link"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+      title={label}
+    >
+      <span aria-hidden="true" className="map-app-icon">
+        {children}
+      </span>
+      <span className="sr-only">{label}</span>
+    </a>
   );
 }
 

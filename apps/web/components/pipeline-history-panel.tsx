@@ -9,50 +9,48 @@ import { formatTimestamp, type Locale } from "../lib/site-content";
 
 const historyCopy = {
   en: {
-    title: "Live sync rhythm",
-    subtitle: "Recent Earth Engine refreshes stored in PostgreSQL history.",
-    cadence: "Auto-sync cadence",
-    nextRun: "Next auto-sync",
-    totalRuns: "Stored sync runs",
-    lastReady: "Last successful sync",
-    deltaChart: "CH4 delta vs baseline",
-    candidateChart: "Live candidates per sync",
+    title: "Refresh history",
+    subtitle: "Recent Earth Engine updates.",
+    cadence: "Refresh interval",
+    nextRun: "Next refresh",
+    totalRuns: "Saved updates",
+    lastReady: "Last successful refresh",
+    recentRuns: "Latest updates",
+    refreshedAt: "Updated at",
+    trigger: "Type",
+    delta: "CH4 vs baseline",
+    queueCount: "Zones in queue",
+    state: "Status",
     noHistory:
-      "No completed syncs are stored yet. Run one live refresh to start the MRV history and let scheduled sync keep extending it.",
+      "No completed refreshes are stored yet. Run a manual refresh to start building the screening history.",
     manualOnly: "Manual only",
     notScheduled: "Not scheduled",
-    legendManual: "Manual sync",
-    legendScheduled: "Scheduled sync",
     takeaway:
-      "This chart turns one-off screening into an operational cycle: every stored refresh stays visible for audit, cadence, and comparison.",
+      "This block shows when the data was refreshed, whether it was manual or scheduled, and how many zones were added to the queue after each update.",
+    noDelta: "No CH4 difference yet",
   },
   ru: {
-    title: "Ритм живых синхронизаций",
-    subtitle: "Последние обновления Earth Engine, сохранённые в истории PostgreSQL.",
-    cadence: "Интервал автообновления",
-    nextRun: "Следующая автосинхронизация",
-    totalRuns: "Сохранённые синхронизации",
-    lastReady: "Последняя успешная синхронизация",
-    deltaChart: "Отклонение CH4 от базового уровня",
-    candidateChart: "Живые кандидаты за синхронизацию",
+    title: "История обновлений",
+    subtitle: "Последние обновления Earth Engine.",
+    cadence: "Интервал обновления",
+    nextRun: "Следующее обновление",
+    totalRuns: "Сохранённые обновления",
+    lastReady: "Последнее успешное обновление",
+    recentRuns: "Последние обновления",
+    refreshedAt: "Обновлено",
+    trigger: "Тип запуска",
+    delta: "CH4 к базовому уровню",
+    queueCount: "Зон в очереди",
+    state: "Состояние",
     noHistory:
-      "История живых синхронизаций ещё не накоплена. Запустите одно обновление вручную, а дальше автообновление будет постепенно строить MRV-историю.",
+      "История обновлений пока пустая. Запустите обновление вручную, чтобы начать накопление истории.",
     manualOnly: "Только вручную",
     notScheduled: "Не запланировано",
-    legendManual: "Ручная синхронизация",
-    legendScheduled: "Автосинхронизация",
     takeaway:
-      "Этот блок превращает разовый скрининг в рабочий цикл: каждое обновление сохраняется для аудита, ритма обновлений и сравнения между запусками.",
+      "Этот блок показывает, когда обновлялись данные, был ли запуск ручным или плановым, и сколько зон после этого попало в очередь на разбор.",
+    noDelta: "Разница CH4 пока не рассчитана",
   },
 } as const;
-
-type HistoryMetricPoint = {
-  id: number;
-  label: string;
-  value: number;
-  trigger: PipelineHistoryTrigger;
-  title: string;
-};
 
 export function PipelineHistoryPanel({
   history,
@@ -62,29 +60,8 @@ export function PipelineHistoryPanel({
   locale: Locale;
 }) {
   const copy = historyCopy[locale];
-  const recentRuns = [...history.runs].slice(0, 8).reverse();
+  const recentRuns = dedupeVisibleRuns(history.runs).slice(0, 6);
   const lastReadyRun = history.runs.find((run) => run.status.state === "ready");
-
-  const deltaPoints = recentRuns
-    .filter((run) => run.status.screeningSnapshot?.deltaPct !== undefined)
-    .map((run) =>
-      toMetricPoint(
-        run,
-        run.status.screeningSnapshot?.deltaPct ?? 0,
-        locale === "ru"
-          ? `${formatTimestamp(run.createdAt, locale)} • ${formatNumber(run.status.screeningSnapshot?.deltaPct ?? 0, locale)}%`
-          : `${formatTimestamp(run.createdAt, locale)} • ${formatNumber(run.status.screeningSnapshot?.deltaPct ?? 0, locale)}%`,
-      ),
-    );
-  const candidatePoints = recentRuns.map((run) =>
-    toMetricPoint(
-      run,
-      run.status.anomalyCount,
-      locale === "ru"
-        ? `${formatTimestamp(run.createdAt, locale)} • ${run.status.anomalyCount} кандидатов`
-        : `${formatTimestamp(run.createdAt, locale)} • ${run.status.anomalyCount} candidates`,
-    ),
-  );
 
   return (
     <section className="history-surface">
@@ -124,29 +101,31 @@ export function PipelineHistoryPanel({
 
       {history.runs.length > 0 ? (
         <>
-          <div className="history-chart-grid">
-            <HistoryMetricChart
-              title={copy.deltaChart}
-              points={deltaPoints}
-              locale={locale}
-              valueSuffix="%"
-            />
-            <HistoryMetricChart
-              title={copy.candidateChart}
-              points={candidatePoints}
-              locale={locale}
-            />
-          </div>
-
-          <div className="history-legend">
-            <span>
-              <i className="legend-dot legend-dot-manual" />
-              {copy.legendManual}
-            </span>
-            <span>
-              <i className="legend-dot legend-dot-scheduled" />
-              {copy.legendScheduled}
-            </span>
+          <div className="history-run-list" role="list" aria-label={copy.recentRuns}>
+            {recentRuns.map((run) => (
+              <article className="history-run-row" key={run.id} role="listitem">
+                <div className="history-run-cell">
+                  <span>{copy.refreshedAt}</span>
+                  <strong>{formatTimestamp(run.createdAt, locale)}</strong>
+                </div>
+                <div className="history-run-cell">
+                  <span>{copy.trigger}</span>
+                  <strong>{formatTrigger(run.trigger, locale)}</strong>
+                </div>
+                <div className="history-run-cell">
+                  <span>{copy.delta}</span>
+                  <strong>{formatDelta(run.status.screeningSnapshot?.deltaPct, locale, copy.noDelta)}</strong>
+                </div>
+                <div className="history-run-cell">
+                  <span>{copy.queueCount}</span>
+                  <strong>{run.status.anomalyCount}</strong>
+                </div>
+                <div className="history-run-cell">
+                  <span>{copy.state}</span>
+                  <strong>{formatState(run.status.state, locale)}</strong>
+                </div>
+              </article>
+            ))}
           </div>
 
           <p className="history-takeaway">{copy.takeaway}</p>
@@ -165,103 +144,6 @@ function HistorySummaryCell({ label, value }: { label: string; value: string }) 
       <strong>{value}</strong>
     </article>
   );
-}
-
-function HistoryMetricChart({
-  title,
-  points,
-  locale,
-  valueSuffix,
-}: {
-  title: string;
-  points: HistoryMetricPoint[];
-  locale: Locale;
-  valueSuffix?: string;
-}) {
-  const chartPoints = buildChartPoints(points);
-
-  return (
-    <article className="history-chart-card">
-      <div className="history-chart-head">
-        <span>{title}</span>
-        <strong>
-          {points.length > 0
-            ? `${formatNumber(points[points.length - 1].value, locale)}${valueSuffix ? ` ${valueSuffix}` : ""}`
-            : locale === "ru"
-              ? "Нет данных"
-              : "No data"}
-        </strong>
-      </div>
-
-      {chartPoints.length > 0 ? (
-        <svg
-          aria-label={title}
-          className="history-chart-svg"
-          role="img"
-          viewBox="0 0 320 140"
-        >
-          <path className="history-chart-gridline" d="M20 112 H300" />
-          <path className="history-chart-gridline" d="M20 72 H300" />
-          <path className="history-chart-gridline" d="M20 32 H300" />
-          <path className="history-chart-line" d={buildPath(chartPoints)} />
-          {chartPoints.map((point) => (
-            <g key={point.id}>
-              <circle
-                className={`history-point history-point-${point.trigger}`}
-                cx={point.x}
-                cy={point.y}
-                r="5"
-              >
-                <title>{point.title}</title>
-              </circle>
-            </g>
-          ))}
-        </svg>
-      ) : (
-        <div className="history-chart-empty">{locale === "ru" ? "Пока только одна точка или нет данных." : "Only one point or no data yet."}</div>
-      )}
-
-      {points.length > 0 ? (
-        <div className="history-axis">
-          <span>{points[0].label}</span>
-          <span>{points[points.length - 1].label}</span>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function buildChartPoints(points: HistoryMetricPoint[]) {
-  if (points.length === 0) {
-    return [];
-  }
-
-  const width = 280;
-  const height = 100;
-  const leftPad = 20;
-  const topPad = 16;
-  const rightPad = 20;
-  const bottomPad = 12;
-  const minValue = Math.min(...points.map((point) => point.value));
-  const maxValue = Math.max(...points.map((point) => point.value));
-  const range = maxValue - minValue;
-
-  return points.map((point, index) => {
-    const progress = points.length === 1 ? 0.5 : index / (points.length - 1);
-    const x = leftPad + progress * (width - leftPad - rightPad);
-    const normalized = range === 0 ? 0.5 : (point.value - minValue) / range;
-    const y = height - bottomPad - normalized * (height - topPad - bottomPad);
-    return { ...point, x, y };
-  });
-}
-
-function buildPath(points: Array<{ x: number; y: number }>) {
-  if (points.length === 1) {
-    const point = points[0];
-    return `M ${point.x} ${point.y} L ${point.x + 0.01} ${point.y}`;
-  }
-
-  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
 function formatCadence(history: PipelineHistoryPayload, locale: Locale) {
@@ -284,12 +166,62 @@ function formatNumber(value: number, locale: Locale) {
   }).format(value);
 }
 
-function toMetricPoint(run: PipelineHistoryRun, value: number, title: string): HistoryMetricPoint {
-  return {
-    id: run.id,
-    label: run.createdAt.slice(11, 16),
-    value,
-    trigger: run.trigger,
-    title,
-  };
+function formatTrigger(trigger: PipelineHistoryTrigger, locale: Locale) {
+  if (trigger === "scheduled") {
+    return locale === "ru" ? "Автоматически" : "Scheduled";
+  }
+  return locale === "ru" ? "Вручную" : "Manual";
+}
+
+function formatState(
+  state: PipelineHistoryRun["status"]["state"],
+  locale: Locale,
+) {
+  const labels =
+    locale === "ru"
+      ? {
+          ready: "Готово",
+          syncing: "Идёт обновление",
+          degraded: "С ограничениями",
+          error: "Ошибка",
+        }
+      : {
+          ready: "Ready",
+          syncing: "Syncing",
+          degraded: "Degraded",
+          error: "Error",
+        };
+
+  return labels[state];
+}
+
+function formatDelta(value: number | undefined, locale: Locale, emptyLabel: string) {
+  if (value === undefined) {
+    return emptyLabel;
+  }
+
+  return `${formatNumber(value, locale)}%`;
+}
+
+function dedupeVisibleRuns(runs: PipelineHistoryRun[]) {
+  const fingerprints = new Set<string>();
+  const uniqueRuns: PipelineHistoryRun[] = [];
+
+  for (const run of runs) {
+    const fingerprint = [
+      run.trigger,
+      run.status.state,
+      run.status.anomalyCount,
+      run.status.screeningSnapshot?.deltaPct ?? "no-delta",
+    ].join("|");
+
+    if (fingerprints.has(fingerprint)) {
+      continue;
+    }
+
+    fingerprints.add(fingerprint);
+    uniqueRuns.push(run);
+  }
+
+  return uniqueRuns;
 }

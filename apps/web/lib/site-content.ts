@@ -25,7 +25,7 @@ const baseCopy = {
     },
     status: {
       loading: "Loading",
-      api: "Live server",
+      api: "Backend server",
       fallback: "Demo mode",
       apiNote: "The interface is reading the local FastAPI service.",
       fallbackNote: "The server is unavailable. Local demo data is shown.",
@@ -89,15 +89,15 @@ const baseCopy = {
     },
     panels: {
       map: "Map view",
-      mapNote: "This is a real map of Kazakhstan with asset markers. It is not a live satellite plume layer.",
+      mapNote: "This is a real map of Kazakhstan with asset markers. It is not a satellite plume layer in real time.",
       mapNoteLive:
         "The map stays fixed while the screening evidence is refreshed for the selected Kazakhstan window.",
       mapNoteDegraded:
-        "The map remains available. The last verified screening snapshot is still shown while the live refresh is degraded.",
+        "The map remains available. The last verified screening snapshot is still shown while the current refresh is degraded.",
       mapNoteUnavailable:
-        "The map remains available. Live screening is unavailable, so use the visible context and the demo workflow for decisions.",
+        "The map remains available. Real-time screening is unavailable, so use the visible context and the demo workflow for decisions.",
       mapContextSeeded: "Seeded context",
-      mapContextLive: "Live context",
+      mapContextLive: "Updated context",
       mapContextFallback: "Fallback context",
       assets: "Selected asset",
       noIncident: "No incident yet",
@@ -140,17 +140,17 @@ const baseCopy = {
       coordinates:
         "These coordinates show the center of the suspected zone, not a proven leak point or exact source asset.",
       verificationArea:
-        "This is the practical area for field review around the live hotspot, based on the nearest mapped district or local area.",
+        "This is the practical area for field review around the current hotspot, based on the nearest mapped district or local area.",
       nearestAddress:
         "This is the closest mapped address near the suspected zone center. It is a routing hint, not proof of the exact source.",
       nearestLandmark:
         "This is the closest mapped place or landmark near the suspected zone center. Use it as a navigation anchor in Google Maps or 2GIS.",
-      map: "The dots show asset positions on the Kazakhstan map. This is a real map layer with markers, but not a live satellite plume layer.",
-      demo: "Demo mode means the workflow is live, but the current anomaly content still comes from seeded demo data.",
+      map: "The dots show asset positions on the Kazakhstan map. This is a real map layer with markers, but not a satellite plume layer in real time.",
+      demo: "Demo mode means the workflow itself works, but the current anomaly content still comes from seeded demo data.",
       syncEvidence:
         "This button requests the newest satellite data from the backend. Use it when you want to refresh the current picture before making a decision.",
       resetSeeded:
-        "This button returns the screen to stable demo data. Use it if the live data failed, looks incomplete, or you want to show the fallback demo again.",
+        "This button returns the screen to stable demo data. Use it if the latest data failed, looks incomplete, or you want to show the fallback demo again.",
       openIncidentAction:
         "This button opens the existing working case for the selected signal so you can continue verification and reporting.",
       createIncidentAction:
@@ -220,7 +220,7 @@ const baseCopy = {
           answer: [
             "The dots are asset markers placed on the Kazakhstan map.",
             "They help the user see where the selected case is located and compare it with signals in other regions.",
-            "This is a real map layer, but it is not a live satellite plume image.",
+            "This is a real map layer, but it is not a satellite plume image in real time.",
           ],
         },
         {
@@ -342,7 +342,7 @@ const baseCopy = {
     },
     panels: {
       map: "Карта объектов",
-      mapNote: "Это реальная карта Казахстана с маркерами объектов. Это не живой спутниковый слой выброса.",
+      mapNote: "Это реальная карта Казахстана с маркерами объектов. Это не спутниковый слой выброса в реальном времени.",
       mapNoteLive:
         "Карта остаётся на месте, а спутниковые данные по выбранной зоне Казахстана обновляются отдельно.",
       mapNoteDegraded:
@@ -351,7 +351,7 @@ const baseCopy = {
         "Карта остаётся доступной. Спутниковый скрининг сейчас недоступен, поэтому ориентируйтесь на видимый контекст и демонстрационный сценарий.",
       mapContextSeeded: "Демо-контекст",
       mapContextLive: "Обновлённый контекст",
-      mapContextFallback: "Живые данные недоступны",
+      mapContextFallback: "Актуальные данные недоступны",
       assets: "Выбранный объект",
       noIncident: "Инцидент ещё не создан",
       noIncidentHint: "Создайте инцидент, чтобы открыть следующие шаги.",
@@ -393,17 +393,17 @@ const baseCopy = {
       coordinates:
         "Эти координаты показывают центр предполагаемой зоны, а не доказанную точку утечки и не точный источник выброса.",
       verificationArea:
-        "Это практический район для выездной проверки вокруг живого hotspot, определённый по ближайшему району или локальной зоне на карте.",
+        "Это практический район для выездной проверки вокруг текущего hotspot, определённый по ближайшему району или локальной зоне на карте.",
       nearestAddress:
         "Это ближайший адрес, найденный рядом с центром предполагаемой зоны. Это ориентир для маршрута, а не доказательство точного источника.",
       nearestLandmark:
         "Это ближайший отмеченный на карте объект или ориентир рядом с центром предполагаемой зоны. Его можно использовать как точку привязки в Google Maps или 2GIS.",
-      map: "Точки показывают положение объектов на карте Казахстана. Это реальная карта с маркерами, но не живой спутниковый слой выброса.",
+      map: "Точки показывают положение объектов на карте Казахстана. Это реальная карта с маркерами, но не спутниковый слой выброса в реальном времени.",
       demo: "Демо-режим означает, что сам интерфейс работает, но содержание сигналов пока берётся из демонстрационных данных.",
       syncEvidence:
         "Эта кнопка запрашивает с сервера самые свежие спутниковые данные. Используйте её, если хотите обновить картину перед принятием решения.",
       resetSeeded:
-        "Эта кнопка возвращает экран к стабильным демонстрационным данным. Используйте её, если живые данные не загрузились, выглядят неполными или нужно снова показать демо-режим.",
+        "Эта кнопка возвращает экран к стабильным демонстрационным данным. Используйте её, если актуальные данные не загрузились, выглядят неполными или нужно снова показать демо-режим.",
       openIncidentAction:
         "Эта кнопка открывает уже созданный рабочий кейс по выбранному сигналу, чтобы вы могли продолжить проверку и подготовку отчёта.",
       createIncidentAction:
@@ -491,7 +491,7 @@ const baseCopy = {
           answer: [
             "Демо-режим появляется, когда интерфейс не может получить данные с локального сервера.",
             "Сами шаги и кнопки продолжают работать, но содержание сигналов берётся из локальных демонстрационных данных.",
-            "Это значит, что сценарий использования живой, а источник данных пока не боевой.",
+            "Это значит, что сам сценарий работает, а источник данных пока не боевой.",
           ],
         },
         {
@@ -542,10 +542,14 @@ const regionTranslations = {
   "Atyrau Region": { en: "Atyrau Region", ru: "Атырауская область" },
   "Mangystau Region": { en: "Mangystau Region", ru: "Мангистауская область" },
   "Aktobe Region": { en: "Aktobe Region", ru: "Актюбинская область" },
+  "Aqtobe Region": { en: "Aqtobe Region", ru: "Актюбинская область" },
   "Aqtöbe Region": { en: "Aqtöbe Region", ru: "Актюбинская область" },
   "West Kazakhstan Region": { en: "West Kazakhstan Region", ru: "Западно-Казахстанская область" },
   "Kyzylorda Region": { en: "Kyzylorda Region", ru: "Кызылординская область" },
   "Pavlodar Region": { en: "Pavlodar Region", ru: "Павлодарская область" },
+  "Karaganda Region": { en: "Karaganda Region", ru: "Карагандинская область" },
+  "Akmola Region": { en: "Akmola Region", ru: "Акмолинская область" },
+  "Ulytau Region": { en: "Ulytau Region", ru: "область Улытау" },
 } as const;
 
 const uiTermReplacements: Record<Locale, ReadonlyArray<readonly [string | RegExp, string]>> = {
@@ -649,6 +653,14 @@ const districtTranslations = {
   "Shalqar District": { en: "Shalqar District", ru: "Шалкарский район" },
   "Shalkar District": { en: "Shalkar District", ru: "Шалкарский район" },
   "Zhanakala District": { en: "Zhanakala District", ru: "Жангалинский район" },
+  "Bayğanïn District": { en: "Bayğanïn District", ru: "Байганинский район" },
+  "Bayganin District": { en: "Bayganin District", ru: "Байганинский район" },
+  "Äyteke bï District": { en: "Äyteke bï District", ru: "район Айтеке би" },
+  "Ayteke bi District": { en: "Ayteke bi District", ru: "район Айтеке би" },
+  "Nura District": { en: "Nura District", ru: "Нуринский район" },
+  "Zharkain District": { en: "Zharkain District", ru: "Жаркаинский район" },
+  Satbayev: { en: "Satbayev", ru: "Сатпаев" },
+  Satpayev: { en: "Satpayev", ru: "Сатпаев" },
 } as const;
 
 const assetTranslations = {
@@ -872,23 +884,23 @@ const screeningObservedWindowTranslations = {
 
 const screeningConfidenceTranslations = {
   "Seeded comparison used for contest-safe playback until a live sync is requested.": {
-    en: "Seeded comparison used for contest-safe playback until a live sync is requested.",
+    en: "Seeded comparison used for contest-safe playback until a data refresh is requested.",
     ru: "Для демонстрации используется подготовленное сравнение, пока не запрошено живое обновление.",
   },
   "Live Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution.": {
-    en: "Live Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution.",
+    en: "Earth Engine screening refreshed successfully. This is a screening signal, not pinpoint source attribution.",
     ru: "Данные из Earth Engine успешно обновлены. Это предварительный сигнал, а не точное указание источника.",
   },
   "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.": {
-    en: "No verified live screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
-    ru: "Подтверждённый живой снимок пока не сохранён. Пока используйте демонстрационный MRV-сценарий как временный рабочий вариант.",
+    en: "No verified screening snapshot is stored yet. Keep the seeded MRV workflow as the operational fallback.",
+    ru: "Подтверждённый снимок пока не сохранён. Пока используйте демонстрационный MRV-сценарий как временный рабочий вариант.",
   },
 } as const;
 
 const screeningCaveatTranslations = {
   "This snapshot is demo data, not a live Earth Engine pull.": {
-    en: "This snapshot is demo data, not a live Earth Engine pull.",
-    ru: "Этот снимок основан на демонстрационных данных, а не на живой выгрузке из Earth Engine.",
+    en: "This snapshot is demo data, not a real-time Earth Engine pull.",
+    ru: "Этот снимок основан на демонстрационных данных, а не на актуальной выгрузке из Earth Engine.",
   },
 } as const;
 
@@ -906,12 +918,12 @@ const screeningRecommendationTranslations = {
     ru: "Сначала посмотрите обновлённое сравнение по метану. Если эта подозрительная зона всё ещё выглядит важной, создайте инцидент и назначьте ответственного. Для выездной проверки используйте координаты зоны, район проверки и ближайший ориентир на карте.",
   },
   "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.": {
-    en: "Retry live sync or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
-    ru: "Повторите живое обновление или временно используйте демонстрационный сценарий, пока не появится подтверждённый снимок.",
+    en: "Retry the data refresh or use the seeded workflow as the operational fallback until a verified screening snapshot is available.",
+    ru: "Повторите обновление данных или временно используйте демонстрационный сценарий, пока не появится подтверждённый снимок.",
   },
   "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.": {
-    en: "Keep the seeded operational workflow active and retry live sync before using Earth Engine evidence in a promotion decision.",
-    ru: "Оставьте демонстрационный сценарий активным и повторите живое обновление перед тем, как принимать решение о переводе в инцидент.",
+    en: "Keep the seeded operational workflow active and retry the data refresh before using Earth Engine evidence in a promotion decision.",
+    ru: "Оставьте демонстрационный сценарий активным и повторите обновление данных перед тем, как принимать решение о переводе в инцидент.",
   },
   "Use the last successful screening snapshot as context, then decide manually whether promotion still makes sense.": {
     en: "Use the last successful screening snapshot as context, then decide manually whether promotion still makes sense.",
@@ -929,8 +941,8 @@ const pipelineStatusMessageTranslations = {
     ru: "Демонстрационный набор аномалий заново загружен для безопасного показа.",
   },
   "Seeded demo pipeline is active until a live sync is requested.": {
-    en: "Seeded demo pipeline is active until a live sync is requested.",
-    ru: "Демонстрационный сценарий активен, пока не запрошено живое обновление.",
+    en: "Seeded demo pipeline is active until a data refresh is requested.",
+    ru: "Демонстрационный сценарий активен, пока не запрошено обновление данных.",
   },
   "Earth Engine connected, but no Kazakhstan CH4 scenes were returned for the configured collection.": {
     en: "Earth Engine connected, but no Kazakhstan CH4 scenes were returned for the configured collection.",
@@ -942,18 +954,29 @@ const pipelineStatusMessageTranslations = {
   },
 } as const;
 
+function normalizeObservedLatinLabel(value: string) {
+  return value
+    .replaceAll("Ã„", "Ä")
+    .replaceAll("Ä", "ğ")
+    .replaceAll("Ã¯", "ï")
+    .replaceAll("Ã¶", "ö")
+    .replaceAll("Ã¼", "ü")
+    .replaceAll("Ã±", "ñ");
+}
+
 function translateWithMap<T extends string>(
   value: string,
   locale: Locale,
   dictionary: Record<T, { en: string; ru: string }>,
 ) {
-  return applyUiTermReplacements(dictionary[value as T]?.[locale] ?? value, locale);
+  const normalizedValue = normalizeObservedLatinLabel(value);
+  return applyUiTermReplacements(dictionary[normalizedValue as T]?.[locale] ?? normalizedValue, locale);
 }
 
 function translateAdministrativeFragments(value: string, locale: Locale) {
   if (locale === "en") return value;
 
-  let translated = value;
+  let translated = normalizeObservedLatinLabel(value);
 
   for (const [source, localized] of Object.entries(districtTranslations)) {
     translated = translated.replaceAll(source, localized.ru);
@@ -967,7 +990,8 @@ function translateAdministrativeFragments(value: string, locale: Locale) {
 }
 
 export function translateRegion(region: string, locale: Locale) {
-  return translateWithMap(region, locale, regionTranslations);
+  const translated = translateWithMap(region, locale, regionTranslations);
+  return locale === "ru" ? translateAdministrativeFragments(translated, locale) : translated;
 }
 
 export function translateFacility(facility: string, locale: Locale) {
@@ -975,7 +999,12 @@ export function translateFacility(facility: string, locale: Locale) {
 }
 
 export function translateAssetName(assetName: string, locale: Locale) {
-  return translateWithMap(assetName, locale, assetTranslations);
+  const translated = translateWithMap(assetName, locale, assetTranslations);
+  if (translated !== normalizeObservedLatinLabel(assetName) || locale === "en") {
+    return translated;
+  }
+
+  return translateAdministrativeFragments(translated, locale);
 }
 
 export function translateConfidence(confidence: string, locale: Locale) {
@@ -1070,7 +1099,7 @@ export function translateScreeningCaveat(caveat: string, locale: Locale) {
         .replace("not reported", "не указан")
         .replace(
           " No previous verified live screening snapshot is available yet.",
-          " Предыдущий подтверждённый живой снимок пока недоступен.",
+          " Предыдущий подтверждённый снимок пока недоступен.",
         );
     }
 
@@ -1080,7 +1109,7 @@ export function translateScreeningCaveat(caveat: string, locale: Locale) {
         .replace("not reported", "не указан")
         .replace(
           " No previous verified live screening snapshot is available yet.",
-          " Предыдущий подтверждённый живой снимок пока недоступен.",
+          " Предыдущий подтверждённый снимок пока недоступен.",
         );
     }
   }

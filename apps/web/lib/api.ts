@@ -260,22 +260,22 @@ export function createInitialPipelineStatus(anomalyCount: number): PipelineStatu
     state: "degraded",
     providerLabel: "Google Earth Engine",
     anomalyCount,
-    statusMessage: "Run live sync to load the first Earth Engine screening snapshot.",
+    statusMessage: "Run a data refresh to load the first Earth Engine screening snapshot.",
     stages: [
       {
         label: "Ingest layer",
         value: "Waiting for first sync",
-        detail: "The backend is ready, but no live Earth Engine screening snapshot is loaded yet.",
+        detail: "The backend is ready, but no Earth Engine screening snapshot is loaded yet.",
       },
       {
         label: "Normalization layer",
-        value: "No live queue yet",
+        value: "Queue not built yet",
         detail: "Candidate ranking starts only after the first successful methane screening refresh.",
       },
       {
         label: "Verification layer",
         value: "Workflow ready",
-        detail: "Incident, task, and MRV reporting are available as soon as a live candidate is promoted.",
+        detail: "Incident, task, and MRV reporting are available as soon as a screening candidate is promoted.",
       },
     ],
   };
