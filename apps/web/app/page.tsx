@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { startTransition, useEffect, useRef, useState } from "react";
+import { type ReactNode, startTransition, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   completeTask as completeTaskRequest,
@@ -314,6 +314,17 @@ const liveSignalCopy = {
   },
 } as const;
 
+const coordinateActionCopy = {
+  en: {
+    googleMaps: "Open in Google Maps",
+    twoGis: "Open in 2GIS",
+  },
+  ru: {
+    googleMaps: "Открыть в Google Maps",
+    twoGis: "Открыть в 2GIS",
+  },
+} as const;
+
 export default function Page() {
   const initialDashboard = createUnavailableDashboardState();
   const faqRef = useRef<HTMLElement | null>(null);
@@ -345,6 +356,7 @@ export default function Page() {
   const screeningText = screeningCopy[locale];
   const mapCardText = mapCardCopy[locale];
   const liveSignalText = liveSignalCopy[locale];
+  const coordinateActionText = coordinateActionCopy[locale];
 
   function applyDashboardHydration(
     state: DashboardHydrationState,
@@ -502,6 +514,7 @@ export default function Page() {
     liveSignalSelected && selectedAnomaly?.nearestLandmark
       ? translateAdministrativeLabel(selectedAnomaly.nearestLandmark, locale)
       : liveSignalText.notMappedNearby;
+  const selectedAnomalyCoordinateLinks = selectedAnomaly ? buildCoordinateLinks(selectedAnomaly) : null;
 
   const completedTasks = activeIncident
     ? activeIncident.tasks.filter((task) => task.status === "done").length
@@ -1106,6 +1119,11 @@ export default function Page() {
               <section className="signal-focus">
                 <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
                 <InfoRow
+                  actions={
+                    selectedAnomalyCoordinateLinks ? (
+                      <CoordinateActionLinks labels={coordinateActionText} links={selectedAnomalyCoordinateLinks} />
+                    ) : undefined
+                  }
                   hint={t.help.coordinates}
                   label={t.summary.coordinates}
                   value={selectedAnomaly.coordinates}
@@ -1269,6 +1287,11 @@ export default function Page() {
                   <InfoRow label={t.panels.assets} value={translateAssetName(selectedAnomaly.assetName, locale)} />
                   <InfoRow label={t.summary.region} value={translateRegion(selectedAnomaly.region, locale)} />
                   <InfoRow
+                    actions={
+                      selectedAnomalyCoordinateLinks ? (
+                        <CoordinateActionLinks labels={coordinateActionText} links={selectedAnomalyCoordinateLinks} />
+                      ) : undefined
+                    }
                     hint={t.help.coordinates}
                     label={t.summary.coordinates}
                     value={selectedAnomaly.coordinates}
@@ -1607,6 +1630,28 @@ function formatDelta(snapshot: ScreeningEvidenceSnapshot, emptyLabel: string, lo
   return absPart || pctPart;
 }
 
+type CoordinateLinks = {
+  googleMaps: string;
+  twoGis: string;
+};
+
+function buildCoordinateLinks(anomaly: Anomaly): CoordinateLinks | null {
+  const latitude = Number(anomaly.latitude);
+  const longitude = Number(anomaly.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const lat = latitude.toFixed(6);
+  const lng = longitude.toFixed(6);
+
+  return {
+    googleMaps: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    twoGis: `https://2gis.kz/search/${lat},${lng}?m=${lng},${lat}/16`,
+  };
+}
+
 function formatMetricNumber(value: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "en-US", {
     minimumFractionDigits: 2,
@@ -1628,17 +1673,42 @@ function InfoRow({
   value,
   hint,
   className,
+  actions,
 }: {
   label: string;
   value: string;
   hint?: string;
   className?: string;
+  actions?: ReactNode;
 }) {
   return (
     <article className={className ? `info-row ${className}` : "info-row"}>
       <FieldLabel hint={hint} label={label} />
       <strong>{value}</strong>
+      {actions ? <div className="info-row-actions">{actions}</div> : null}
     </article>
+  );
+}
+
+function CoordinateActionLinks({
+  links,
+  labels,
+}: {
+  links: CoordinateLinks;
+  labels: {
+    googleMaps: string;
+    twoGis: string;
+  };
+}) {
+  return (
+    <>
+      <a className="info-row-link" href={links.googleMaps} rel="noreferrer" target="_blank">
+        {labels.googleMaps}
+      </a>
+      <a className="info-row-link" href={links.twoGis} rel="noreferrer" target="_blank">
+        {labels.twoGis}
+      </a>
+    </>
   );
 }
 
