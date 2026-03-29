@@ -16,12 +16,23 @@ from app.models import (
     PipelineSyncResponse,
     PromoteAnomalyRequest,
 )
+from app.services.pipeline_scheduler import PipelineScheduler
 from app.services.workflow_store import WorkflowStore
 from app.services.pipeline_service import PipelineService
 
 router = APIRouter(prefix="/api/v1", tags=["mrv"])
 store = WorkflowStore()
 pipeline_service = PipelineService(store)
+pipeline_scheduler = PipelineScheduler(pipeline_service)
+
+
+def replace_runtime_services(next_store: WorkflowStore | None = None) -> None:
+    global store, pipeline_service, pipeline_scheduler
+
+    pipeline_scheduler.shutdown()
+    store = next_store or WorkflowStore()
+    pipeline_service = PipelineService(store)
+    pipeline_scheduler = PipelineScheduler(pipeline_service)
 
 
 @router.get("/dashboard", response_model=DashboardPayload)
@@ -41,7 +52,10 @@ async def get_pipeline_status() -> PipelineStatus:
 
 @router.get("/pipeline/history", response_model=PipelineHistoryPayload)
 async def get_pipeline_history(limit: int = 10) -> PipelineHistoryPayload:
-    return store.list_pipeline_history(limit=limit)
+    return PipelineHistoryPayload(
+        runs=store.list_pipeline_history(limit=limit),
+        schedule=pipeline_scheduler.status(),
+    )
 
 
 @router.post("/pipeline/sync", response_model=PipelineSyncResponse)

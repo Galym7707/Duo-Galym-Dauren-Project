@@ -78,6 +78,7 @@ class PipelineSyncRunRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sync_trigger: Mapped[str] = mapped_column(String(16), default="manual")
     source: Mapped[str] = mapped_column(String(16))
     state: Mapped[str] = mapped_column(String(16))
     provider_label: Mapped[str] = mapped_column(String(128))

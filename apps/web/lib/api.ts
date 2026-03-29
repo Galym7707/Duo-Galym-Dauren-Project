@@ -19,6 +19,7 @@ export type DashboardSource = "api" | "unavailable";
 export type DashboardHydrationState = DashboardState & { source: DashboardSource };
 export type PipelineSource = "gee";
 export type PipelineState = "ready" | "degraded" | "error" | "syncing";
+export type PipelineHistoryTrigger = "manual" | "scheduled";
 export type EvidenceFreshness = "fresh" | "stale" | "unavailable";
 export type ScreeningLevel = "low" | "medium" | "high";
 export type ReportExportFormat = "html" | "pdf" | "docx";
@@ -54,6 +55,22 @@ export type PipelineStatus = {
   statusMessage: string;
   stages: PipelineStageCard[];
   screeningSnapshot?: ScreeningEvidenceSnapshot;
+};
+export type PipelineScheduleStatus = {
+  enabled: boolean;
+  intervalMinutes?: number;
+  nextRunAt?: string;
+  runOnStartup: boolean;
+};
+export type PipelineHistoryRun = {
+  id: number;
+  createdAt: string;
+  trigger: PipelineHistoryTrigger;
+  status: PipelineStatus;
+};
+export type PipelineHistoryPayload = {
+  runs: PipelineHistoryRun[];
+  schedule: PipelineScheduleStatus;
 };
 
 type ApiDashboardPayload = {
@@ -183,6 +200,22 @@ type ApiPipelineStatus = {
 type ApiPipelineSyncResponse = {
   status: ApiPipelineStatus;
 };
+type ApiPipelineScheduleStatus = {
+  enabled: boolean;
+  interval_minutes?: number | null;
+  next_run_at?: string | null;
+  run_on_startup: boolean;
+};
+type ApiPipelineHistoryEntry = {
+  id: number;
+  created_at: string;
+  trigger: PipelineHistoryTrigger;
+  status: ApiPipelineStatus;
+};
+type ApiPipelineHistoryPayload = {
+  runs: ApiPipelineHistoryEntry[];
+  schedule: ApiPipelineScheduleStatus;
+};
 
 type ApiScreeningEvidenceSnapshot = {
   area_label: string;
@@ -245,6 +278,16 @@ export function createInitialPipelineStatus(anomalyCount: number): PipelineStatu
         detail: "Incident, task, and MRV reporting are available as soon as a live candidate is promoted.",
       },
     ],
+  };
+}
+
+export function createInitialPipelineHistory(): PipelineHistoryPayload {
+  return {
+    runs: [],
+    schedule: {
+      enabled: false,
+      runOnStartup: false,
+    },
   };
 }
 
@@ -427,6 +470,19 @@ export async function syncPipeline(source: PipelineSource = "gee"): Promise<Pipe
   return normalizePipelineStatus(payload.status);
 }
 
+export async function loadPipelineHistory(limit = 10): Promise<PipelineHistoryPayload> {
+  if (!apiBaseUrl) {
+    return createInitialPipelineHistory();
+  }
+
+  try {
+    const payload = await requestJson<ApiPipelineHistoryPayload>(`/api/v1/pipeline/history?limit=${limit}`);
+    return normalizePipelineHistory(payload);
+  } catch {
+    return createInitialPipelineHistory();
+  }
+}
+
 function normalizeDashboard(payload: ApiDashboardPayload): DashboardState {
   const anomalies = payload.anomalies.map(normalizeAnomaly);
   const incidents = Object.fromEntries(
@@ -565,6 +621,23 @@ function normalizePipelineStatus(status: ApiPipelineStatus): PipelineStatus {
     screeningSnapshot: status.screening_snapshot
       ? normalizeScreeningEvidenceSnapshot(status.screening_snapshot)
       : undefined,
+  };
+}
+
+function normalizePipelineHistory(payload: ApiPipelineHistoryPayload): PipelineHistoryPayload {
+  return {
+    runs: payload.runs.map((entry) => ({
+      id: entry.id,
+      createdAt: entry.created_at,
+      trigger: entry.trigger,
+      status: normalizePipelineStatus(entry.status),
+    })),
+    schedule: {
+      enabled: payload.schedule.enabled,
+      intervalMinutes: payload.schedule.interval_minutes ?? undefined,
+      nextRunAt: payload.schedule.next_run_at ?? undefined,
+      runOnStartup: payload.schedule.run_on_startup,
+    },
   };
 }
 

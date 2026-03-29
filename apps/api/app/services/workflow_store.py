@@ -28,7 +28,7 @@ from app.models import (
     IncidentTask,
     KpiCard,
     PipelineHistoryEntry,
-    PipelineHistoryPayload,
+    PipelineSyncTrigger,
     PipelineStage,
     PipelineStatus,
     PromoteAnomalyRequest,
@@ -134,28 +134,28 @@ class WorkflowStore:
                     fallback,
                     record_history=False,
                     record_activity=False,
+                    sync_trigger="manual",
                 )
                 session.commit()
                 return saved
             return self._pipeline_status_from_state_row(row)
 
-    def list_pipeline_history(self, limit: int = PIPELINE_HISTORY_LIMIT) -> PipelineHistoryPayload:
+    def list_pipeline_history(self, limit: int = PIPELINE_HISTORY_LIMIT) -> list[PipelineHistoryEntry]:
         with db_database.SessionLocal() as session:
             rows = session.scalars(
                 select(PipelineSyncRunRow)
                 .order_by(desc(PipelineSyncRunRow.id))
                 .limit(limit)
             ).all()
-            return PipelineHistoryPayload(
-                runs=[
-                    PipelineHistoryEntry(
-                        id=row.id,
-                        created_at=self._format_datetime(row.created_at),
-                        status=self._pipeline_status_from_sync_run_row(row),
-                    )
-                    for row in rows
-                ]
-            )
+            return [
+                PipelineHistoryEntry(
+                    id=row.id,
+                    created_at=self._format_datetime(row.created_at),
+                    trigger=row.sync_trigger,  # type: ignore[arg-type]
+                    status=self._pipeline_status_from_sync_run_row(row),
+                )
+                for row in rows
+            ]
 
     def save_pipeline_status(
         self,
@@ -163,6 +163,7 @@ class WorkflowStore:
         *,
         record_history: bool = True,
         record_activity: bool = True,
+        sync_trigger: PipelineSyncTrigger = "manual",
     ) -> PipelineStatus:
         with db_database.SessionLocal() as session:
             saved = self._save_pipeline_status(
@@ -170,6 +171,7 @@ class WorkflowStore:
                 status,
                 record_history=record_history,
                 record_activity=record_activity,
+                sync_trigger=sync_trigger,
             )
             session.commit()
             return saved
@@ -668,6 +670,7 @@ class WorkflowStore:
         *,
         record_history: bool,
         record_activity: bool,
+        sync_trigger: PipelineSyncTrigger,
     ) -> PipelineStatus:
         row = session.get(PipelineStateRow, self.PIPELINE_STATE_ID)
         snapshot = status.screening_snapshot or self._default_pipeline_status(status.project_id).screening_snapshot
@@ -705,6 +708,7 @@ class WorkflowStore:
             session.add(
                 PipelineSyncRunRow(
                     created_at=datetime.now(UTC),
+                    sync_trigger=sync_trigger,
                     source=status.source,
                     state=status.state,
                     provider_label=status.provider_label,

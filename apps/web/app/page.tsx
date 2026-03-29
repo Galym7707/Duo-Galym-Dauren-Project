@@ -4,6 +4,7 @@ import { startTransition, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   completeTask as completeTaskRequest,
+  createInitialPipelineHistory,
   createInitialPipelineStatus,
   createUnavailableDashboardState,
   type DashboardHydrationState,
@@ -12,7 +13,9 @@ import {
   hasApiBaseUrl,
   getReportViewUrl,
   loadDashboardState,
+  loadPipelineHistory,
   loadPipelineStatus,
+  type PipelineHistoryPayload,
   promoteAnomaly as promoteAnomalyRequest,
   type ReportExportFormat,
   syncPipeline,
@@ -20,6 +23,7 @@ import {
   type ScreeningEvidenceSnapshot,
 } from "../lib/api";
 import { AnomalyMap } from "../components/anomaly-map";
+import { PipelineHistoryPanel } from "../components/pipeline-history-panel";
 import {
   type Anomaly,
   type Incident,
@@ -325,6 +329,9 @@ export default function Page() {
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>(
     createInitialPipelineStatus(initialDashboard.anomalies.length),
   );
+  const [pipelineHistory, setPipelineHistory] = useState<PipelineHistoryPayload>(
+    createInitialPipelineHistory(),
+  );
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(initialDashboard.anomalies[0]?.id ?? "");
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -342,6 +349,7 @@ export default function Page() {
   function applyDashboardHydration(
     state: DashboardHydrationState,
     nextPipelineStatus?: PipelineStatus,
+    nextPipelineHistory?: PipelineHistoryPayload,
   ) {
     startTransition(() => {
       setDashboardSource(state.source);
@@ -351,12 +359,46 @@ export default function Page() {
       if (nextPipelineStatus) {
         setPipelineStatus(nextPipelineStatus);
       }
+      if (nextPipelineHistory) {
+        setPipelineHistory(nextPipelineHistory);
+      }
       setSelectedAnomalyId((current) => {
         const exists = state.anomalies.some((item) => item.id === current);
         return exists ? current : state.anomalies[0]?.id ?? "";
       });
       setLoadingDashboard(false);
     });
+  }
+
+  async function loadWorkspaceSnapshot(forceSyncWhenEmpty = false) {
+    let [state, nextPipelineStatus, nextPipelineHistory] = await Promise.all([
+      loadDashboardState(),
+      loadPipelineStatus(anomalies.length),
+      loadPipelineHistory(12),
+    ]);
+
+    if (
+      hasApiBaseUrl &&
+      forceSyncWhenEmpty &&
+      state.source === "api" &&
+      state.anomalies.length === 0 &&
+      nextPipelineStatus.state !== "syncing"
+    ) {
+      try {
+        nextPipelineStatus = await syncPipeline("gee");
+        [state, nextPipelineHistory] = await Promise.all([
+          loadDashboardState(),
+          loadPipelineHistory(12),
+        ]);
+      } catch {
+        [nextPipelineStatus, nextPipelineHistory] = await Promise.all([
+          loadPipelineStatus(state.anomalies.length),
+          loadPipelineHistory(12),
+        ]);
+      }
+    }
+
+    return { state, nextPipelineStatus, nextPipelineHistory };
   }
 
   useEffect(() => {
@@ -391,26 +433,10 @@ export default function Page() {
     let cancelled = false;
 
     async function hydrateDashboard() {
-      let state = await loadDashboardState();
-      let nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
-
-      if (
-        !cancelled &&
-        hasApiBaseUrl &&
-        state.source === "api" &&
-        state.anomalies.length === 0 &&
-        nextPipelineStatus.state !== "syncing"
-      ) {
-        try {
-          nextPipelineStatus = await syncPipeline("gee");
-          state = await loadDashboardState();
-        } catch {
-          nextPipelineStatus = await loadPipelineStatus(state.anomalies.length);
-        }
-      }
+      const { state, nextPipelineStatus, nextPipelineHistory } = await loadWorkspaceSnapshot(true);
 
       if (cancelled) return;
-      applyDashboardHydration(state, nextPipelineStatus);
+      applyDashboardHydration(state, nextPipelineStatus, nextPipelineHistory);
     }
 
     void hydrateDashboard();
@@ -418,6 +444,24 @@ export default function Page() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasApiBaseUrl) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      if (document.hidden || busyAction) {
+        return;
+      }
+
+      void loadWorkspaceSnapshot(false).then(({ state, nextPipelineStatus, nextPipelineHistory }) => {
+        applyDashboardHydration(state, nextPipelineStatus, nextPipelineHistory);
+      });
+    }, 120000);
+
+    return () => window.clearInterval(timer);
+  }, [busyAction, anomalies.length]);
 
   const availableMapPresets = MAP_PRESETS.filter(
     (preset) => !preset.region || anomalies.some((anomaly) => anomaly.region === preset.region),
@@ -565,13 +609,17 @@ export default function Page() {
 
     try {
       const nextStatus = await syncPipeline("gee");
-      const refreshedState = await loadDashboardState();
+      const [refreshedState, refreshedHistory] = await Promise.all([
+        loadDashboardState(),
+        loadPipelineHistory(12),
+      ]);
       if (refreshedState.source === "api") {
-        applyDashboardHydration(refreshedState, nextStatus);
+        applyDashboardHydration(refreshedState, nextStatus, refreshedHistory);
       } else {
         startTransition(() => {
           setDashboardSource(refreshedState.source);
           setPipelineStatus(nextStatus);
+          setPipelineHistory(refreshedHistory);
         });
       }
       if (nextStatus.state !== "ready") {
@@ -1050,6 +1098,8 @@ export default function Page() {
                       value={translateScreeningRecommendation(screeningSnapshot.recommendedAction, locale)}
                     />
                   </section>
+
+                  <PipelineHistoryPanel history={pipelineHistory} locale={locale} />
                 </section>
               ) : null}
 

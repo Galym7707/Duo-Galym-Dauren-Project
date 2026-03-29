@@ -80,6 +80,7 @@ def test_sync_gee_ready_updates_pipeline_and_store() -> None:
     assert strongest.verification_area == "Makat District, Atyrau Region"
     assert strongest.nearest_address == "A27, Atyrau Region"
     assert strongest.nearest_landmark == "Tengiz Field"
+    assert store.list_pipeline_history()[0].trigger == "manual"
 
 
 def test_sync_gee_error_keeps_empty_state_before_first_success() -> None:
@@ -136,3 +137,25 @@ def test_sync_gee_degraded_preserves_previous_live_snapshot_when_available() -> 
     assert snapshot.freshness == "stale"
     assert snapshot.current_ch4_ppb == 1884.6
     assert snapshot.last_successful_sync_at == first_status.last_sync_at
+
+
+def test_scheduled_sync_records_scheduled_trigger() -> None:
+    store = WorkflowStore()
+    service = PipelineService(store)
+    service.provider.sync_summary = lambda: GeeSyncSummary(
+        project_id="demo-project",
+        status="ready",
+        message="Earth Engine CH4 screening summary fetched successfully.",
+        latest_observation_at="2026-03-27 08:00 UTC",
+        observed_window="Latest TROPOMI scene compared with Kazakhstan historical mean.",
+        mean_ch4_ppb=1884.6,
+        baseline_ch4_ppb=1822.4,
+        delta_abs_ppb=62.2,
+        delta_pct=3.41,
+        scene_count=12,
+        candidates=[make_live_candidate()],
+    )
+
+    service.sync_gee(trigger="scheduled")
+
+    assert store.list_pipeline_history()[0].trigger == "scheduled"

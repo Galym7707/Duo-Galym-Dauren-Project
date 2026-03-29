@@ -8,12 +8,10 @@ from app.main import app
 from app.models import CreateTaskRequest
 from app.providers.gee import GeeCandidate, GeeSyncSummary
 from app.services.workflow_store import WorkflowStore
-from app.services.pipeline_service import PipelineService
 
 
 def make_client() -> TestClient:
-    routes.store = WorkflowStore()
-    routes.pipeline_service = PipelineService(routes.store)
+    routes.replace_runtime_services(WorkflowStore())
     return TestClient(app)
 
 
@@ -118,6 +116,8 @@ def test_pipeline_sync_ready_keeps_manual_promote_path_intact() -> None:
 
     live_anomaly = dashboard_after_sync.json()["anomalies"][0]
     assert history_response.status_code == 200
+    assert history_response.json()["schedule"]["enabled"] is False
+    assert history_response.json()["runs"][0]["trigger"] == "manual"
     assert history_response.json()["runs"][0]["status"]["state"] == "ready"
     assert live_anomaly["verification_area"] == "Makat District, Atyrau Region"
     assert live_anomaly["nearest_address"] == "A27, Atyrau Region"

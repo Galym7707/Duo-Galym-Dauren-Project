@@ -9,6 +9,7 @@ IncidentStatus = Literal["triage", "verification", "mitigation"]
 TaskStatus = Literal["open", "done"]
 PipelineSource = Literal["gee"]
 PipelineState = Literal["ready", "degraded", "error", "syncing"]
+PipelineSyncTrigger = Literal["manual", "scheduled"]
 EvidenceFreshness = Literal["fresh", "stale", "unavailable"]
 ScreeningLevel = Literal["low", "medium", "high"]
 ActivityStage = Literal["ingest", "incident", "verification", "report"]
@@ -179,14 +180,23 @@ class PipelineStatus(BaseModel):
     screening_snapshot: ScreeningEvidenceSnapshot | None = None
 
 
+class PipelineScheduleStatus(BaseModel):
+    enabled: bool
+    interval_minutes: int | None = None
+    next_run_at: str | None = None
+    run_on_startup: bool = False
+
+
 class PipelineHistoryEntry(BaseModel):
     id: int
     created_at: str
+    trigger: PipelineSyncTrigger
     status: PipelineStatus
 
 
 class PipelineHistoryPayload(BaseModel):
     runs: list[PipelineHistoryEntry]
+    schedule: PipelineScheduleStatus
 
 
 class PipelineSyncRequest(BaseModel):

@@ -5,6 +5,7 @@ description = "FastAPI backend scaffold for methane and flaring MRV workflow dem
 requires-python = ">=3.11"
 dependencies = [
   "alembic>=1.14,<2.0",
+  "APScheduler>=3.10,<4.0",
   "fastapi[standard]>=0.110,<1.0",
   "earthengine-api>=1.0.0",
   "geoalchemy2>=0.15,<1.0",

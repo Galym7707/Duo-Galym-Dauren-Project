@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from threading import Lock
 
-from app.models import PipelineStage, PipelineStatus
+from app.models import PipelineStage, PipelineStatus, PipelineSyncTrigger
 from app.providers.gee import GeeProvider
 from app.services.workflow_store import WorkflowStore
 
@@ -11,11 +12,33 @@ class PipelineService:
     def __init__(self, store: WorkflowStore) -> None:
         self.store = store
         self.provider = GeeProvider()
+        self._sync_lock = Lock()
 
     def get_status(self) -> PipelineStatus:
         return self.store.get_pipeline_status(self.provider.project_id)
 
-    def sync_gee(self) -> PipelineStatus:
+    def sync_gee(self, trigger: PipelineSyncTrigger = "manual") -> PipelineStatus:
+        if not self._sync_lock.acquire(blocking=False):
+            current = self.get_status()
+            return PipelineStatus(
+                source=current.source,
+                state="syncing",
+                provider_label=current.provider_label,
+                project_id=current.project_id,
+                last_sync_at=current.last_sync_at,
+                latest_observation_at=current.latest_observation_at,
+                anomaly_count=current.anomaly_count,
+                status_message="Live Earth Engine sync already in progress.",
+                stages=current.stages,
+                screening_snapshot=current.screening_snapshot,
+            )
+
+        try:
+            return self._sync_gee_locked(trigger)
+        finally:
+            self._sync_lock.release()
+
+    def _sync_gee_locked(self, trigger: PipelineSyncTrigger) -> PipelineStatus:
         now = self._now()
         summary = self.provider.sync_summary()
 
@@ -71,7 +94,7 @@ class PipelineService:
                 ],
                 screening_snapshot=snapshot,
             )
-            return self.store.save_pipeline_status(status_model)
+            return self.store.save_pipeline_status(status_model, sync_trigger=trigger)
 
         degraded_state = "degraded" if summary.status == "degraded" else "error"
         snapshot = (
@@ -112,7 +135,7 @@ class PipelineService:
                 ],
                 screening_snapshot=snapshot,
             )
-        return self.store.save_pipeline_status(status_model)
+        return self.store.save_pipeline_status(status_model, sync_trigger=trigger)
 
     def _now(self) -> str:
         return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")

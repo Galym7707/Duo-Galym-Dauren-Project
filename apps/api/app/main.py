@@ -3,14 +3,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router
+from app.api import routes
 from app.db import init_database
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_database()
-    yield
+    routes.pipeline_scheduler.start()
+    try:
+        yield
+    finally:
+        routes.pipeline_scheduler.shutdown()
 
 
 app = FastAPI(
@@ -28,7 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
+app.include_router(routes.router)
 
 
 @app.get("/health")
