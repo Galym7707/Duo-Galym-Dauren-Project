@@ -98,9 +98,10 @@ class GeeProvider:
     CH4_BAND_NAME = "CH4_column_volume_mixing_ratio_dry_air"
     VIIRS_DATASET_ID = "NASA/LANCE/SNPP_VIIRS/C2"
     GAUL_LEVEL1_DATASET_ID = "FAO/GAUL/2015/level1"
+    HF_SECRETS_DIR = Path("/run/secrets")
 
     def __init__(self) -> None:
-        self.project_id = os.getenv("EARTH_ENGINE_PROJECT", "gen-lang-client-0372752376")
+        self.project_id = self._read_secret_value("EARTH_ENGINE_PROJECT") or "gen-lang-client-0372752376"
         self.reverse_geocoder = ReverseGeocoder()
         self._service_account_key_path: str | None = None
 
@@ -226,8 +227,8 @@ class GeeProvider:
         )
 
     def _initialize_earth_engine(self, ee: object) -> None:
-        service_account_json = os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_JSON")
-        service_account_file = os.getenv("EARTH_ENGINE_SERVICE_ACCOUNT_FILE")
+        service_account_json = self._read_secret_value("EARTH_ENGINE_SERVICE_ACCOUNT_JSON")
+        service_account_file = self._read_secret_value("EARTH_ENGINE_SERVICE_ACCOUNT_FILE")
 
         if service_account_json:
             key_path, service_account_email = self._write_service_account_key(service_account_json)
@@ -255,6 +256,17 @@ class GeeProvider:
             return
 
         ee.Initialize(project=self.project_id)
+
+    def _read_secret_value(self, name: str) -> str | None:
+        env_value = os.getenv(name)
+        if env_value:
+            return env_value
+
+        secret_path = self.HF_SECRETS_DIR / name
+        if secret_path.exists():
+            return secret_path.read_text(encoding="utf-8").strip()
+
+        return None
 
     def _write_service_account_key(self, raw_json: str) -> tuple[str, str]:
         payload = json.loads(raw_json)
