@@ -75,6 +75,8 @@ def test_generate_report_and_export_html_include_audit_timeline() -> None:
     assert "Audit Timeline" in report_html
     assert f"Saryna MRV Report: {incident.id}" in report_html
     assert "MRV report generated" in report_html
+    assert generated.report[0].title == "Screening finding"
+    assert generated.report[2].title == "Next step"
 
 
 def test_mark_screening_unavailable_preserves_last_verified_snapshot() -> None:

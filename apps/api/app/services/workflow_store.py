@@ -960,28 +960,19 @@ class WorkflowStore:
         )
 
     def _build_report_sections(self, anomaly, incident: Incident) -> list[ReportSection]:
-        measurement_body = (
-            self._live_measurement_summary(anomaly)
-            if anomaly.co2e_tonnes is None
-            else (
-                f"Satellite screening flagged {anomaly.asset_name} in {anomaly.region} with "
-                f"+{anomaly.methane_delta_pct}% methane uplift and {anomaly.flare_hours} flare-observed hours."
-            )
-        )
-        reporting_body = (
-            self._live_progress_summary(anomaly, incident)
-            if anomaly.co2e_tonnes is None
-            else (
-                f"Current potential impact is estimated at {anomaly.co2e_tonnes} tCO2e. "
-                f"{self._completed_tasks(incident)}/{len(incident.tasks)} verification tasks are complete."
-            )
+        measurement_body = self._live_measurement_summary(anomaly)
+        reporting_body = self._live_progress_summary(anomaly, incident)
+        next_step_body = (
+            f"{anomaly.recommended_action} Verification window: {incident.verification_window}."
+            if anomaly.recommended_action
+            else f"Continue verification under the {incident.verification_window.lower()} response window."
         )
         return [
-            ReportSection(title="Measurement", body=measurement_body),
-            ReportSection(title="Reporting", body=reporting_body),
+            ReportSection(title="Screening finding", body=measurement_body),
+            ReportSection(title="Case status", body=reporting_body),
             ReportSection(
-                title="Verification",
-                body=f"{incident.owner} owns the case under {incident.priority} priority with a {incident.verification_window.lower()} window.",
+                title="Next step",
+                body=next_step_body,
             ),
         ]
 
@@ -1045,7 +1036,8 @@ class WorkflowStore:
     def _live_progress_summary(self, anomaly, incident: Incident) -> str:
         return (
             f"{self._completed_tasks(incident)}/{len(incident.tasks)} verification tasks are complete. "
-            f"This live screening queue does not estimate tCO2e yet; it keeps the candidate operationally ranked by methane uplift and nearby thermal context."
+            f"{incident.owner} owns the case under {incident.priority} priority with a {incident.verification_window.lower()} window. "
+            f"The case remains ranked by methane uplift and nearby thermal context."
         )
 
     def _completed_tasks(self, incident: Incident | IncidentRow) -> int:

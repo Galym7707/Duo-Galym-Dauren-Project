@@ -181,7 +181,8 @@ def test_report_export_supports_html_pdf_and_docx() -> None:
     assert pdf.status_code == 200
     assert docx.status_code == 200
 
-    assert "Saryna MRV" in html.text
+    assert "Отчет Saryna MRV" in html.text
+    assert "Итог по кейсу" in html.text
     assert (
         f'attachment; filename="{incident_id.lower()}-mrv-report.pdf"'
         in pdf.headers["content-disposition"]
@@ -195,4 +196,5 @@ def test_report_export_supports_html_pdf_and_docx() -> None:
 
     document = Document(BytesIO(docx.content))
     full_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
-    assert "Saryna MRV" in full_text
+    assert "Отчет Saryna MRV" in full_text
+    assert "Итог по кейсу" in full_text

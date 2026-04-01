@@ -19,6 +19,10 @@ ENV STATIC_EXPORT_DIR=/app/apps/web/out
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY apps/api/pyproject.toml ./apps/api/pyproject.toml
 COPY apps/api/alembic.ini ./apps/api/alembic.ini
 COPY apps/api/alembic ./apps/api/alembic
