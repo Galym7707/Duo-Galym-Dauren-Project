@@ -41,15 +41,32 @@ class ReportTaskLine:
 
 
 @dataclass(frozen=True)
+class ReportTimelineEntry:
+    occurred_at: str
+    stage_label: str
+    title: str
+    detail: str
+
+
+@dataclass(frozen=True)
 class PreparedReport:
     locale: Locale
     file_stem: str
     title: str
     subtitle: str
     status_badge: str
+    classification_line: str
     summary_title: str
     summary_body: str
+    recommended_action_title: str
+    recommended_action_body: str
+    management_title: str
+    evidence_title: str
+    metadata_title: str
+    metadata: list[tuple[str, str]]
     metrics: list[ReportMetric]
+    hero_metrics: list[ReportMetric]
+    supporting_metrics: list[ReportMetric]
     facts_title: str
     facts: list[tuple[str, str]]
     sections: list[ReportSection]
@@ -57,6 +74,7 @@ class PreparedReport:
     tasks: list[ReportTaskLine]
     audit_title: str
     audit_lines: list[str]
+    audit_timeline: list[ReportTimelineEntry]
     methodology_title: str
     methodology_points: list[str]
 
@@ -234,15 +252,32 @@ def prepare_report(
         for task in incident.tasks
     ]
 
+    recommended_action = anomaly.recommended_action.strip() or (
+        "Continue verification tasks and update the MRV record."
+        if locale == "en"
+        else "Продолжить проверку и обновить MRV-запись."
+    )
+    recommended_action = _translate_recommended_action(recommended_action, locale)
+    audit_timeline = [_build_timeline_entry(event, locale) for event in audit_events]
+
     return PreparedReport(
         locale=locale,
         file_stem=f"{incident.id.lower()}-mrv-report",
         title=f"{labels['title']}: {incident.id}",
         subtitle=labels["subtitle"],
+        classification_line=labels["classification_line"],
         status_badge=f"{incident.priority} · {incident_status}",
         summary_title=labels["summary_title"],
         summary_body=_summary_text(anomaly, incident, completed_tasks, locale),
+        recommended_action_title=labels["recommended_action_title"],
+        recommended_action_body=recommended_action,
+        management_title=labels["management_title"],
+        evidence_title=labels["evidence_title"],
+        metadata_title=labels["metadata_title"],
+        metadata=_build_report_metadata(anomaly, incident, locale),
         metrics=metrics,
+        hero_metrics=metrics[:3],
+        supporting_metrics=metrics[3:],
         facts_title=labels["facts_title"],
         facts=facts,
         sections=_localized_sections(anomaly, incident, completed_tasks, locale),
@@ -250,12 +285,44 @@ def prepare_report(
         tasks=tasks,
         audit_title=labels["audit_title"],
         audit_lines=[_format_audit_line(event, locale) for event in audit_events],
+        audit_timeline=audit_timeline,
         methodology_title=labels["methodology_title"],
         methodology_points=_methodology_points(locale),
     )
 
 
+def _build_report_metadata(
+    anomaly: Anomaly,
+    incident: Incident,
+    locale: Locale,
+) -> list[tuple[str, str]]:
+    labels = _labels(locale)
+    return [
+        (labels["metadata_document_id"], incident.id),
+        (labels["generated"], incident.report_generated_at or labels["on_demand"]),
+        (labels["owner"], _translate_owner(incident.owner, locale)),
+        (labels["status"], _incident_status_label(incident.status, locale)),
+        (labels["window"], _translate_window(incident.verification_window, locale)),
+        (labels["metadata_locale"], locale.upper()),
+        (labels["zone"], _translate_asset(anomaly.asset_name, locale)),
+        (labels["region"], _translate_place(anomaly.region, locale)),
+    ]
+
+
+def _build_timeline_entry(event: ActivityEvent, locale: Locale) -> ReportTimelineEntry:
+    return ReportTimelineEntry(
+        occurred_at=event.occurred_at,
+        stage_label=_timeline_stage_label(event.stage, locale),
+        title=_translate_audit_title(event.title, locale),
+        detail=_translate_audit_detail(event.detail, locale),
+    )
+
+
 def render_html(report: PreparedReport, auto_print: bool = False) -> str:
+    return _render_html_v2(report, auto_print)
+
+
+def _legacy_render_html(report: PreparedReport, auto_print: bool = False) -> str:
     labels = _labels(report.locale)
     metrics_markup = "".join(
         (
@@ -395,6 +462,10 @@ def render_html(report: PreparedReport, auto_print: bool = False) -> str:
 
 
 def render_pdf(report: PreparedReport) -> bytes:
+    return _render_pdf_v2(report)
+
+
+def _legacy_render_pdf(report: PreparedReport) -> bytes:
     font_config = _resolve_export_fonts()
     regular_font = font_config.pdf_regular
     bold_font = font_config.pdf_bold
@@ -616,6 +687,10 @@ def render_pdf(report: PreparedReport) -> bytes:
 
 
 def render_docx(report: PreparedReport) -> bytes:
+    return _render_docx_v2(report)
+
+
+def _legacy_render_docx(report: PreparedReport) -> bytes:
     font_config = _resolve_export_fonts()
     labels = _labels(report.locale)
     document = Document()
@@ -698,12 +773,667 @@ def render_docx(report: PreparedReport) -> bytes:
     return buffer.getvalue()
 
 
+def _render_html_v2(report: PreparedReport, auto_print: bool = False) -> str:
+    labels = _labels(report.locale)
+    hero_metrics_markup = _render_html_metrics(report.hero_metrics)
+    supporting_metrics_markup = _render_html_metrics(report.supporting_metrics)
+    metadata_markup = "".join(
+        (
+            "<div class='meta-row'>"
+            f"<span class='meta-label'>{_escape_html(label)}</span>"
+            f"<strong class='meta-value'>{_escape_html(value)}</strong>"
+            "</div>"
+        )
+        for label, value in report.metadata
+    )
+    facts_markup = "".join(
+        (
+            "<tr>"
+            f"<th>{_escape_html(label)}</th>"
+            f"<td>{_escape_html(value)}</td>"
+            "</tr>"
+        )
+        for label, value in report.facts
+    )
+    section_markup = "".join(
+        (
+            "<section class='report-section'>"
+            f"<h3>{_escape_html(section.title)}</h3>"
+            f"<p>{_escape_html(section.body)}</p>"
+            "</section>"
+        )
+        for section in report.sections
+    )
+    task_rows = "".join(
+        (
+            "<tr>"
+            f"<td>{_escape_html(task.title)}</td>"
+            f"<td>{_escape_html(task.owner)}</td>"
+            f"<td>{_escape_html(task.eta)}</td>"
+            f"<td>{_escape_html(task.status)}</td>"
+            f"<td>{_escape_html(task.notes or '-')}</td>"
+            "</tr>"
+        )
+        for task in report.tasks
+    )
+    timeline_markup = "".join(
+        (
+            "<li class='timeline-item'>"
+            f"<div class='timeline-kicker'>{_escape_html(entry.stage_label)} | {_escape_html(entry.occurred_at)}</div>"
+            f"<div class='timeline-title'>{_escape_html(entry.title)}</div>"
+            f"<div class='timeline-detail'>{_escape_html(entry.detail)}</div>"
+            "</li>"
+        )
+        for entry in report.audit_timeline
+    )
+    methodology_rows = "".join(
+        f"<li>{_escape_html(point)}</li>" for point in report.methodology_points
+    )
+    auto_print_script = (
+        "<script>window.addEventListener('load',()=>{setTimeout(()=>window.print(),120);});</script>"
+        if auto_print
+        else ""
+    )
+
+    return (
+        "<!doctype html>"
+        f"<html lang='{report.locale}'>"
+        "<head>"
+        "<meta charset='utf-8' />"
+        "<meta name='viewport' content='width=device-width, initial-scale=1' />"
+        f"<title>{_escape_html(report.title)}</title>"
+        "<style>"
+        "body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4eee6;color:#122331;}"
+        "main{max-width:1040px;margin:24px auto;padding:28px;border:1px solid #d8d0c6;background:#fffdfa;}"
+        ".header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:1px solid #e4ddd3;padding-bottom:20px;}"
+        ".eyebrow{display:inline-block;padding:6px 10px;border-radius:999px;background:#163244;color:#fff;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}"
+        ".classification{margin-top:10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7d6b4d;}"
+        "h1{margin:14px 0 6px;font-size:32px;line-height:1.15;}"
+        ".subtitle{margin:0;color:#5f6e78;line-height:1.6;max-width:720px;}"
+        ".toolbar button{padding:10px 14px;border:1px solid #c8d3d9;background:#fff;font:inherit;cursor:pointer;}"
+        ".panel{margin-top:22px;padding:18px 20px;border:1px solid #d7e2e7;background:#fff;}"
+        ".panel h2,.section-shell h2,.facts h2,.table-block h2,.audit h2,.methodology h2{margin:0 0 12px;font-size:18px;}"
+        ".executive-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px;}"
+        ".executive-brief{background:#f5fafb;}"
+        ".action-panel{background:#f3e3bf;color:#132633;border-color:#d8c08c;}"
+        ".action-panel h2,.action-panel p{color:#132633;}"
+        ".action-panel .subtle-label{color:#7a694e;}"
+        ".panel p{margin:0;line-height:1.65;}"
+        ".section-shell{margin-top:22px;}"
+        ".subtle-label{display:block;margin-bottom:10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#657784;}"
+        ".metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}"
+        ".metric-card{padding:14px 16px;border:1px solid #d9e1e7;background:#fff;min-height:104px;}"
+        ".metric-label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#657784;}"
+        ".metric-value{display:block;margin-top:8px;font-size:24px;line-height:1.15;color:#132633;}"
+        ".metric-detail{display:block;margin-top:8px;font-size:13px;line-height:1.5;color:#5f6e78;}"
+        ".management-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start;}"
+        ".meta-card{padding:16px;border:1px solid #d9e1e7;background:#fffaf4;}"
+        ".meta-row{padding:10px 0;border-top:1px solid #e7ded4;}"
+        ".meta-row:first-child{padding-top:0;border-top:none;}"
+        ".meta-label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7c6c55;}"
+        ".meta-value{display:block;margin-top:6px;font-size:14px;color:#132633;line-height:1.45;}"
+        ".facts{margin-top:24px;}"
+        "table{width:100%;border-collapse:collapse;}"
+        ".facts-table th,.facts-table td{padding:10px 12px;border:1px solid #d8e0e5;text-align:left;vertical-align:top;}"
+        ".facts-table th{width:30%;background:#f7fafc;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5b6d79;}"
+        ".report-section{margin-top:20px;}"
+        ".report-section h3{margin:0 0 8px;font-size:16px;color:#132633;}"
+        ".report-section p{margin:0;line-height:1.7;}"
+        ".table-block{margin-top:22px;}"
+        ".tasks-table th,.tasks-table td{padding:10px 12px;border:1px solid #d8e0e5;text-align:left;vertical-align:top;}"
+        ".tasks-table th{background:#f7fafc;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5b6d79;}"
+        ".audit,.methodology{margin-top:22px;}"
+        ".timeline{list-style:none;margin:0;padding:0;display:grid;gap:12px;}"
+        ".timeline-item{padding:14px 16px;border:1px solid #d9e1e7;background:#fff;}"
+        ".timeline-kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7a694e;}"
+        ".timeline-title{margin-top:6px;font-size:15px;font-weight:700;color:#132633;}"
+        ".timeline-detail{margin-top:6px;line-height:1.6;color:#465864;}"
+        ".methodology ul{margin:0;padding-left:20px;line-height:1.7;}"
+        ".footer-note{margin-top:24px;padding-top:14px;border-top:1px solid #e4ddd3;font-size:12px;color:#63727d;display:flex;justify-content:space-between;gap:16px;}"
+        "@media print{body{background:#fff;}main{margin:0;border:none;padding:0;} .toolbar{display:none;} .panel,.metric-card,.meta-card,.timeline-item{break-inside:avoid;} .executive-grid,.management-grid,.metrics{gap:10px;}}"
+        "</style>"
+        "</head>"
+        "<body>"
+        "<main>"
+        "<div class='header'>"
+        "<div>"
+        f"<span class='eyebrow'>{_escape_html(report.status_badge)}</span>"
+        f"<h1>{_escape_html(report.title)}</h1>"
+        f"<p class='subtitle'>{_escape_html(report.subtitle)}</p>"
+        f"<div class='classification'>{_escape_html(report.classification_line)}</div>"
+        "</div>"
+        "<div class='toolbar'>"
+        f"<button onclick='window.print()'>{_escape_html(labels['print'])}</button>"
+        "</div>"
+        "</div>"
+        "<section class='executive-grid'>"
+        "<section class='panel executive-brief'>"
+        f"<span class='subtle-label'>{_escape_html(report.management_title)}</span>"
+        f"<h2>{_escape_html(report.summary_title)}</h2>"
+        f"<p>{_escape_html(report.summary_body)}</p>"
+        "</section>"
+        "<section class='panel action-panel'>"
+        f"<span class='subtle-label'>{_escape_html(report.recommended_action_title)}</span>"
+        f"<h2>{_escape_html(report.recommended_action_title)}</h2>"
+        f"<p>{_escape_html(report.recommended_action_body)}</p>"
+        "</section>"
+        "</section>"
+        "<section class='section-shell'>"
+        f"<h2>{_escape_html(report.management_title)}</h2>"
+        "<div class='management-grid'>"
+        "<div>"
+        f"<div class='metrics'>{hero_metrics_markup}</div>"
+        + (f"<div class='metrics' style='margin-top:14px'>{supporting_metrics_markup}</div>" if supporting_metrics_markup else "")
+        + "</div>"
+        "<aside class='meta-card'>"
+        f"<span class='subtle-label'>{_escape_html(report.metadata_title)}</span>"
+        f"{metadata_markup}"
+        "</aside>"
+        "</div>"
+        "</section>"
+        "<section class='section-shell'>"
+        f"<h2>{_escape_html(report.evidence_title)}</h2>"
+        "<section class='facts'>"
+        f"<h2>{_escape_html(report.facts_title)}</h2>"
+        f"<table class='facts-table'>{facts_markup}</table>"
+        "</section>"
+        f"{section_markup}"
+        "<section class='table-block'>"
+        f"<h2>{_escape_html(report.tasks_title)}</h2>"
+        "<table class='tasks-table'>"
+        "<thead><tr>"
+        f"<th>{_escape_html(labels['task_col_title'])}</th>"
+        f"<th>{_escape_html(labels['task_col_owner'])}</th>"
+        f"<th>{_escape_html(labels['task_col_eta'])}</th>"
+        f"<th>{_escape_html(labels['task_col_status'])}</th>"
+        f"<th>{_escape_html(labels['task_col_notes'])}</th>"
+        "</tr></thead>"
+        f"<tbody>{task_rows}</tbody>"
+        "</table>"
+        "</section>"
+        "<section class='audit'>"
+        f"<h2>{_escape_html(report.audit_title)}</h2>"
+        f"<ol class='timeline'>{timeline_markup}</ol>"
+        "</section>"
+        "<section class='methodology'>"
+        f"<h2>{_escape_html(report.methodology_title)}</h2>"
+        f"<ul>{methodology_rows}</ul>"
+        "</section>"
+        "</section>"
+        "<div class='footer-note'>"
+        f"<span>{_escape_html(report.classification_line)}</span>"
+        f"<span>{_escape_html(report.file_stem)}</span>"
+        "</div>"
+        f"{auto_print_script}"
+        "</main>"
+        "</body></html>"
+    )
+
+
+def _render_pdf_v2(report: PreparedReport) -> bytes:
+    font_config = _resolve_export_fonts()
+    regular_font = font_config.pdf_regular
+    bold_font = font_config.pdf_bold
+    labels = _labels(report.locale)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "ReportTitleV2",
+        parent=styles["Heading1"],
+        fontName=bold_font,
+        fontSize=22,
+        leading=26,
+        textColor=colors.HexColor("#10212b"),
+        spaceAfter=6,
+    )
+    subtitle_style = ParagraphStyle(
+        "ReportSubtitleV2",
+        parent=styles["BodyText"],
+        fontName=regular_font,
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#5e6d77"),
+        spaceAfter=8,
+    )
+    classification_style = ParagraphStyle(
+        "ReportClassificationV2",
+        parent=styles["BodyText"],
+        fontName=bold_font,
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#7d6b4d"),
+        spaceAfter=12,
+    )
+    badge_style = ParagraphStyle(
+        "ReportBadgeV2",
+        parent=styles["BodyText"],
+        fontName=bold_font,
+        fontSize=9,
+        leading=12,
+        textColor=colors.white,
+        backColor=colors.HexColor("#163244"),
+        borderPadding=(4, 8, 4, 8),
+        spaceAfter=10,
+    )
+    section_style = ParagraphStyle(
+        "ReportSectionV2",
+        parent=styles["Heading2"],
+        fontName=bold_font,
+        fontSize=13,
+        leading=16,
+        textColor=colors.HexColor("#132633"),
+        spaceBefore=14,
+        spaceAfter=6,
+    )
+    body_style = ParagraphStyle(
+        "ReportBodyV2",
+        parent=styles["BodyText"],
+        fontName=regular_font,
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#33434f"),
+    )
+    small_style = ParagraphStyle(
+        "ReportSmallV2",
+        parent=body_style,
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#5f6e78"),
+    )
+    kicker_style = ParagraphStyle(
+        "ReportKickerV2",
+        parent=small_style,
+        fontName=bold_font,
+        textColor=colors.HexColor("#7a694e"),
+    )
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=16 * mm,
+        rightMargin=16 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+    )
+
+    elements: list[object] = [
+        Paragraph(_escape_html(report.status_badge), badge_style),
+        Paragraph(_escape_html(report.title), title_style),
+        Paragraph(_escape_html(report.subtitle), subtitle_style),
+        Paragraph(_escape_html(report.classification_line), classification_style),
+    ]
+
+    executive_table = Table(
+        [
+            [
+                Paragraph(
+                    f"<font name='{bold_font}'>{_escape_html(report.summary_title)}</font><br/>{_escape_html(report.summary_body)}",
+                    body_style,
+                ),
+                Paragraph(
+                    f"<font name='{bold_font}'>{_escape_html(report.recommended_action_title)}</font><br/>{_escape_html(report.recommended_action_body)}",
+                    body_style,
+                ),
+            ]
+        ],
+        colWidths=[110 * mm, 68 * mm],
+        hAlign="LEFT",
+    )
+    executive_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f5fafb")),
+                ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#f3e3bf")),
+                ("TEXTCOLOR", (1, 0), (1, 0), colors.HexColor("#132633")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e4e8")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e4e8")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    elements.extend([executive_table, Spacer(1, 10)])
+
+    elements.append(Paragraph(_escape_html(report.management_title), section_style))
+    elements.extend(_build_pdf_metric_story(report.hero_metrics, body_style, bold_font))
+
+    metadata_rows = [
+        [
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(label)}</font>", body_style),
+            Paragraph(_escape_html(value), body_style),
+        ]
+        for label, value in report.metadata
+    ]
+    metadata_table = Table(metadata_rows, colWidths=[48 * mm, 130 * mm], hAlign="LEFT")
+    metadata_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#fff8f1")),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e0e5")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.55, colors.HexColor("#d8e0e5")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    elements.extend([metadata_table, Spacer(1, 10)])
+
+    if report.supporting_metrics:
+        elements.extend(_build_pdf_metric_story(report.supporting_metrics, body_style, bold_font))
+
+    elements.append(Paragraph(_escape_html(report.evidence_title), section_style))
+    elements.append(Paragraph(_escape_html(report.facts_title), section_style))
+    fact_rows = [
+        [
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(label)}</font>", body_style),
+            Paragraph(_escape_html(value), body_style),
+        ]
+        for label, value in report.facts
+    ]
+    facts_table = Table(fact_rows, colWidths=[48 * mm, 130 * mm], hAlign="LEFT")
+    facts_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f7fafc")),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e0e5")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.55, colors.HexColor("#d8e0e5")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    elements.extend([facts_table, Spacer(1, 10)])
+
+    for section in report.sections:
+        elements.append(Paragraph(_escape_html(section.title), section_style))
+        elements.append(Paragraph(_escape_html(section.body), body_style))
+
+    elements.append(Paragraph(_escape_html(report.tasks_title), section_style))
+    task_rows = [
+        [
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_title'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_owner'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_eta'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_status'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_notes'])}</font>", small_style),
+        ]
+    ]
+    for task in report.tasks:
+        task_rows.append(
+            [
+                Paragraph(_escape_html(task.title), body_style),
+                Paragraph(_escape_html(task.owner), body_style),
+                Paragraph(_escape_html(task.eta), body_style),
+                Paragraph(_escape_html(task.status), body_style),
+                Paragraph(_escape_html(task.notes or "-"), body_style),
+            ]
+        )
+    tasks_table = Table(task_rows, colWidths=[58 * mm, 38 * mm, 18 * mm, 24 * mm, 40 * mm], hAlign="LEFT", repeatRows=1)
+    tasks_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f7fafc")),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e0e5")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.55, colors.HexColor("#d8e0e5")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    elements.extend([tasks_table, Spacer(1, 8)])
+
+    elements.append(Paragraph(_escape_html(report.audit_title), section_style))
+    for entry in report.audit_timeline:
+        elements.append(
+            Paragraph(
+                f"{_escape_html(entry.stage_label)} | {_escape_html(entry.occurred_at)}",
+                kicker_style,
+            )
+        )
+        elements.append(
+            Paragraph(
+                f"<font name='{bold_font}'>{_escape_html(entry.title)}</font><br/>{_escape_html(entry.detail)}",
+                body_style,
+            )
+        )
+        elements.append(Spacer(1, 5))
+
+    elements.append(Paragraph(_escape_html(report.methodology_title), section_style))
+    for point in report.methodology_points:
+        elements.append(Paragraph(f"• {_escape_html(point)}", body_style))
+        elements.append(Spacer(1, 3))
+
+    document.build(
+        elements,
+        onFirstPage=lambda canvas, doc: _draw_pdf_footer(canvas, doc, report, regular_font),
+        onLaterPages=lambda canvas, doc: _draw_pdf_footer(canvas, doc, report, regular_font),
+    )
+    return buffer.getvalue()
+
+
+def _render_docx_v2(report: PreparedReport) -> bytes:
+    font_config = _resolve_export_fonts()
+    labels = _labels(report.locale)
+    document = Document()
+    normal_style = document.styles["Normal"]
+    _apply_docx_font(normal_style, font_config.docx_family, size_pt=10.5)
+
+    heading_1 = document.styles["Heading 1"]
+    _apply_docx_font(heading_1, font_config.docx_family, size_pt=20)
+    heading_1.font.color.rgb = RGBColor(0x10, 0x21, 0x2B)
+
+    heading_2 = document.styles["Heading 2"]
+    _apply_docx_font(heading_2, font_config.docx_family, size_pt=13)
+    heading_2.font.color.rgb = RGBColor(0x13, 0x26, 0x33)
+
+    if "List Bullet" in document.styles:
+        _apply_docx_font(document.styles["List Bullet"], font_config.docx_family, size_pt=10.5)
+
+    badge = document.add_paragraph()
+    badge_run = badge.add_run(report.status_badge)
+    badge_run.bold = True
+    badge_run.font.color.rgb = RGBColor(0x16, 0x32, 0x44)
+
+    title = document.add_heading(report.title, level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    document.add_paragraph(report.subtitle)
+    classification = document.add_paragraph(report.classification_line)
+    classification.runs[0].italic = True
+
+    document.add_heading(report.management_title, level=2)
+    document.add_heading(report.summary_title, level=2)
+    document.add_paragraph(report.summary_body)
+
+    action = document.add_paragraph()
+    action_label = action.add_run(f"{report.recommended_action_title}: ")
+    action_label.bold = True
+    action.add_run(report.recommended_action_body)
+
+    document.add_heading(labels["key_metrics_title"], level=2)
+    _append_docx_metric_table(document, report.hero_metrics)
+
+    if report.supporting_metrics:
+        document.add_paragraph(labels["supporting_metrics_title"])
+        _append_docx_metric_table(document, report.supporting_metrics)
+
+    document.add_heading(report.metadata_title, level=2)
+    metadata_table = document.add_table(rows=0, cols=2)
+    metadata_table.style = "Table Grid"
+    for label, value in report.metadata:
+        row = metadata_table.add_row().cells
+        row[0].text = label
+        row[1].text = value
+
+    document.add_heading(report.evidence_title, level=2)
+    document.add_heading(report.facts_title, level=2)
+    facts_table = document.add_table(rows=0, cols=2)
+    facts_table.style = "Table Grid"
+    for label, value in report.facts:
+        row = facts_table.add_row().cells
+        row[0].text = label
+        row[1].text = value
+
+    for section in report.sections:
+        document.add_heading(section.title, level=2)
+        document.add_paragraph(section.body)
+
+    document.add_heading(report.tasks_title, level=2)
+    tasks_table = document.add_table(rows=1, cols=5)
+    tasks_table.style = "Table Grid"
+    task_headers = [
+        labels["task_col_title"],
+        labels["task_col_owner"],
+        labels["task_col_eta"],
+        labels["task_col_status"],
+        labels["task_col_notes"],
+    ]
+    for index, header in enumerate(task_headers):
+        tasks_table.rows[0].cells[index].text = header
+    for task in report.tasks:
+        row = tasks_table.add_row().cells
+        row[0].text = task.title
+        row[1].text = task.owner
+        row[2].text = task.eta
+        row[3].text = task.status
+        row[4].text = task.notes or "-"
+
+    document.add_heading(report.audit_title, level=2)
+    for entry in report.audit_timeline:
+        paragraph = document.add_paragraph()
+        kicker = paragraph.add_run(f"{entry.stage_label} | {entry.occurred_at}\n")
+        kicker.bold = True
+        title_run = paragraph.add_run(f"{entry.title}\n")
+        title_run.bold = True
+        paragraph.add_run(entry.detail)
+
+    document.add_heading(report.methodology_title, level=2)
+    for point in report.methodology_points:
+        document.add_paragraph(point, style="List Bullet")
+
+    footer = document.add_paragraph()
+    footer_run = footer.add_run(f"{report.classification_line} | {report.file_stem}")
+    footer_run.italic = True
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    buffer = BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def _render_html_metrics(metrics: list[ReportMetric]) -> str:
+    return "".join(
+        (
+            "<div class='metric-card'>"
+            f"<span class='metric-label'>{_escape_html(metric.label)}</span>"
+            f"<strong class='metric-value'>{_escape_html(metric.value)}</strong>"
+            f"<span class='metric-detail'>{_escape_html(metric.detail)}</span>"
+            "</div>"
+        )
+        for metric in metrics
+    )
+
+
+def _build_pdf_metric_story(
+    metrics: list[ReportMetric],
+    body_style: ParagraphStyle,
+    bold_font: str,
+) -> list[object]:
+    if not metrics:
+        return []
+    metric_rows: list[list[object]] = []
+    for index in range(0, len(metrics), 3):
+        cards = metrics[index:index + 3]
+        while len(cards) < 3:
+            cards.append(ReportMetric("", "", ""))
+        metric_rows.append(
+            [
+                Paragraph(
+                    (
+                        f"<font name='{bold_font}' size='8'>{_escape_html(card.label)}</font><br/>"
+                        f"<font name='{bold_font}' size='16'>{_escape_html(card.value)}</font><br/>"
+                        f"<font size='8'>{_escape_html(card.detail)}</font>"
+                    )
+                    if card.label
+                    else "",
+                    body_style,
+                )
+                for card in cards
+            ]
+        )
+    table = Table(metric_rows, colWidths=[58 * mm, 58 * mm, 58 * mm], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#dae3e7")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#dae3e7")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    return [table, Spacer(1, 10)]
+
+
+def _draw_pdf_footer(canvas, doc, report: PreparedReport, regular_font: str) -> None:
+    canvas.saveState()
+    canvas.setFont(regular_font, 8)
+    canvas.setFillColor(colors.HexColor("#63727d"))
+    canvas.drawString(doc.leftMargin, 10 * mm, report.classification_line)
+    canvas.drawRightString(
+        A4[0] - doc.rightMargin,
+        10 * mm,
+        f"{report.file_stem} | {doc.page}",
+    )
+    canvas.restoreState()
+
+
+def _append_docx_metric_table(document: Document, metrics: list[ReportMetric]) -> None:
+    if not metrics:
+        return
+    table = document.add_table(rows=0, cols=3)
+    table.style = "Table Grid"
+    for row_start in range(0, len(metrics), 3):
+        row = table.add_row().cells
+        chunk = metrics[row_start:row_start + 3]
+        for index in range(3):
+            if index < len(chunk):
+                metric = chunk[index]
+                row[index].text = f"{metric.label}\n{metric.value}\n{metric.detail}"
+            else:
+                row[index].text = ""
+
+
 def _labels(locale: Locale) -> dict[str, str]:
     if locale == "ru":
         return {
             "title": "Отчет Saryna MRV",
             "subtitle": "Рабочий отчет по кейсу: зона, ход проверки, ответственные и журнал действий.",
+            "classification_line": "MRV-отчет для скрининга и операционной приоритизации",
             "summary_title": "Итог по кейсу",
+            "recommended_action_title": "Рекомендуемое действие",
+            "management_title": "Управленческий срез",
+            "evidence_title": "Операционные доказательства",
+            "metadata_title": "Контекст документа",
+            "metadata_document_id": "ID документа",
+            "metadata_locale": "Язык",
+            "key_metrics_title": "Ключевые показатели",
+            "supporting_metrics_title": "Операционный контекст",
             "facts_title": "Карточка кейса",
             "tasks_title": "Задачи на проверку",
             "audit_title": "Журнал действий",
@@ -745,7 +1475,16 @@ def _labels(locale: Locale) -> dict[str, str]:
     return {
         "title": "Saryna MRV Report",
         "subtitle": "Operational report for the case: suspected zone, verification progress, owners, and audit trail.",
+        "classification_line": "MRV report for screening and operational prioritization",
         "summary_title": "Case summary",
+        "recommended_action_title": "Recommended action",
+        "management_title": "Management snapshot",
+        "evidence_title": "Operational evidence",
+        "metadata_title": "Document context",
+        "metadata_document_id": "Document ID",
+        "metadata_locale": "Locale",
+        "key_metrics_title": "Key metrics",
+        "supporting_metrics_title": "Operational context",
         "facts_title": "Case facts",
         "tasks_title": "Verification tasks",
         "audit_title": "Audit Timeline",
@@ -972,10 +1711,32 @@ def _task_progress_detail(completed: int, total: int, locale: Locale) -> str:
     return f"{completed} of {total} tasks completed"
 
 
+def _timeline_stage_label(value: str, locale: Locale) -> str:
+    if locale == "ru":
+        return {
+            "ingest": "Скрининг",
+            "incident": "Инцидент",
+            "verification": "Проверка",
+            "report": "Отчет",
+        }.get(value, value)
+    return {
+        "ingest": "Screening",
+        "incident": "Incident",
+        "verification": "Verification",
+        "report": "Report",
+    }.get(value, value)
+
+
+def _translate_audit_title(value: str, locale: Locale) -> str:
+    if locale != "ru":
+        return value
+    return AUDIT_TITLE_TRANSLATIONS.get(value, value)
+
+
 def _format_audit_line(event: ActivityEvent, locale: Locale) -> str:
     source = AUDIT_SOURCE_TRANSLATIONS.get(event.source, event.source) if locale == "ru" else event.source
     if locale == "ru":
-        title = AUDIT_TITLE_TRANSLATIONS.get(event.title, event.title)
+        title = _translate_audit_title(event.title, locale)
         detail = _translate_audit_detail(event.detail, locale)
         actor = _translate_owner(event.actor, locale)
         return f"{event.occurred_at} | {title} | {detail} | источник: {source} | исполнитель: {actor}"

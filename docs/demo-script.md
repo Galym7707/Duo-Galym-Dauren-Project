@@ -76,15 +76,18 @@ Point to:
 ### 1:05-1:25
 Screen:
 - Open the Report step.
-- Show MRV sections and audit timeline.
-- Mention `Download HTML` and `Open print view`.
+- Show the executive brief first page, then the workflow timeline.
+- Mention `Download PDF`, `Download Word`, `Download HTML`, and `Open print view`.
 
 Say:
 - "The differentiator is the closed loop: anomaly, incident, task, MRV report."
 - "This gives ESG, compliance, and operations one defensible workflow rather than disconnected tools."
+- "The first page is built for a manager or regulator to understand the case quickly, while the following sections keep the operational evidence."
 
 Point to:
-- report sections
+- executive summary
+- recommended action
+- key metrics
 - audit timeline
 - export / print actions
 

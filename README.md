@@ -17,6 +17,13 @@ The product focus is not a map by itself. The core loop is:
 4. Track verification tasks
 5. Export an MRV report
 
+The export step is designed to read like an executive MRV brief first and an operational evidence pack second:
+
+- executive summary and recommended action on page 1
+- key methane and workflow metrics up front
+- operational evidence, tasks, and audit workflow after that
+- HTML, PDF, and DOCX exports aligned by structure
+
 ## What is in this repository
 
 - `apps/web` — Next.js frontend
