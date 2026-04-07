@@ -7,6 +7,8 @@ import re
 from typing import Literal
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor
 from reportlab.lib import colors
@@ -57,6 +59,18 @@ class PreparedReport:
     audit_lines: list[str]
     methodology_title: str
     methodology_points: list[str]
+
+
+@dataclass(frozen=True)
+class ExportFontConfig:
+    pdf_family: str
+    pdf_regular: str
+    pdf_bold: str
+    docx_family: str
+
+
+class ReportExportFontError(RuntimeError):
+    """Raised when the host cannot provide a Unicode-capable export font."""
 
 
 REGION_TRANSLATIONS = {
@@ -381,7 +395,9 @@ def render_html(report: PreparedReport, auto_print: bool = False) -> str:
 
 
 def render_pdf(report: PreparedReport) -> bytes:
-    regular_font, bold_font = _resolve_pdf_fonts()
+    font_config = _resolve_export_fonts()
+    regular_font = font_config.pdf_regular
+    bold_font = font_config.pdf_bold
     labels = _labels(report.locale)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -456,7 +472,10 @@ def render_pdf(report: PreparedReport) -> bytes:
     ]
 
     summary_box = Table(
-        [[Paragraph(f"<b>{_escape_html(report.summary_title)}</b><br/>{_escape_html(report.summary_body)}", body_style)]],
+        [[Paragraph(
+            f"<font name='{bold_font}'>{_escape_html(report.summary_title)}</font><br/>{_escape_html(report.summary_body)}",
+            body_style,
+        )]],
         colWidths=[178 * mm],
         hAlign="LEFT",
     )
@@ -483,8 +502,8 @@ def render_pdf(report: PreparedReport) -> bytes:
             [
                 Paragraph(
                     (
-                        f"<font size='8'><b>{_escape_html(card.label)}</b></font><br/>"
-                        f"<font size='16'><b>{_escape_html(card.value)}</b></font><br/>"
+                        f"<font name='{bold_font}' size='8'>{_escape_html(card.label)}</font><br/>"
+                        f"<font name='{bold_font}' size='16'>{_escape_html(card.value)}</font><br/>"
                         f"<font size='8'>{_escape_html(card.detail)}</font>"
                     )
                     if card.label
@@ -514,7 +533,7 @@ def render_pdf(report: PreparedReport) -> bytes:
     elements.append(Paragraph(_escape_html(report.facts_title), section_style))
     fact_rows = [
         [
-            Paragraph(f"<b>{_escape_html(label)}</b>", body_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(label)}</font>", body_style),
             Paragraph(_escape_html(value), body_style),
         ]
         for label, value in report.facts
@@ -543,11 +562,11 @@ def render_pdf(report: PreparedReport) -> bytes:
     elements.append(Paragraph(_escape_html(report.tasks_title), section_style))
     task_rows = [
         [
-            Paragraph(f"<b>{_escape_html(labels['task_col_title'])}</b>", small_style),
-            Paragraph(f"<b>{_escape_html(labels['task_col_owner'])}</b>", small_style),
-            Paragraph(f"<b>{_escape_html(labels['task_col_eta'])}</b>", small_style),
-            Paragraph(f"<b>{_escape_html(labels['task_col_status'])}</b>", small_style),
-            Paragraph(f"<b>{_escape_html(labels['task_col_notes'])}</b>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_title'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_owner'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_eta'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_status'])}</font>", small_style),
+            Paragraph(f"<font name='{bold_font}'>{_escape_html(labels['task_col_notes'])}</font>", small_style),
         ]
     ]
     for task in report.tasks:
@@ -597,21 +616,22 @@ def render_pdf(report: PreparedReport) -> bytes:
 
 
 def render_docx(report: PreparedReport) -> bytes:
+    font_config = _resolve_export_fonts()
     labels = _labels(report.locale)
     document = Document()
     normal_style = document.styles["Normal"]
-    normal_style.font.name = "Arial"
-    normal_style.font.size = Pt(10.5)
+    _apply_docx_font(normal_style, font_config.docx_family, size_pt=10.5)
 
     heading_1 = document.styles["Heading 1"]
-    heading_1.font.name = "Arial"
-    heading_1.font.size = Pt(20)
+    _apply_docx_font(heading_1, font_config.docx_family, size_pt=20)
     heading_1.font.color.rgb = RGBColor(0x10, 0x21, 0x2B)
 
     heading_2 = document.styles["Heading 2"]
-    heading_2.font.name = "Arial"
-    heading_2.font.size = Pt(13)
+    _apply_docx_font(heading_2, font_config.docx_family, size_pt=13)
     heading_2.font.color.rgb = RGBColor(0x13, 0x26, 0x33)
+
+    if "List Bullet" in document.styles:
+        _apply_docx_font(document.styles["List Bullet"], font_config.docx_family, size_pt=10.5)
 
     document.add_paragraph(report.status_badge)
     title = document.add_heading(report.title, level=1)
@@ -1081,34 +1101,63 @@ def _escape_html(value: str) -> str:
     )
 
 
-def _resolve_pdf_fonts() -> tuple[str, str]:
+def _resolve_export_fonts() -> ExportFontConfig:
     font_candidates = [
         (
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-            "DejaVuSans",
-            "DejaVuSansBold",
+            "DejaVu Sans",
         ),
         (
-            Path("C:/Windows/Fonts/DejaVuSans.ttf"),
-            Path("C:/Windows/Fonts/DejaVuSans-Bold.ttf"),
-            "DejaVuSans",
-            "DejaVuSansBold",
+            Path("C:/Windows/Fonts/segoeui.ttf"),
+            Path("C:/Windows/Fonts/segoeuib.ttf"),
+            "Segoe UI",
+        ),
+        (
+            Path("C:/Windows/Fonts/tahoma.ttf"),
+            Path("C:/Windows/Fonts/tahomabd.ttf"),
+            "Tahoma",
         ),
         (
             Path("C:/Windows/Fonts/arial.ttf"),
             Path("C:/Windows/Fonts/arialbd.ttf"),
-            "ArialUnicode",
-            "ArialUnicodeBold",
+            "Arial",
         ),
     ]
 
-    for regular_path, bold_path, regular_name, bold_name in font_candidates:
+    for regular_path, bold_path, docx_family in font_candidates:
         if regular_path.exists() and bold_path.exists():
+            family_slug = re.sub(r"[^A-Za-z0-9]+", "", docx_family) or "SarynaExport"
+            regular_name = f"{family_slug}Regular"
+            bold_name = f"{family_slug}Bold"
+            family_name = f"{family_slug}Family"
             if regular_name not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
             if bold_name not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
-            return regular_name, bold_name
+            return ExportFontConfig(
+                pdf_family=family_name,
+                pdf_regular=regular_name,
+                pdf_bold=bold_name,
+                docx_family=docx_family,
+            )
 
-    return "Helvetica", "Helvetica-Bold"
+    raise ReportExportFontError(
+        "No Unicode-capable TrueType font is available for PDF and DOCX export on this host."
+    )
+
+
+def _apply_docx_font(style, family: str, size_pt: float | None = None) -> None:
+    font = style.font
+    font.name = family
+    if size_pt is not None:
+        font.size = Pt(size_pt)
+
+    r_pr = style.element.get_or_add_rPr()
+    r_fonts = r_pr.rFonts
+    if r_fonts is None:
+        r_fonts = OxmlElement("w:rFonts")
+        r_pr.append(r_fonts)
+
+    for slot in ("ascii", "hAnsi", "eastAsia", "cs"):
+        r_fonts.set(qn(f"w:{slot}"), family)

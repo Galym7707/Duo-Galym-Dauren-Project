@@ -935,6 +935,22 @@ export default function Page() {
     setSelectedAnomalyId(strongestAnomaly?.id ?? scopedAnomalies[0]?.id ?? "");
   }, [scopedAnomalies, selectedAnomalyId, strongestAnomaly]);
 
+  const scrollWorkspaceToTop = () => {
+    window.requestAnimationFrame(() => {
+      workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const openWorkspaceStep = (target: NavTarget) => {
+    if (target === "faq") {
+      faqRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    setActiveStep(target);
+    scrollWorkspaceToTop();
+  };
+
   const runPipelineSync = async () => {
     if (!hasApiBaseUrl) {
       setRequestError(screeningText.noApi);
@@ -990,7 +1006,7 @@ export default function Page() {
   const promoteToIncident = async () => {
     if (!selectedAnomaly) return;
     if (selectedAnomaly.linkedIncidentId) {
-      setActiveStep("incident");
+      openWorkspaceStep("incident");
       return;
     }
 
@@ -1010,7 +1026,7 @@ export default function Page() {
     try {
       const incident = await promoteAnomalyRequest(selectedAnomaly.id);
       applyIncidentUpdate(incident, selectedAnomaly.id);
-      setActiveStep("incident");
+      openWorkspaceStep("incident");
     } catch {
       setRequestError(
         locale === "ru"
@@ -1073,7 +1089,7 @@ export default function Page() {
     try {
       const incident = await generateReportRequest(activeIncident.id);
       applyIncidentUpdate(incident, incident.anomalyId);
-      setActiveStep("report");
+      openWorkspaceStep("report");
     } catch {
       setRequestError(
         locale === "ru"
@@ -1134,7 +1150,7 @@ export default function Page() {
     setSelectedAnomalyId(anomalyId);
     setActiveStep("signal");
     setRequestError(null);
-    workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollWorkspaceToTop();
   };
 
   const changeMapPreset = (presetId: MapPresetId) => {
@@ -1143,14 +1159,8 @@ export default function Page() {
   };
 
   const handleNavSelect = (target: NavTarget) => {
-    if (target === "faq") {
-      faqRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
     if (target !== "signal" && !activeIncident) return;
-
-    setActiveStep(target);
-    workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openWorkspaceStep(target);
   };
 
   function applyIncidentUpdate(incident: Incident, anomalyId: string) {
@@ -1730,10 +1740,10 @@ export default function Page() {
                 </section>
 
                 <div className="panel-actions panel-actions-wrap">
-                  <button className="primary-button" onClick={() => setActiveStep("verification")} type="button">
+                  <button className="primary-button" onClick={() => openWorkspaceStep("verification")} type="button">
                     {t.actions.openVerification}
                   </button>
-                  <button className="secondary-button" onClick={() => setActiveStep("signal")} type="button">
+                  <button className="secondary-button" onClick={() => openWorkspaceStep("signal")} type="button">
                     {t.actions.backToSignal}
                   </button>
                 </div>
@@ -1796,7 +1806,7 @@ export default function Page() {
                   >
                     {busyAction === `report-${activeIncident.id}` ? t.actions.generating : t.actions.generateReport}
                   </button>
-                  <button className="secondary-button" onClick={() => setActiveStep("incident")} type="button">
+                  <button className="secondary-button" onClick={() => openWorkspaceStep("incident")} type="button">
                     {t.actions.openIncident}
                   </button>
                 </div>
@@ -1882,7 +1892,7 @@ export default function Page() {
                   <button className="secondary-button" onClick={openPrintView} type="button">
                     {t.actions.printView}
                   </button>
-                  <button className="secondary-button" onClick={() => setActiveStep("signal")} type="button">
+                  <button className="secondary-button" onClick={() => openWorkspaceStep("signal")} type="button">
                     {t.actions.reviewAnother}
                   </button>
                 </div>

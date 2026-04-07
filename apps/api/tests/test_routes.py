@@ -7,6 +7,7 @@ from app.api import routes
 from app.main import app
 from app.models import CreateTaskRequest
 from app.providers.gee import GeeCandidate, GeeSyncSummary
+from app.services.report_exports import ReportExportFontError
 from app.services.workflow_store import WorkflowStore
 
 
@@ -198,3 +199,23 @@ def test_report_export_supports_html_pdf_and_docx() -> None:
     full_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
     assert "Отчет Saryna MRV" in full_text
     assert "Итог по кейсу" in full_text
+
+
+def test_pdf_export_returns_503_when_unicode_font_is_unavailable(monkeypatch) -> None:
+    client = make_client()
+    live_anomaly_id = sync_live_candidate(client)
+    promote = client.post(f"/api/v1/anomalies/{live_anomaly_id}/promote", json={"owner": "ESG desk"})
+    incident_id = promote.json()["id"]
+
+    report = client.post(f"/api/v1/incidents/{incident_id}/report")
+    assert report.status_code == 200
+
+    def raise_font_error(incident_id: str, locale: str = "en") -> bytes:
+        raise ReportExportFontError("No Unicode-capable TrueType font is available for PDF and DOCX export on this host.")
+
+    monkeypatch.setattr(routes.store, "export_report_pdf", raise_font_error)
+
+    pdf = client.get(f"/api/v1/incidents/{incident_id}/report/export?format=pdf&locale=ru")
+
+    assert pdf.status_code == 503
+    assert "Unicode-capable TrueType font" in pdf.json()["detail"]

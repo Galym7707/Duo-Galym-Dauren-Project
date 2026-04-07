@@ -17,8 +17,9 @@ from app.models import (
     PromoteAnomalyRequest,
 )
 from app.services.pipeline_scheduler import PipelineScheduler
-from app.services.workflow_store import WorkflowStore
 from app.services.pipeline_service import PipelineService
+from app.services.report_exports import ReportExportFontError
+from app.services.workflow_store import WorkflowStore
 
 router = APIRouter(prefix="/api/v1", tags=["mrv"])
 store = WorkflowStore()
@@ -150,6 +151,8 @@ async def export_report(
             extension = "html"
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Unknown incident {incident_id}") from error
+    except ReportExportFontError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
     return Response(
         content=content,
